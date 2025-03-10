@@ -1,8 +1,19 @@
-version: '3.8'
+version: '3.9'
 
 services:
+  backend:
+    build: ./RPGBackendFastAPI
+    ports:
+      - "4050:4050"
+    volumes:
+      - ./backend-fastapi:/app
+    command: uvicorn app.main:app --host 0.0.0.0 --port 4050 --reload
+    depends_on:
+      - frontend
+    restart: always
+
   frontend:
-    build: ./frontend-react
+    build: ./RPGFrontendReact
     ports:
       - "3000:3000"
     volumes:
@@ -14,19 +25,8 @@ services:
     stdin_open: true
     tty: true
 
-  backend:
-    build: ./backend-fastapi
-    ports:
-      - "8000:8000"
-    volumes:
-      - ./backend-fastapi:/app
-    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
-    depends_on:
-      - frontend
-    restart: always
-
-  qt-app:
-    build: .
+  desktop:
+    build: ./RPGQtWebApp
     environment:
       - DISPLAY=$DISPLAY
       - QT_X11_NO_MITSHM=1

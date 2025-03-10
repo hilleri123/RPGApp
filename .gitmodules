@@ -7,3 +7,6 @@
 [submodule "RPGQtWebApp"]
 	path = RPGQtWebApp
 	url = git@github.com:hilleri123/RPGQtWebApp.git
+[submodule "RPGdata"]
+	path = RPGdata
+	url = git@github.com:hilleri123/RPGdata.git
