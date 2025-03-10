@@ -1,0 +1,36 @@
+version: '3.8'
+
+services:
+  frontend:
+    build: ./frontend-react
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./frontend-react:/app
+      - /app/node_modules
+    environment:
+      - NODE_ENV=development
+    command: npm start
+    stdin_open: true
+    tty: true
+
+  backend:
+    build: ./backend-fastapi
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend-fastapi:/app
+    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+    depends_on:
+      - frontend
+    restart: always
+
+  qt-app:
+    build: .
+    environment:
+      - DISPLAY=$DISPLAY
+      - QT_X11_NO_MITSHM=1
+    volumes:
+      - /tmp/.X11-unix:/tmp/.X11-unix:rw
+    stdin_open: true
+    tty: true
