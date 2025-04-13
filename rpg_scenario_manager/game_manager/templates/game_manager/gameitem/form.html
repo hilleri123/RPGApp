@@ -1,0 +1,96 @@
+<!-- templates/game_manager/gameitem/form.html -->
+{% extends 'base.html' %}
+
+{% block title %}{{ title }} - Менеджер сценариев RPG{% endblock %}
+
+{% block extra_css %}
+<link href="https://cdn.jsdelivr.net/npm/jsoneditor@9.9.0/dist/jsoneditor.min.css" rel="stylesheet">
+<style>
+    #json-editor {
+        height: 300px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div class="card-header">
+        <h3>{{ title }}</h3>
+    </div>
+    <div class="card-body">
+        <form method="post" id="gameItemForm">
+            {% csrf_token %}
+            
+            <div class="mb-3">
+                <label for="{{ form.name.id_for_label }}" class="form-label">Название</label>
+                {{ form.name.errors }}
+                {{ form.name }}
+                {% if form.name.help_text %}
+                <div class="form-text">{{ form.name.help_text }}</div>
+                {% endif %}
+            </div>
+            
+            <div class="mb-3">
+                <label for="{{ form.text.id_for_label }}" class="form-label">Описание</label>
+                {{ form.text.errors }}
+                {{ form.text }}
+                {% if form.text.help_text %}
+                <div class="form-text">{{ form.text.help_text }}</div>
+                {% endif %}
+            </div>
+            
+            <div class="mb-3">
+                <label for="json-editor" class="form-label">Бонусы (JSON)</label>
+                {{ form.bonuses.errors }}
+                <div id="json-editor"></div>
+                <input type="hidden" name="{{ form.bonuses.name }}" id="{{ form.bonuses.id_for_label }}" 
+                       value="{{ form.bonuses.value|default:'{}' }}">
+                <div class="form-text">{{ form.bonuses.help_text }}</div>
+            </div>
+            
+            <div class="d-flex justify-content-between">
+                <a href="{% url 'gameitem_list' %}" class="btn btn-secondary">Отмена</a>
+                <button type="submit" class="btn btn-primary">Сохранить</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/jsoneditor@9.9.0/dist/jsoneditor.min.js"></script>
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Инициализация JSON-редактора
+        const container = document.getElementById('json-editor');
+        const options = {
+            mode: 'tree',
+            modes: ['tree', 'view', 'form', 'code', 'text'],
+            onChange: function() {
+                const json = editor.get();
+                document.getElementById('{{ form.bonuses.id_for_label }}').value = JSON.stringify(json);
+            }
+        };
+        const editor = new JSONEditor(container, options);
+        
+        // Загрузка начального значения
+        try {
+            const initialValue = document.getElementById('{{ form.bonuses.id_for_label }}').value;
+            if (initialValue && initialValue.trim() !== '') {
+                editor.set(JSON.parse(initialValue));
+            } else {
+                editor.set({});
+            }
+        } catch (e) {
+            console.error('Ошибка при парсинге JSON:', e);
+            editor.set({});
+        }
+        
+        // Обновление скрытого поля при отправке формы
+        document.getElementById('gameItemForm').addEventListener('submit', function() {
+            const json = editor.get();
+            document.getElementById('{{ form.bonuses.id_for_label }}').value = JSON.stringify(json);
+        });
+    });
+</script>
+{% endblock %}

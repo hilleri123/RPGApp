@@ -1,0 +1,71 @@
+<!-- templates/game_manager/playercharacter/list.html -->
+{% extends 'base.html' %}
+
+{% block title %}Персонажи игроков - Менеджер сценариев RPG{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h1>Персонажи игроков</h1>
+    <a href="{% url 'playercharacter_create' %}" class="btn btn-success">
+        <i class="bi bi-plus-circle"></i> Добавить персонажа
+    </a>
+</div>
+
+<div class="card">
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-striped table-hover">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Имя</th>
+                        <th>Карта</th>
+                        <th>Локация</th>
+                        <th>Заблокирован</th>
+                        <th>Действия</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for character in characters %}
+                    <tr>
+                        <td>{{ character.id }}</td>
+                        <td>
+                            <span class="badge" style="background-color: {{ character.color }};">
+                                &nbsp;
+                            </span>
+                            {{ character.name }}
+                        </td>
+                        <td>{{ character.map.name|default:"—" }}</td>
+                        <td>{{ character.location.name|default:"—" }}</td>
+                        <td>
+                            {% if character.player_locked %}
+                                <span class="badge bg-danger">Да</span>
+                            {% else %}
+                                <span class="badge bg-success">Нет</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <div class="btn-group btn-group-sm">
+                                <a href="{% url 'playercharacter_detail' character.id %}" class="btn btn-info">
+                                    Просмотр
+                                </a>
+                                <a href="{% url 'playercharacter_update' character.id %}" class="btn btn-warning">
+                                    Редактировать
+                                </a>
+                                <a href="{% url 'playercharacter_delete' character.id %}" class="btn btn-danger">
+                                    Удалить
+                                </a>
+                            </div>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="6" class="text-center">Нет доступных персонажей</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,66 @@
+<!-- templates/game_manager/gameevent/list.html -->
+{% extends 'base.html' %}
+
+{% block title %}Игровые события - Менеджер сценариев RPG{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h1>Игровые события</h1>
+    <a href="{% url 'gameevent_create' %}" class="btn btn-success">
+        <i class="bi bi-plus-circle"></i> Добавить событие
+    </a>
+</div>
+
+<div class="card">
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-striped table-hover">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Название</th>
+                        <th>Произошло</th>
+                        <th>Начало</th>
+                        <th>Окончание</th>
+                        <th>Действия</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for event in events %}
+                    <tr>
+                        <td>{{ event.id }}</td>
+                        <td>{{ event.name }}</td>
+                        <td>
+                            {% if event.happened %}
+                                <span class="badge bg-success">Да</span>
+                            {% else %}
+                                <span class="badge bg-warning">Нет</span>
+                            {% endif %}
+                        </td>
+                        <td>{{ event.start_time|date:"d.m.Y H:i"|default:"—" }}</td>
+                        <td>{{ event.end_time|date:"d.m.Y H:i"|default:"—" }}</td>
+                        <td>
+                            <div class="btn-group btn-group-sm">
+                                <a href="{% url 'gameevent_detail' event.id %}" class="btn btn-info">
+                                    Просмотр
+                                </a>
+                                <a href="{% url 'gameevent_update' event.id %}" class="btn btn-warning">
+                                    Редактировать
+                                </a>
+                                <a href="{% url 'gameevent_delete' event.id %}" class="btn btn-danger">
+                                    Удалить
+                                </a>
+                            </div>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="6" class="text-center">Нет доступных событий</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

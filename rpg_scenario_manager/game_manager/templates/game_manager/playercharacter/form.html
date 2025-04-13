@@ -1,0 +1,115 @@
+<!-- templates/game_manager/playercharacter/form.html -->
+{% extends 'base.html' %}
+
+{% block title %}{{ title }} - Менеджер сценариев RPG{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div class="card-header">
+        <h3>{{ title }}</h3>
+    </div>
+    <div class="card-body">
+        <form method="post">
+            {% csrf_token %}
+            
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="mb-3">
+                        <label for="{{ form.name.id_for_label }}" class="form-label">Имя</label>
+                        {{ form.name.errors }}
+                        {{ form.name }}
+                        {% if form.name.help_text %}
+                        <div class="form-text">{{ form.name.help_text }}</div>
+                        {% endif %}
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="{{ form.path_to_img.id_for_label }}" class="form-label">Путь к изображению</label>
+                        {{ form.path_to_img.errors }}
+                        {{ form.path_to_img }}
+                        {% if form.path_to_img.help_text %}
+                        <div class="form-text">{{ form.path_to_img.help_text }}</div>
+                        {% endif %}
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="{{ form.color.id_for_label }}" class="form-label">Цвет персонажа</label>
+                        {{ form.color.errors }}
+                        {{ form.color }}
+                        {% if form.color.help_text %}
+                        <div class="form-text">{{ form.color.help_text }}</div>
+                        {% endif %}
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="{{ form.address.id_for_label }}" class="form-label">Адрес</label>
+                        {{ form.address.errors }}
+                        {{ form.address }}
+                        {% if form.address.help_text %}
+                        <div class="form-text">{{ form.address.help_text }}</div>
+                        {% endif %}
+                    </div>
+                </div>
+                
+                <div class="col-md-6">
+                    <div class="mb-3">
+                        <label for="{{ form.short_desc.id_for_label }}" class="form-label">Краткое описание</label>
+                        {{ form.short_desc.errors }}
+                        {{ form.short_desc }}
+                        {% if form.short_desc.help_text %}
+                        <div class="form-text">{{ form.short_desc.help_text }}</div>
+                        {% endif %}
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="{{ form.time.id_for_label }}" class="form-label">Время</label>
+                        {{ form.time.errors }}
+                        {{ form.time }}
+                        {% if form.time.help_text %}
+                        <div class="form-text">{{ form.time.help_text }}</div>
+                        {% endif %}
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="{{ form.map.id_for_label }}" class="form-label">Карта</label>
+                        {{ form.map.errors }}
+                        {{ form.map }}
+                        {% if form.map.help_text %}
+                        <div class="form-text">{{ form.map.help_text }}</div>
+                        {% endif %}
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="{{ form.location.id_for_label }}" class="form-label">Локация</label>
+                        {{ form.location.errors }}
+                        {{ form.location }}
+                        {% if form.location.help_text %}
+                        <div class="form-text">{{ form.location.help_text }}</div>
+                        {% endif %}
+                    </div>
+                    
+                    <div class="mb-3 form-check">
+                        {{ form.player_locked }}
+                        <label for="{{ form.player_locked.id_for_label }}" class="form-check-label">Персонаж заблокирован</label>
+                        {{ form.player_locked.errors }}
+                    </div>
+                </div>
+            </div>
+            
+            <div class="mb-3">
+                <label for="{{ form.story.id_for_label }}" class="form-label">История</label>
+                {{ form.story.errors }}
+                {{ form.story }}
+                {% if form.story.help_text %}
+                <div class="form-text">{{ form.story.help_text }}</div>
+                {% endif %}
+            </div>
+            
+            <div class="d-flex justify-content-between">
+                <a href="{% url 'playercharacter_list' %}" class="btn btn-secondary">Отмена</a>
+                <button type="submit" class="btn btn-primary">Сохранить</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

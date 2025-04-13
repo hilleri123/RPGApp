@@ -1,0 +1,67 @@
+<!-- templates/game_manager/skill/detail.html -->
+{% extends 'base.html' %}
+
+{% block title %}{{ skill.name }} - Навык - Менеджер сценариев RPG{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div class="card-header">
+        <div class="d-flex justify-content-between align-items-center">
+            <h3>{{ skill.name }}</h3>
+            <div>
+                <a href="{% url 'skill_update' skill.id %}" class="btn btn-warning">
+                    <i class="bi bi-pencil"></i> Редактировать
+                </a>
+                <a href="{% url 'skill_delete' skill.id %}" class="btn btn-danger">
+                    <i class="bi bi-trash"></i> Удалить
+                </a>
+            </div>
+        </div>
+    </div>
+    <div class="card-body">
+        <dl class="row">
+            <dt class="col-sm-3">ID:</dt>
+            <dd class="col-sm-9">{{ skill.id }}</dd>
+            
+            <dt class="col-sm-3">Название:</dt>
+            <dd class="col-sm-9">{{ skill.name }}</dd>
+            
+            <dt class="col-sm-3">Группа навыков:</dt>
+            <dd class="col-sm-9">
+                <a href="{% url 'skillgroup_detail' skill.group.id %}">{{ skill.group.name }}</a>
+            </dd>
+        </dl>
+        
+        <h4 class="mt-4">Персонажи с этим навыком</h4>
+        <div class="table-responsive">
+            <table class="table table-sm table-striped">
+                <thead>
+                    <tr>
+                        <th>Персонаж</th>
+                        <th>Начальное значение</th>
+                        <th>Текущее значение</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for stat in skill.stat_set.all %}
+                    <tr>
+                        <td>{{ stat.character.name }}</td>
+                        <td>{{ stat.init_value }}</td>
+                        <td>{{ stat.value }}</td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="3" class="text-center">Нет персонажей с этим навыком</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    <div class="card-footer">
+        <a href="{% url 'skill_list' %}" class="btn btn-secondary">
+            <i class="bi bi-arrow-left"></i> Назад к списку навыков
+        </a>
+    </div>
+</div>
+{% endblock %}
