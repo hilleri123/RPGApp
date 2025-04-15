@@ -3,7 +3,7 @@
 from django.contrib import admin
 from .models import (
     SkillGroup, Skill, GameItem, NPC, SceneMap, Location, 
-    PlayerCharacter, Stat, WhereObject, GlobalSession,
+    PlayerCharacter, StatHolder, StatValue, WhereObject, GlobalSession,
     PlayerAction, MapObjectPolygon, GameEvent, Note
 )
 
@@ -14,8 +14,8 @@ class SkillGroupAdmin(admin.ModelAdmin):
 
 @admin.register(Skill)
 class SkillAdmin(admin.ModelAdmin):
-    list_display = ['id', 'name', 'group_id']  # Исправлено с 'group' на 'group_id'
-    list_filter = ['group_id']  # Исправлено
+    list_display = ['id', 'name', 'group']  # Исправлено с 'group' на 'group'
+    list_filter = ['group']  # Исправлено
     search_fields = ['name']
 
 @admin.register(GameItem)
@@ -36,25 +36,30 @@ class SceneMapAdmin(admin.ModelAdmin):
 
 @admin.register(Location)
 class LocationAdmin(admin.ModelAdmin):
-    list_display = ['id', 'name', 'leads_to_id']  # Исправлено с 'leads_to' на 'leads_to_id'
-    list_filter = ['leads_to_id']  # Исправлено
+    list_display = ['id', 'name', 'leads_to']  # Исправлено с 'leads_to' на 'leads_to'
+    list_filter = ['leads_to']  # Исправлено
     search_fields = ['name', 'description']
 
 @admin.register(PlayerCharacter)
 class PlayerCharacterAdmin(admin.ModelAdmin):
-    list_display = ['id', 'name', 'map_id', 'location_id', 'player_locked']  # Исправлено
-    list_filter = ['map_id', 'location_id', 'player_locked']  # Исправлено
+    list_display = ['id', 'name', 'map', 'location', 'player_locked']  # Исправлено
+    list_filter = ['map', 'location', 'player_locked']  # Исправлено
     search_fields = ['name', 'short_desc']
+    
+@admin.register(StatHolder)
+class StatHolderAdmin(admin.ModelAdmin):
+    list_display = ['id', 'content_type', 'object_id', 'name']
+    list_filter = ['content_type']
 
-@admin.register(Stat)
-class StatAdmin(admin.ModelAdmin):
-    list_display = ['character_id', 'skill_id', 'init_value', 'value']  # Исправлено
-    list_filter = ['character_id', 'skill_id']  # Исправлено
+@admin.register(StatValue)
+class StatValueAdmin(admin.ModelAdmin):
+    list_display = ['id', 'stat_holder', 'skill', 'initial_value', 'current_value', 'is_requirement']
+    list_filter = ['stat_holder', 'skill', 'is_requirement']
 
 @admin.register(WhereObject)
 class WhereObjectAdmin(admin.ModelAdmin):
-    list_display = ['id', 'game_item_id', 'npc_id', 'location_id', 'player_id']  # Исправлено
-    list_filter = ['location_id', 'npc_id']  # Исправлено
+    list_display = ['id', 'game_item', 'npc', 'location', 'player']  # Исправлено
+    list_filter = ['location', 'npc']  # Исправлено
 
 @admin.register(GlobalSession)
 class GlobalSessionAdmin(admin.ModelAdmin):
@@ -69,8 +74,8 @@ class PlayerActionAdmin(admin.ModelAdmin):
 
 @admin.register(MapObjectPolygon)
 class MapObjectPolygonAdmin(admin.ModelAdmin):
-    list_display = ['id', 'name', 'map_id', 'location_id', 'is_shown']  # Исправлено
-    list_filter = ['map_id', 'location_id', 'is_shown', 'is_filled', 'is_line']  # Исправлено
+    list_display = ['id', 'name', 'map', 'location', 'is_shown']  # Исправлено
+    list_filter = ['map', 'location', 'is_shown', 'is_filled', 'is_line']  # Исправлено
     search_fields = ['name']
 
 @admin.register(GameEvent)
@@ -81,6 +86,6 @@ class GameEventAdmin(admin.ModelAdmin):
 
 @admin.register(Note)
 class NoteAdmin(admin.ModelAdmin):
-    list_display = ['id', 'name', 'action_id']  # Исправлено с 'action' на 'action_id'
-    list_filter = ['action_id']  # Исправлено
+    list_display = ['id', 'name', 'action']  # Исправлено с 'action' на 'action'
+    list_filter = ['action']  # Исправлено
     search_fields = ['name', 'xml_text']

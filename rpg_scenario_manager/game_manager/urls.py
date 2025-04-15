@@ -54,13 +54,6 @@ urlpatterns = [
     path('playercharacters/<int:pk>/edit/', views.PlayerCharacterUpdateView.as_view(), name='playercharacter_update'),
     path('playercharacters/<int:pk>/delete/', views.PlayerCharacterDeleteView.as_view(), name='playercharacter_delete'),
     
-    # Stat URLs
-    path('stats/', views.StatListView.as_view(), name='stat_list'),
-    path('stats/add/', views.StatCreateView.as_view(), name='stat_create'),
-    path('stats/<int:pk>/', views.StatDetailView.as_view(), name='stat_detail'),
-    path('stats/<int:pk>/edit/', views.StatUpdateView.as_view(), name='stat_update'),
-    path('stats/<int:pk>/delete/', views.StatDeleteView.as_view(), name='stat_delete'),
-    
     # WhereObject URLs
     path('whereobjects/', views.WhereObjectListView.as_view(), name='whereobject_list'),
     path('whereobjects/add/', views.WhereObjectCreateView.as_view(), name='whereobject_create'),

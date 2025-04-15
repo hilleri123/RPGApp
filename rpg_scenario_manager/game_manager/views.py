@@ -3,6 +3,7 @@ from django.shortcuts import render, redirect, get_object_or_404
 from django.views.generic import ListView, DetailView, CreateView, UpdateView, DeleteView
 from django.urls import reverse_lazy
 from django.contrib import messages
+from django.forms import formset_factory, modelformset_factory
 from .models import *
 from .forms import *
 
@@ -18,7 +19,7 @@ def index(request):
         'maps_count': SceneMap.objects.count(),
         'events_count': GameEvent.objects.count(),
     }
-    return render(request, 'game_manager/index.html', context)
+    return render(request, 'index.html', context)
 
 # SkillGroup Views
 class SkillGroupListView(ListView):
@@ -371,11 +372,42 @@ class PlayerCharacterCreateView(CreateView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context['title'] = 'Создание персонажа игрока'
+        context['skill_groups'] = SkillGroup.objects.all().prefetch_related('skills')
+        
+        if self.request.POST:
+            context['skills_formset'] = StatValueFormSet(self.request.POST)
+        else:
+            context['skills_formset'] = StatValueFormSet()
+            
         return context
     
     def form_valid(self, form):
-        messages.success(self.request, 'Персонаж игрока успешно создан.')
-        return super().form_valid(form)
+        context = self.get_context_data()
+        skills_formset = context['skills_formset']
+        
+        if form.is_valid() and skills_formset.is_valid():
+            # Сохраняем персонажа
+            self.object = form.save()
+            
+            # Создаем и связываем StatHolder
+            holder = self.object.stats
+            
+            # Сохраняем формсет, но не коммитим изменения
+            instances = skills_formset.save(commit=False)
+            
+            # Связываем каждый StatValue с созданным StatHolder
+            for instance in instances:
+                instance.stat_holder = holder
+                instance.save()
+                
+            # Обрабатываем удаленные экземпляры
+            for instance in skills_formset.deleted_objects:
+                instance.delete()
+                
+            messages.success(self.request, 'Персонаж успешно создан.')
+            return redirect(self.success_url)
+        else:
+            return self.form_invalid(form)
 
 class PlayerCharacterDetailView(DetailView):
     model = PlayerCharacter
@@ -388,14 +420,98 @@ class PlayerCharacterUpdateView(UpdateView):
     template_name = 'game_manager/playercharacter/form.html'
     success_url = reverse_lazy('playercharacter_list')
     
+    def get_object(self, queryset=None):
+        """Получение объекта с предварительной загрузкой зависимостей"""
+        obj = super().get_object(queryset)
+        # Предварительная загрузка статов, если они существуют
+        self.get_or_create_stat_holder(obj)
+        return obj
+    
+    def get_or_create_stat_holder(self, player_character):
+        """Получение или создание держателя навыков для персонажа"""
+        content_type = ContentType.objects.get_for_model(PlayerCharacter)
+        holder, created = StatHolder.objects.get_or_create(
+            content_type=content_type,
+            object_id=player_character.id
+        )
+        return holder
+    
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context['title'] = 'Редактирование персонажа игрока'
+        
+        # Получаем держатель навыков
+        stat_holder = self.get_or_create_stat_holder(self.object)
+        
+        # Создаем формсет для навыков
+        StatValueFormSet = modelformset_factory(
+            StatValue,
+            fields=('skill', 'initial_value', 'current_value'),
+            extra=1,
+            can_delete=True,
+            widgets={
+                'skill': forms.Select(attrs={'class': 'form-control'}),
+                'initial_value': forms.NumberInput(attrs={'class': 'form-control', 'min': 0, 'max': 100}),
+                'current_value': forms.NumberInput(attrs={'class': 'form-control', 'min': 0, 'max': 100})
+            }
+        )
+        
+        # Инициализируем формсет
+        if self.request.POST:
+            context['stat_formset'] = StatValueFormSet(
+                self.request.POST,
+                queryset=StatValue.objects.filter(stat_holder=stat_holder)
+            )
+        else:
+            context['stat_formset'] = StatValueFormSet(
+                queryset=StatValue.objects.filter(stat_holder=stat_holder)
+            )
+        
+        # Добавляем группы навыков для организации интерфейса
+        context['skill_groups'] = SkillGroup.objects.all().prefetch_related('skills')
+        
+        # Сохраняем текущие навыки в словаре для удобства отображения
+        stat_values = StatValue.objects.filter(stat_holder=stat_holder)
+        context['character_stats'] = {sv.skill_id: {
+            'initial_value': sv.initial_value,
+            'current_value': sv.current_value
+        } for sv in stat_values}
+        
         return context
     
     def form_valid(self, form):
-        messages.success(self.request, 'Персонаж игрока успешно обновлен.')
-        return super().form_valid(form)
+        """Обработка валидной формы"""
+        context = self.get_context_data()
+        stat_formset = context['stat_formset']
+        
+        if form.is_valid() and stat_formset.is_valid():
+            # Сохраняем основные данные персонажа
+            self.object = form.save()
+            
+            # Получаем держатель навыков
+            stat_holder = self.get_or_create_stat_holder(self.object)
+            
+            # Сохраняем формсет навыков
+            instances = stat_formset.save(commit=False)
+            for instance in instances:
+                instance.stat_holder = stat_holder
+                instance.save()
+            
+            # Обрабатываем удаленные экземпляры
+            for obj in stat_formset.deleted_objects:
+                obj.delete()
+            
+            messages.success(self.request, f'Персонаж {self.object.name} успешно обновлен.')
+            return redirect(self.get_success_url())
+        else:
+            return self.form_invalid(form)
+    
+    def form_invalid(self, form):
+        """Обработка невалидной формы"""
+        messages.error(self.request, 'Возникли ошибки при сохранении персонажа.')
+        return super().form_invalid(form)
+
+
 
 class PlayerCharacterDeleteView(DeleteView):
     model = PlayerCharacter
@@ -412,64 +528,6 @@ class PlayerCharacterDeleteView(DeleteView):
         messages.success(request, 'Персонаж игрока успешно удален.')
         return super().delete(request, *args, **kwargs)
 
-# Stat Views
-class StatListView(ListView):
-    model = Stat
-    context_object_name = 'stats'
-    template_name = 'game_manager/stat/list.html'
-
-class StatCreateView(CreateView):
-    model = Stat
-    form_class = StatForm
-    template_name = 'game_manager/stat/form.html'
-    success_url = reverse_lazy('stat_list')
-    
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        context['title'] = 'Создание характеристики'
-        return context
-    
-    def form_valid(self, form):
-        messages.success(self.request, 'Характеристика успешно создана.')
-        return super().form_valid(form)
-
-class StatDetailView(DetailView):
-    model = Stat
-    context_object_name = 'stat'
-    template_name = 'game_manager/stat/detail.html'
-
-class StatUpdateView(UpdateView):
-    model = Stat
-    form_class = StatForm
-    template_name = 'game_manager/stat/form.html'
-    success_url = reverse_lazy('stat_list')
-    
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        context['title'] = 'Редактирование характеристики'
-        return context
-    
-    def form_valid(self, form):
-        messages.success(self.request, 'Характеристика успешно обновлена.')
-        return super().form_valid(form)
-
-class StatDeleteView(DeleteView):
-    model = Stat
-    template_name = 'game_manager/confirm_delete.html'
-    success_url = reverse_lazy('stat_list')
-    
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        context['title'] = 'Удаление характеристики'
-        context['message'] = 'Вы уверены, что хотите удалить эту характеристику?'
-        return context
-    
-    def delete(self, request, *args, **kwargs):
-        messages.success(request, 'Характеристика успешно удалена.')
-        return super().delete(request, *args, **kwargs)
-
-# Аналогичные классы представлений для остальных моделей
-# WhereObject, GlobalSession, PlayerAction, MapObjectPolygon, GameEvent, Note
 
 # WhereObject Views
 class WhereObjectListView(ListView):

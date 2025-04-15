@@ -1,5 +1,7 @@
 # game_manager/models.py
 from django.db import models
+from django.contrib.contenttypes.fields import GenericForeignKey
+from django.contrib.contenttypes.models import ContentType
 from colorfield.fields import ColorField
 import datetime
 
@@ -15,7 +17,7 @@ class SkillGroup(models.Model):
 
 class Skill(models.Model):
     name = models.CharField(max_length=255, verbose_name="Название")
-    group_id = models.ForeignKey(SkillGroup, related_name="skills", on_delete=models.CASCADE, verbose_name="Группа")
+    group = models.ForeignKey(SkillGroup, related_name="skills", on_delete=models.CASCADE, verbose_name="Группа")
     
     def __str__(self):
         return self.name
@@ -23,6 +25,38 @@ class Skill(models.Model):
     class Meta:
         verbose_name = "Навык"
         verbose_name_plural = "Навыки"
+
+class StatHolder(models.Model):
+    """Контейнер для хранения набора навыков"""
+    # Полиморфная связь (может указывать на NPC, Player, Action и др.)
+    content_type = models.ForeignKey(ContentType, on_delete=models.CASCADE)
+    object_id = models.PositiveIntegerField()
+    content_object = GenericForeignKey('content_type', 'object_id')
+    
+    name = models.CharField(max_length=255, blank=True, null=True, verbose_name="Название набора")
+    
+    def __str__(self):
+        return f"Навыки: {self.name or self.content_object}"
+    
+    class Meta:
+        verbose_name = "Набор навыков"
+        verbose_name_plural = "Наборы навыков"
+
+class StatValue(models.Model):
+    """Конкретное значение навыка в наборе"""
+    stat_holder = models.ForeignKey(StatHolder, on_delete=models.CASCADE, related_name="stat_values")
+    skill = models.ForeignKey(Skill, on_delete=models.CASCADE, verbose_name="Навык")
+    initial_value = models.IntegerField(default=0, verbose_name="Начальное значение") 
+    current_value = models.IntegerField(default=0, verbose_name="Текущее значение")
+    is_requirement = models.BooleanField(default=False, verbose_name="Является требованием")
+    
+    class Meta:
+        unique_together = ('stat_holder', 'skill')
+        verbose_name = "Значение навыка"
+        verbose_name_plural = "Значения навыков"
+    
+    def __str__(self):
+        return f"{self.skill.name}: {self.current_value}"
 
 class GameItem(models.Model):
     name = models.CharField(max_length=255, default='', verbose_name="Название")
@@ -50,7 +84,7 @@ class SceneMap(models.Model):
 class Location(models.Model):
     name = models.CharField(max_length=255, verbose_name="Название")
     description = models.TextField(verbose_name="Описание")
-    leads_to_id = models.ForeignKey(SceneMap, on_delete=models.SET_NULL, null=True, blank=True, verbose_name="Ведет к карте")
+    leads_to = models.ForeignKey(SceneMap, on_delete=models.SET_NULL, null=True, blank=True, verbose_name="Ведет к карте")
     
     def __str__(self):
         return self.name
@@ -68,9 +102,19 @@ class PlayerCharacter(models.Model):
     color = ColorField(default='#FF0000', verbose_name="Цвет")
     address = models.CharField(max_length=255, verbose_name="Адрес")
     player_locked = models.BooleanField(default=False, verbose_name="Персонаж заблокирован")
-    map_id = models.ForeignKey(SceneMap, on_delete=models.SET_NULL, null=True, blank=True, verbose_name="Карта")
-    location_id = models.ForeignKey(Location, on_delete=models.SET_NULL, null=True, blank=True, verbose_name="Локация")
+    map = models.ForeignKey(SceneMap, on_delete=models.SET_NULL, null=True, blank=True, verbose_name="Карта")
+    location = models.ForeignKey(Location, on_delete=models.SET_NULL, null=True, blank=True, verbose_name="Локация")
     
+    @property
+    def stats(self):
+        """Получение набора навыков персонажа"""
+        ct = ContentType.objects.get_for_model(self)
+        holder, _ = StatHolder.objects.get_or_create(
+            content_type=ct, 
+            object_id=self.id
+        )
+        return holder
+
     def __str__(self):
         return self.name
     
@@ -78,27 +122,36 @@ class PlayerCharacter(models.Model):
         verbose_name = "Персонаж игрока"
         verbose_name_plural = "Персонажи игроков"
 
-class Stat(models.Model):
-    character_id = models.ForeignKey(PlayerCharacter, on_delete=models.CASCADE, verbose_name="Персонаж")
-    skill_id = models.ForeignKey(Skill, on_delete=models.CASCADE, verbose_name="Навык")
-    init_value = models.IntegerField(default=0, verbose_name="Начальное значение")
-    value = models.IntegerField(default=0, verbose_name="Текущее значение")
+# class Stat(models.Model):
+#     character = models.ForeignKey(PlayerCharacter, on_delete=models.CASCADE, verbose_name="Персонаж")
+#     skill = models.ForeignKey(Skill, on_delete=models.CASCADE, verbose_name="Навык")
+#     init_value = models.IntegerField(default=0, verbose_name="Начальное значение")
+#     value = models.IntegerField(default=0, verbose_name="Текущее значение")
     
-    class Meta:
-        unique_together = ('character_id', 'skill_id')
-        verbose_name = "Характеристика"
-        verbose_name_plural = "Характеристики"
+#     class Meta:
+#         unique_together = ('character', 'skill')
+#         verbose_name = "Характеристика"
+#         verbose_name_plural = "Характеристики"
     
-    def __str__(self):
-        return f"{self.character_id.name} - {self.skill_id.name}: {self.value}"
+#     def __str__(self):
+#         return f"{self.character.name} - {self.skill.name}: {self.value}"
 
 class NPC(models.Model):
     name = models.CharField(max_length=255, verbose_name="Имя")
     path_to_img = models.CharField(max_length=255, verbose_name="Путь к изображению")
     is_enemy = models.BooleanField(default=False, verbose_name="Враг")
-    skill_ids_json = models.TextField(default='[]', verbose_name="ID навыков (JSON)")
     description = models.TextField(verbose_name="Описание")
     is_dead = models.BooleanField(default=False, verbose_name="Мёртв")
+
+    @property
+    def stats(self):
+        """Получение набора навыков NPC"""
+        ct = ContentType.objects.get_for_model(self)
+        holder, _ = StatHolder.objects.get_or_create(
+            content_type=ct, 
+            object_id=self.id
+        )
+        return holder
     
     def __str__(self):
         return self.name
@@ -107,14 +160,15 @@ class NPC(models.Model):
         verbose_name = "NPC"
         verbose_name_plural = "NPC"
 
+
 class WhereObject(models.Model):
-    game_item_id = models.OneToOneField(GameItem, on_delete=models.CASCADE, verbose_name="Предмет")
-    npc_id = models.ForeignKey(NPC, on_delete=models.CASCADE, null=True, blank=True, verbose_name="NPC")
-    location_id = models.ForeignKey(Location, on_delete=models.CASCADE, null=True, blank=True, verbose_name="Локация")
-    player_id = models.ForeignKey(PlayerCharacter, on_delete=models.CASCADE, null=True, blank=True, verbose_name="Игрок")
+    game_item = models.OneToOneField(GameItem, on_delete=models.CASCADE, verbose_name="Предмет")
+    npc = models.ForeignKey(NPC, on_delete=models.CASCADE, null=True, blank=True, verbose_name="NPC")
+    location = models.ForeignKey(Location, on_delete=models.CASCADE, null=True, blank=True, verbose_name="Локация")
+    player = models.ForeignKey(PlayerCharacter, on_delete=models.CASCADE, null=True, blank=True, verbose_name="Игрок")
     
     def __str__(self):
-        return f"Местонахождение: {self.game_item_id.name}"
+        return f"Местонахождение: {self.game_item.name}"
     
     class Meta:
         verbose_name = "Местонахождение предмета"
@@ -137,11 +191,20 @@ class GlobalSession(models.Model):
 
 class PlayerAction(models.Model):
     description = models.TextField(verbose_name="Описание")
-    need_skill_ids_conditions_json = models.TextField(default='[]', verbose_name="Условия навыков (JSON)")
     is_activated = models.BooleanField(default=False, verbose_name="Активировано")
-    need_game_item_ids_json = models.TextField(null=True, blank=True, verbose_name="Требуемые предметы (JSON)")
+    need_game_items_json = models.TextField(null=True, blank=True, verbose_name="Требуемые предметы (JSON)")
     add_time_secs = models.IntegerField(null=True, blank=True, verbose_name="Добавочное время (сек)")
     
+    @property
+    def skill_requirements(self):
+        """Получение требований по навыкам для действия"""
+        ct = ContentType.objects.get_for_model(self)
+        holder, _ = StatHolder.objects.get_or_create(
+            content_type=ct, 
+            object_id=self.id
+        )
+        return holder
+
     def __str__(self):
         return self.description[:50]
     
@@ -151,8 +214,8 @@ class PlayerAction(models.Model):
 
 class MapObjectPolygon(models.Model):
     name = models.CharField(max_length=255, verbose_name="Название")
-    map_id = models.ForeignKey(SceneMap, on_delete=models.CASCADE, verbose_name="Карта")
-    location_id = models.ForeignKey(Location, on_delete=models.CASCADE, verbose_name="Локация")
+    map = models.ForeignKey(SceneMap, on_delete=models.CASCADE, verbose_name="Карта")
+    location = models.ForeignKey(Location, on_delete=models.CASCADE, verbose_name="Локация")
     is_shown = models.BooleanField(default=False, verbose_name="Отображается")
     is_filled = models.BooleanField(default=False, verbose_name="Заполнен")
     is_line = models.BooleanField(default=False, verbose_name="Линия")
@@ -186,7 +249,7 @@ class Note(models.Model):
     xml_text = models.TextField(verbose_name="Текст заметки (XML)")
     player_shown_json = models.TextField(default='[]', verbose_name="Показано игрокам (JSON)")
     target_player_shown_json = models.TextField(default='[]', verbose_name="Показано целевым игрокам (JSON)")
-    action_id = models.ForeignKey(PlayerAction, on_delete=models.SET_NULL, null=True, blank=True, verbose_name="Действие")
+    action = models.ForeignKey(PlayerAction, on_delete=models.SET_NULL, null=True, blank=True, verbose_name="Действие")
     
     def __str__(self):
         return self.name or "Безымянная заметка"

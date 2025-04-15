@@ -1,5 +1,5 @@
-<!-- templates/game_manager/playercharacter/form.html -->
 {% extends 'base.html' %}
+{% load game_manager_tags %}
 
 {% block title %}{{ title }} - Менеджер сценариев RPG{% endblock %}
 
@@ -12,6 +12,7 @@
         <form method="post">
             {% csrf_token %}
             
+            <!-- Основные данные персонажа -->
             <div class="row">
                 <div class="col-md-6">
                     <div class="mb-3">
@@ -90,7 +91,9 @@
                     
                     <div class="mb-3 form-check">
                         {{ form.player_locked }}
-                        <label for="{{ form.player_locked.id_for_label }}" class="form-check-label">Персонаж заблокирован</label>
+                        <label for="{{ form.player_locked.id_for_label }}" class="form-check-label">
+                            Персонаж заблокирован
+                        </label>
                         {{ form.player_locked.errors }}
                     </div>
                 </div>
@@ -105,11 +108,239 @@
                 {% endif %}
             </div>
             
-            <div class="d-flex justify-content-between">
+            <!-- Раздел навыков с использованием StatHolder -->
+            <div class="card mt-4">
+                <div class="card-header bg-primary text-white">
+                    <h4 class="mb-0">Навыки персонажа</h4>
+                </div>
+                <div class="card-body">
+                    {{ stat_formset.management_form }}
+                    
+                    <div class="accordion" id="skillsAccordion">
+                        {% for group in skill_groups %}
+                        <div class="accordion-item">
+                            <h2 class="accordion-header" id="heading{{ group.id }}">
+                                <button class="accordion-button {% if not forloop.first %}collapsed{% endif %}" 
+                                        type="button" data-bs-toggle="collapse" 
+                                        data-bs-target="#collapse{{ group.id }}" 
+                                        aria-expanded="{% if forloop.first %}true{% else %}false{% endif %}" 
+                                        aria-controls="collapse{{ group.id }}">
+                                    {{ group.name }}
+                                </button>
+                            </h2>
+                            <div id="collapse{{ group.id }}" 
+                                 class="accordion-collapse collapse {% if forloop.first %}show{% endif %}" 
+                                 aria-labelledby="heading{{ group.id }}" 
+                                 data-bs-parent="#skillsAccordion">
+                                <div class="accordion-body">
+                                    <div class="row">
+                                        {% for skill in group.skills.all %}
+                                        <div class="col-md-4 mb-3">
+                                            <div class="card h-100">
+                                                <div class="card-header d-flex align-items-center">
+                                                    <div class="form-check me-2">
+                                                        <input class="form-check-input skill-checkbox" 
+                                                               type="checkbox" 
+                                                               id="skill_check_{{ skill.id }}" 
+                                                               data-skill-id="{{ skill.id }}"
+                                                               {% if skill.id in character_stats %}checked{% endif %}>
+                                                    </div>
+                                                    <label class="form-check-label" for="skill_check_{{ skill.id }}">
+                                                        {{ skill.name }}
+                                                    </label>
+                                                </div>
+                                                <div class="card-body">
+                                                    <div class="skill-values {% if skill.id not in character_stats %}d-none{% endif %}">
+                                                        <div class="mb-2">
+                                                            <label class="form-label small">Начальное значение</label>
+                                                            <input type="number" 
+                                                                   class="form-control initial-value" 
+                                                                   name="skill_{{ skill.id }}_initial" 
+                                                                   value="{{ character_stats|get_item:skill.id|get_subitem:'initial_value'|default:0 }}" 
+                                                                   min="0" max="100">
+                                                        </div>
+                                                        <div>
+                                                            <label class="form-label small">Текущее значение</label>
+                                                            <input type="number" 
+                                                                   class="form-control current-value" 
+                                                                   name="skill_{{ skill.id }}_current" 
+                                                                   value="{{ character_stats|get_item:skill.id|get_subitem:'current_value'|default:0 }}" 
+                                                                   min="0" max="100">
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        {% endfor %}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    
+                    <!-- Скрытый формсет для навыков -->
+                    <div id="stat-formset-container" class="d-none">
+                        {% for form in stat_formset.forms %}
+                            <div class="formset-form">
+                                {{ form.id }}
+                                <div class="row">
+                                    <div class="col-md-4">{{ form.skill }}</div>
+                                    <div class="col-md-3">{{ form.initial_value }}</div>
+                                    <div class="col-md-3">{{ form.current_value }}</div>
+                                    <div class="col-md-2">{{ form.DELETE }}</div>
+                                </div>
+                            </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+            
+            <div class="d-flex justify-content-between mt-4">
                 <a href="{% url 'playercharacter_list' %}" class="btn btn-secondary">Отмена</a>
                 <button type="submit" class="btn btn-primary">Сохранить</button>
             </div>
         </form>
     </div>
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Обработка интерфейса навыков
+    const skillCheckboxes = document.querySelectorAll('.skill-checkbox');
+    const formsetContainer = document.getElementById('stat-formset-container');
+    const totalFormsInput = document.querySelector('[name="stat_formset-TOTAL_FORMS"]');
+    const initialFormsInput = document.querySelector('[name="stat_formset-INITIAL_FORMS"]');
+    
+    // Обработчик изменения чекбокса навыка
+    skillCheckboxes.forEach(checkbox => {
+        checkbox.addEventListener('change', function() {
+            const skillId = this.dataset.skillId;
+            const valueBlock = this.closest('.card').querySelector('.skill-values');
+            
+            if (this.checked) {
+                valueBlock.classList.remove('d-none');
+                // Добавляем навык в формсет, если его там нет
+                addSkillToFormset(skillId);
+            } else {
+                valueBlock.classList.add('d-none');
+                // Удаляем навык из формсета
+                removeSkillFromFormset(skillId);
+            }
+        });
+    });
+    
+    // Функция добавления навыка в формсет
+    function addSkillToFormset(skillId) {
+        // Проверяем, есть ли уже этот навык в формсете
+        const existingForm = findFormsetFormBySkillId(skillId);
+        if (existingForm) {
+            // Если форма помечена как удаленная, снимаем пометку
+            const deleteCheckbox = existingForm.querySelector('[name$="-DELETE"]');
+            if (deleteCheckbox) {
+                deleteCheckbox.checked = false;
+            }
+            return;
+        }
+        
+        // Добавляем новую форму в формсет
+        const formCount = parseInt(totalFormsInput.value);
+        const newForm = document.createElement('div');
+        newForm.className = 'formset-form';
+        newForm.innerHTML = `
+            <div class="row">
+                <div class="col-md-4">
+                    <select name="stat_formset-${formCount}-skill" class="form-control">
+                        {% for skill in all_skills %}
+                        <option value="{{ skill.id }}" ${skillId == {{ skill.id }} ? 'selected' : ''}>
+                            {{ skill.name }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <input type="number" name="stat_formset-${formCount}-initial_value" 
+                           value="0" min="0" max="100" class="form-control">
+                </div>
+                <div class="col-md-3">
+                    <input type="number" name="stat_formset-${formCount}-current_value" 
+                           value="0" min="0" max="100" class="form-control">
+                </div>
+                <div class="col-md-2">
+                    <input type="checkbox" name="stat_formset-${formCount}-DELETE" class="form-check-input">
+                </div>
+                <input type="hidden" name="stat_formset-${formCount}-id" value="">
+                <input type="hidden" name="stat_formset-${formCount}-stat_holder" value="{{ stat_holder.id }}">
+            </div>
+        `;
+        
+        formsetContainer.appendChild(newForm);
+        totalFormsInput.value = formCount + 1;
+        
+        // Синхронизация значений между интерфейсом и формсетом
+        updateFormsetValues();
+    }
+    
+    // Функция удаления навыка из формсета
+    function removeSkillFromFormset(skillId) {
+        const form = findFormsetFormBySkillId(skillId);
+        if (form) {
+            const deleteCheckbox = form.querySelector('[name$="-DELETE"]');
+            if (deleteCheckbox) {
+                deleteCheckbox.checked = true;
+            }
+        }
+    }
+    
+    // Функция поиска формы в формсете по ID навыка
+    function findFormsetFormBySkillId(skillId) {
+        const forms = formsetContainer.querySelectorAll('.formset-form');
+        for (const form of forms) {
+            const select = form.querySelector('select[name$="-skill"]');
+            if (select && select.value == skillId) {
+                return form;
+            }
+        }
+        return null;
+    }
+    
+    // Синхронизация значений между интерфейсом и формсетом
+    function updateFormsetValues() {
+        // Обходим все видимые навыки в интерфейсе
+        document.querySelectorAll('.skill-checkbox:checked').forEach(checkbox => {
+            const skillId = checkbox.dataset.skillId;
+            const cardBody = checkbox.closest('.card').querySelector('.card-body');
+            const initialValueInput = cardBody.querySelector('.initial-value');
+            const currentValueInput = cardBody.querySelector('.current-value');
+            
+            // Находим соответствующую форму в формсете
+            const form = findFormsetFormBySkillId(skillId);
+            if (form) {
+                const formInitialValue = form.querySelector('[name$="-initial_value"]');
+                const formCurrentValue = form.querySelector('[name$="-current_value"]');
+                
+                // Двусторонняя синхронизация
+                initialValueInput.addEventListener('input', () => {
+                    formInitialValue.value = initialValueInput.value;
+                });
+                currentValueInput.addEventListener('input', () => {
+                    formCurrentValue.value = currentValueInput.value;
+                });
+                
+                formInitialValue.addEventListener('input', () => {
+                    initialValueInput.value = formInitialValue.value;
+                });
+                formCurrentValue.addEventListener('input', () => {
+                    currentValueInput.value = formCurrentValue.value;
+                });
+            }
+        });
+    }
+    
+    // Инициализация синхронизации при загрузке страницы
+    updateFormsetValues();
+});
+</script>
 {% endblock %}

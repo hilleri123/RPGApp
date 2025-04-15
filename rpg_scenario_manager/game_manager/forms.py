@@ -2,7 +2,7 @@ from django import forms
 import json
 from .models import (
     SkillGroup, Skill, GameItem, NPC, SceneMap, Location, 
-    PlayerCharacter, Stat, WhereObject, GlobalSession,
+    PlayerCharacter, StatHolder, StatValue, WhereObject, GlobalSession,
     PlayerAction, MapObjectPolygon, GameEvent, Note
 )
 
@@ -29,10 +29,10 @@ class SkillGroupForm(forms.ModelForm):
 class SkillForm(forms.ModelForm):
     class Meta:
         model = Skill
-        fields = ['name', 'group_id']
+        fields = ['name', 'group']
         widgets = {
             'name': forms.TextInput(attrs={'class': 'form-control'}),
-            'group_id': forms.Select(attrs={'class': 'form-control'})
+            'group': forms.Select(attrs={'class': 'form-control'})
         }
 
 class GameItemForm(JSONFieldForm):
@@ -66,7 +66,7 @@ class GameItemForm(JSONFieldForm):
         return instance
 
 class NPCForm(JSONFieldForm):
-    skill_ids = forms.CharField(widget=forms.Textarea(attrs={'rows': 5, 'class': 'form-control'}), 
+    skills = forms.CharField(widget=forms.Textarea(attrs={'rows': 5, 'class': 'form-control'}), 
                              required=False, help_text='Введите ID навыков в формате JSON')
     
     class Meta:
@@ -82,18 +82,18 @@ class NPCForm(JSONFieldForm):
     
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        if self.instance.pk and self.instance.skill_ids_json:
+        if self.instance.pk and self.instance.skills_json:
             try:
-                self.fields['skill_ids'].initial = json.dumps(json.loads(self.instance.skill_ids_json), indent=2)
+                self.fields['skills'].initial = json.dumps(json.loads(self.instance.skills_json), indent=2)
             except:
-                self.fields['skill_ids'].initial = self.instance.skill_ids_json
+                self.fields['skills'].initial = self.instance.skills_json
     
-    def clean_skill_ids(self):
-        return self.clean_json_field('skill_ids', 'skill_ids_json')
+    def clean_skills(self):
+        return self.clean_json_field('skills', 'skills_json')
     
     def save(self, commit=True):
         instance = super().save(commit=False)
-        instance.skill_ids_json = self.cleaned_data['skill_ids']
+        instance.skills_json = self.cleaned_data['skills']
         if commit:
             instance.save()
         return instance
@@ -110,18 +110,18 @@ class SceneMapForm(forms.ModelForm):
 class LocationForm(forms.ModelForm):
     class Meta:
         model = Location
-        fields = ['name', 'description', 'leads_to_id']
+        fields = ['name', 'description', 'leads_to']
         widgets = {
             'name': forms.TextInput(attrs={'class': 'form-control'}),
             'description': forms.Textarea(attrs={'rows': 4, 'class': 'form-control'}),
-            'leads_to_id': forms.Select(attrs={'class': 'form-control'})
+            'leads_to': forms.Select(attrs={'class': 'form-control'})
         }
 
 class PlayerCharacterForm(forms.ModelForm):
     class Meta:
         model = PlayerCharacter
         fields = ['name', 'path_to_img', 'short_desc', 'story', 'time', 'color', 
-                  'address', 'player_locked', 'map_id', 'location_id']
+                  'address', 'player_locked', 'map', 'location']
         widgets = {
             'name': forms.TextInput(attrs={'class': 'form-control'}),
             'path_to_img': forms.TextInput(attrs={'class': 'form-control'}),
@@ -131,30 +131,35 @@ class PlayerCharacterForm(forms.ModelForm):
             'color': forms.TextInput(attrs={'class': 'form-control', 'type': 'color'}),
             'address': forms.TextInput(attrs={'class': 'form-control'}),
             'player_locked': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
-            'map_id': forms.Select(attrs={'class': 'form-control'}),
-            'location_id': forms.Select(attrs={'class': 'form-control'})
+            'map': forms.Select(attrs={'class': 'form-control'}),
+            'location': forms.Select(attrs={'class': 'form-control'})
         }
 
-class StatForm(forms.ModelForm):
+class StatValueForm(forms.ModelForm):
     class Meta:
-        model = Stat
-        fields = ['character_id', 'skill_id', 'init_value', 'value']
+        model = StatValue
+        fields = ['skill', 'current_value', 'is_requirement']
         widgets = {
-            'character_id': forms.Select(attrs={'class': 'form-control'}),
-            'skill_id': forms.Select(attrs={'class': 'form-control'}),
-            'init_value': forms.NumberInput(attrs={'class': 'form-control'}),
-            'value': forms.NumberInput(attrs={'class': 'form-control'})
+            'skill': forms.Select(attrs={'class': 'form-control'}),
+            'current_value': forms.NumberInput(attrs={'class': 'form-control', 'min': 0, 'max': 100}),
+            'is_requirement': forms.CheckboxInput(attrs={'class': 'form-check-input'})
         }
+
+StatValueFormSet = forms.inlineformset_factory(
+    StatHolder, StatValue, 
+    form=StatValueForm, 
+    extra=1, can_delete=True
+)
 
 class WhereObjectForm(forms.ModelForm):
     class Meta:
         model = WhereObject
-        fields = ['game_item_id', 'npc_id', 'location_id', 'player_id']
+        fields = ['game_item', 'npc', 'location', 'player']
         widgets = {
-            'game_item_id': forms.Select(attrs={'class': 'form-control'}),
-            'npc_id': forms.Select(attrs={'class': 'form-control'}),
-            'location_id': forms.Select(attrs={'class': 'form-control'}),
-            'player_id': forms.Select(attrs={'class': 'form-control'})
+            'game_item': forms.Select(attrs={'class': 'form-control'}),
+            'npc': forms.Select(attrs={'class': 'form-control'}),
+            'location': forms.Select(attrs={'class': 'form-control'}),
+            'player': forms.Select(attrs={'class': 'form-control'})
         }
 
 class GlobalSessionForm(forms.ModelForm):
@@ -188,30 +193,30 @@ class PlayerActionForm(JSONFieldForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         if self.instance.pk:
-            if self.instance.need_skill_ids_conditions_json:
+            if self.instance.need_skills_conditions_json:
                 try:
                     self.fields['skill_conditions'].initial = json.dumps(
-                        json.loads(self.instance.need_skill_ids_conditions_json), indent=2)
+                        json.loads(self.instance.need_skills_conditions_json), indent=2)
                 except:
-                    self.fields['skill_conditions'].initial = self.instance.need_skill_ids_conditions_json
+                    self.fields['skill_conditions'].initial = self.instance.need_skills_conditions_json
             
-            if self.instance.need_game_item_ids_json:
+            if self.instance.need_game_items_json:
                 try:
                     self.fields['need_items'].initial = json.dumps(
-                        json.loads(self.instance.need_game_item_ids_json), indent=2)
+                        json.loads(self.instance.need_game_items_json), indent=2)
                 except:
-                    self.fields['need_items'].initial = self.instance.need_game_item_ids_json
+                    self.fields['need_items'].initial = self.instance.need_game_items_json
     
     def clean_skill_conditions(self):
-        return self.clean_json_field('skill_conditions', 'need_skill_ids_conditions_json')
+        return self.clean_json_field('skill_conditions', 'need_skills_conditions_json')
     
     def clean_need_items(self):
-        return self.clean_json_field('need_items', 'need_game_item_ids_json')
+        return self.clean_json_field('need_items', 'need_game_items_json')
     
     def save(self, commit=True):
         instance = super().save(commit=False)
-        instance.need_skill_ids_conditions_json = self.cleaned_data['skill_conditions']
-        instance.need_game_item_ids_json = self.cleaned_data['need_items']
+        instance.need_skills_conditions_json = self.cleaned_data['skill_conditions']
+        instance.need_game_items_json = self.cleaned_data['need_items']
         if commit:
             instance.save()
         return instance
@@ -222,12 +227,12 @@ class MapObjectPolygonForm(JSONFieldForm):
     
     class Meta:
         model = MapObjectPolygon
-        fields = ['name', 'map_id', 'location_id', 'is_shown', 'is_filled', 
+        fields = ['name', 'map', 'location', 'is_shown', 'is_filled', 
                   'is_line', 'color', 'icon_file_path']
         widgets = {
             'name': forms.TextInput(attrs={'class': 'form-control'}),
-            'map_id': forms.Select(attrs={'class': 'form-control'}),
-            'location_id': forms.Select(attrs={'class': 'form-control'}),
+            'map': forms.Select(attrs={'class': 'form-control'}),
+            'location': forms.Select(attrs={'class': 'form-control'}),
             'is_shown': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
             'is_filled': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
             'is_line': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
@@ -274,11 +279,11 @@ class NoteForm(JSONFieldForm):
     
     class Meta:
         model = Note
-        fields = ['name', 'xml_text', 'action_id']
+        fields = ['name', 'xml_text', 'action']
         widgets = {
             'name': forms.TextInput(attrs={'class': 'form-control'}),
             'xml_text': forms.Textarea(attrs={'rows': 8, 'class': 'form-control'}),
-            'action_id': forms.Select(attrs={'class': 'form-control'})
+            'action': forms.Select(attrs={'class': 'form-control'})
         }
     
     def __init__(self, *args, **kwargs):
