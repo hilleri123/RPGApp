@@ -28,11 +28,7 @@ class Skill(models.Model):
 
 class StatHolder(models.Model):
     """Контейнер для хранения набора навыков"""
-    # Полиморфная связь (может указывать на NPC, Player, Action и др.)
-    content_type = models.ForeignKey(ContentType, on_delete=models.CASCADE)
-    object_id = models.PositiveIntegerField()
-    content_object = GenericForeignKey('content_type', 'object_id')
-    
+
     name = models.CharField(max_length=255, blank=True, null=True, verbose_name="Название набора")
     
     def __str__(self):
@@ -105,15 +101,31 @@ class PlayerCharacter(models.Model):
     map = models.ForeignKey(SceneMap, on_delete=models.SET_NULL, null=True, blank=True, verbose_name="Карта")
     location = models.ForeignKey(Location, on_delete=models.SET_NULL, null=True, blank=True, verbose_name="Локация")
     
-    @property
-    def stats(self):
-        """Получение набора навыков персонажа"""
-        ct = ContentType.objects.get_for_model(self)
-        holder, _ = StatHolder.objects.get_or_create(
-            content_type=ct, 
-            object_id=self.id
-        )
-        return holder
+    stats = models.OneToOneField(
+        StatHolder,
+        on_delete=models.CASCADE,
+        related_name='character',
+        verbose_name="Навыки",
+        null=True
+    )
+
+    def save(self, *args, **kwargs):
+        creating = self.pk is None
+        super().save(*args, **kwargs)
+        if creating and not self.stats:
+            stat_holder = StatHolder.objects.create(name=f"Навыки {self.name}")
+            self.stats = stat_holder
+            super().save(update_fields=['stats'])
+            
+            # Добавляем все возможные навыки со значениями по умолчанию 0
+            for skill in Skill.objects.all():
+                StatValue.objects.create(
+                    stat_holder=stat_holder,
+                    skill=skill,
+                    initial_value=0,
+                    current_value=0,
+                    is_requirement=False
+                )
 
     def __str__(self):
         return self.name

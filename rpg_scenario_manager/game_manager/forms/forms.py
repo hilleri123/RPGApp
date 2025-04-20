@@ -1,6 +1,6 @@
 from django import forms
 import json
-from .models import (
+from game_manager.models import (
     SkillGroup, Skill, GameItem, NPC, SceneMap, Location, 
     PlayerCharacter, StatHolder, StatValue, WhereObject, GlobalSession,
     PlayerAction, MapObjectPolygon, GameEvent, Note
@@ -146,9 +146,10 @@ class StatValueForm(forms.ModelForm):
         }
 
 StatValueFormSet = forms.inlineformset_factory(
-    StatHolder, StatValue, 
-    form=StatValueForm, 
-    extra=1, can_delete=True
+    StatHolder,
+    StatValue,
+    fields=('skill', 'initial_value', 'current_value'),
+    extra=0
 )
 
 class WhereObjectForm(forms.ModelForm):

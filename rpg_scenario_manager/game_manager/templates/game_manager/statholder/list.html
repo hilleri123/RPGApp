@@ -1,0 +1,23 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<h1>Наборы навыков</h1>
+<table class="table">
+    <thead>
+        <tr>
+            <th>ID</th>
+            <th>Название</th>
+            <th>Связанный объект</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for holder in statholders %}
+        <tr>
+            <td>{{ holder.id }}</td>
+            <td>{{ holder.name }}</td>
+            <td>{{ holder.content_object }}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% endblock %}

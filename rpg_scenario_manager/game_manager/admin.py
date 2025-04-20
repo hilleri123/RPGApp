@@ -48,8 +48,8 @@ class PlayerCharacterAdmin(admin.ModelAdmin):
     
 @admin.register(StatHolder)
 class StatHolderAdmin(admin.ModelAdmin):
-    list_display = ['id', 'content_type', 'object_id', 'name']
-    list_filter = ['content_type']
+    list_display = ['id', 'name']
+    list_filter = ['name']
 
 @admin.register(StatValue)
 class StatValueAdmin(admin.ModelAdmin):

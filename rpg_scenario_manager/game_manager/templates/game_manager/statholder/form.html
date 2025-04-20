@@ -1,0 +1,73 @@
+{% load widget_tweaks game_manager_tags %}
+
+<!-- Сгруппированная таблица навыков -->
+<div class="card mb-4">
+    <div class="card-header">
+        <h3>Навыки</h3>
+    </div>
+    <div class="card-body">
+        {{ statvalue_formset.management_form }}
+        
+        {% for group in skill_groups %}
+            <div class="card mb-3">
+                <div class="card-header bg-light">
+                    <h4>{{ group.name }}</h4>
+                </div>
+                <div class="card-body">
+                    <table class="table table-bordered">
+                        <thead>
+                            <tr>
+                                <th>Навык</th>
+                                <th>Начальное значение</th>
+                                <th>Текущее значение</th>
+                                <th>Требование</th>
+                                <!-- <th>Удалить</th> -->
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for skill in group.skills.all %}
+                                {% for form in statvalue_formset.forms %}
+                                    {% if form.initial.skill == skill.id or form.instance.skill.id == skill.id %}
+                                        <tr>
+                                            <td>
+                                                {{ skill.name }}
+                                                {{ form.skill.as_hidden }}
+                                                {{ form.id.as_hidden }}
+                                            </td>
+                                            <td>{{ form.initial_value }}</td>
+                                            <td>{{ form.current_value }}</td>
+                                            <td class="text-center">{{ form.is_requirement }}</td>
+                                            <!-- <td class="text-center">{{ form.DELETE }}</td> -->
+                                        </tr>
+                                    {% endif %}
+                                {% endfor %}
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        {% endfor %}
+    </div>
+</div>
+
+
+<script>
+    // Функция для синхронизации значений initial_value и current_value
+    function updateCurrentValue(initialValueField) {
+        const row = initialValueField.closest('tr');
+        const currentValueField = row.querySelector('[name$="-current_value"]');
+        if (currentValueField) {
+            currentValueField.value = initialValueField.value;
+        }
+    }
+    
+    // Привязываем обработчик события к полям initial_value
+    document.addEventListener('DOMContentLoaded', function() {
+        const initialValueInputs = document.querySelectorAll('[name$="-initial_value"]');
+        initialValueInputs.forEach(input => {
+            input.addEventListener('change', function() {
+                updateCurrentValue(this);
+            });
+        });
+    });
+</script>

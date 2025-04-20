@@ -41,6 +41,7 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'colorfield',  # для поддержки полей с цветом
+    'widget_tweaks',
     'game_manager',
 ]
 
