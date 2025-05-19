@@ -3,6 +3,8 @@ erDiagram
     Scenario {
         int id PK
         string name
+        string intro
+        url icon
         int max_players
         datetime created
         int rules_id FK
@@ -54,14 +56,14 @@ erDiagram
         int scenario_id FK
     }
     Scenario ||--o{ Location: has
-    Location ||--o{ Location: contains
+    Location ||--o{ Location: parent_contains_children
 
 
     MapObjectPolygon {
         int id PK
         string name
-        int belongs_to_location_id FK
-        int lead_to_location_id FK
+        int source_location_id FK
+        int target_location_id FK
         bool is_shown
         bool is_filled
         bool is_line
@@ -90,7 +92,6 @@ erDiagram
     PlayerCharacter {
         int id PK
         string name
-        datetime time
         string short_desc
         string story
         int body_id FK
@@ -127,37 +128,57 @@ erDiagram
         int location_id FK
         int player_id FK
     }
-    GlobalSession {
-        int id PK
-        string file_path
-        string intro
-        datetime time
-        datetime start_time
-        string scenario_name
-        string scenario_file_path
-    }
-    PlayerAction {
-        int id PK
-        string description
-        string need_skill_ids_conditions_json
-        bool is_activated
-        string need_game_item_ids_json
-        int add_time_secs
-    }
-    GameEvent {
-        int id PK
-        string name
-        string xml_text
-        bool happened
-        datetime start_time
-        datetime end_time
-    }
+    WhereObject }|--|| NPC: belongs_to
+    WhereObject }|--|| GameItem: belongs_to
+    WhereObject }|--|| Location: located
+    WhereObject }|--|| PlayerCharacter: belongs_to
+
     Note {
         int id PK
         string name
-        string xml_text
-        string player_shown_json
-        string target_player_shown_json
+        xml text
+        json allowed_character_shown_json
+    }
+
+    PlayerAction {
+        int id PK
+        string description_for_master
+        xml description_for_players
+        int add_time_secs
+        int riggers_note_id FK
+    }
+    PlayerAction }o--|| Note: triggers
+
+    Requirements {
+        int id PK
+        int skill_value
+        bool threshold
+        int skill_id FK
         int action_id FK
     }
+    Requirements }o--|| Skill: requires
+    Requirements }|--|| PlayerAction: belongs_to
+
+    ActionLocated {
+        int id PK
+        int action_id FK
+        int location_id FK
+        int npc_id FK
+        int item_scheme_id FK
+    }
+    ActionLocated ||--|| PlayerAction: belongs_to
+    ActionLocated }o--|| Location: located
+    ActionLocated }o--|| NPC: located
+    ActionLocated }o--|| GameItemScheme: located
+
+    GameTimeEvent {
+        int id PK
+        string name
+        xml text
+        datetime start_time
+        datetime end_time
+        int note_id FK
+    }
+    GameTimeEvent }o--|| Note: triggers
+
 ```

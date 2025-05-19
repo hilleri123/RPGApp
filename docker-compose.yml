@@ -1,19 +1,28 @@
 version: '3.8'
 
 services:
-  web:
-    build: ./rpg_scenario_manager
+  app:
+    build: ./RPGdata
     ports:
       - "8000:8000"
-    env_file:
-      - ./rpg_scenario_manager/.env
     volumes:
-      - ./rpg_scenario_manager:/rpg_scenario_manager
-      - static_volume:/rpg_scenario_manager/staticfiles
-      - media_volume:/rpg_scenario_manager/mediafiles
+      - ./RPGdata:/app
     depends_on:
       - db
-      - minio
+    environment:
+      - DATABASE_URL=postgresql://user:password@db:5432/scenario_db
+
+  frontend:
+    build: ./RPGFrontendReact
+    ports:
+      - "3000:80"
+    depends_on:
+      - app
+    command: >
+      sh -c "npm install react-router-dom formik yup axios --save && npm start"
+    volumes:
+      - ./RPGFrontendReact/frontend:/app:delegated
+      - frontend_node_modules:/app/node_modules
 
   db:
     image: postgres:15
@@ -21,6 +30,8 @@ services:
       - postgres_data:/var/lib/postgresql/data/
     env_file:
       - ./.env.db
+    ports:
+      - "5432:5432"
 
   minio:
     image: minio/minio
@@ -38,3 +49,4 @@ volumes:
   minio_data:
   static_volume:
   media_volume:
+  frontend_node_modules:
