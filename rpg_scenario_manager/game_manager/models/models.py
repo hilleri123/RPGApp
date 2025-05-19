@@ -4,6 +4,7 @@ from django.contrib.contenttypes.fields import GenericForeignKey
 from django.contrib.contenttypes.models import ContentType
 from colorfield.fields import ColorField
 import datetime
+from game_manager.storage_backends import PublicMediaStorage
 
 class SkillGroup(models.Model):
     name = models.CharField(max_length=255, verbose_name="Название")
@@ -91,7 +92,11 @@ class Location(models.Model):
 
 class PlayerCharacter(models.Model):
     name = models.CharField(max_length=255, verbose_name="Имя")
-    path_to_img = models.CharField(max_length=255, verbose_name="Путь к изображению")
+    path_to_img = models.ImageField(
+        upload_to='characters/', 
+        storage=PublicMediaStorage(),
+        verbose_name="Изображение персонажа"
+    )
     short_desc = models.TextField(verbose_name="Краткое описание")
     story = models.TextField(verbose_name="История")
     time = models.DateTimeField(default=datetime.datetime.now, verbose_name="Время")
@@ -150,7 +155,11 @@ class PlayerCharacter(models.Model):
 
 class NPC(models.Model):
     name = models.CharField(max_length=255, verbose_name="Имя")
-    path_to_img = models.CharField(max_length=255, verbose_name="Путь к изображению")
+    path_to_img = models.ImageField(
+        upload_to='npcs/',
+        storage=PublicMediaStorage(),
+        verbose_name="Изображение персонажа"
+    )
     is_enemy = models.BooleanField(default=False, verbose_name="Враг")
     description = models.TextField(verbose_name="Описание")
     is_dead = models.BooleanField(default=False, verbose_name="Мёртв")

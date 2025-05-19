@@ -1,50 +1,40 @@
-version: '3.9'
+version: '3.8'
 
 services:
+  web:
+    build: ./rpg_scenario_manager
+    ports:
+      - "8000:8000"
+    env_file:
+      - ./rpg_scenario_manager/.env
+    volumes:
+      - ./rpg_scenario_manager:/rpg_scenario_manager
+      - static_volume:/rpg_scenario_manager/staticfiles
+      - media_volume:/rpg_scenario_manager/mediafiles
+    depends_on:
+      - db
+      - minio
+
   db:
-    image: postgres:14
-    environment:
-      - POSTGRES_DB=mydb
-      - POSTGRES_USER=myuser
-      - POSTGRES_PASSWORD=mypassword
+    image: postgres:15
     volumes:
-      - db-data:/var/lib/postgresql/data
-    ports:
-      - "5432:5432"
+      - postgres_data:/var/lib/postgresql/data/
+    env_file:
+      - ./.env.db
 
-  backend:
-    build: ./RPGBackendFastAPI
+  minio:
+    image: minio/minio
+    volumes:
+      - minio_data:/data
     ports:
-      - "4050:4050"
-    volumes:
-      - ./backend-fastapi:/app
-    command: uvicorn app.main:app --host 0.0.0.0 --port 4050 --reload
-    # depends_on:
-    #   - db
-    restart: always
-
-  frontend:
-    build: ./RPGFrontendReact
-    ports:
-      - "3000:3000"
-    volumes:
-      - ./frontend-react:/app
-      - /app/node_modules
-    environment:
-      - NODE_ENV=development
-    command: npm start
-    stdin_open: true
-    tty: true
-
-  desktop:
-    build: ./RPGQtWebApp
-    environment:
-      - DISPLAY=$DISPLAY
-      - QT_X11_NO_MITSHM=1
-    volumes:
-      - /tmp/.X11-unix:/tmp/.X11-unix:rw
-    stdin_open: true
-    tty: true
+      - "9000:9000"
+      - "9001:9001"
+    command: server --console-address ":9001" /data
+    env_file:
+      - ./.env.minio
 
 volumes:
-  db-data:
+  postgres_data:
+  minio_data:
+  static_volume:
+  media_volume:
