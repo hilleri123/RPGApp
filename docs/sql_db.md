@@ -87,7 +87,9 @@ erDiagram
         string name
         url img
         url icon
+        int rule_id FK
     }
+    Body }o--|| Rule: belongs_to
 
     PlayerCharacter {
         int id PK

@@ -9,20 +9,43 @@ services:
       - ./RPGdata:/app
     depends_on:
       - db
+      - minio
+      - minio-init
     environment:
-      - DATABASE_URL=postgresql://user:password@db:5432/scenario_db
+      - S3_ENDPOINT=http://minio:9000
+      - PG_ENDPOINT=postgresql://db:5432
+    env_file:
+      - ./.env.db
+      - ./.env.minio
 
-  frontend:
-    build: ./RPGFrontendReact
+  frontend-dev:
+    build:
+      context: ./RPGFrontendReact
+      target: development
     ports:
-      - "3000:80"
-    depends_on:
-      - app
-    command: >
-      sh -c "npm install react-router-dom formik yup axios --save && npm start"
+      - "3000:3000"
     volumes:
       - ./RPGFrontendReact/frontend:/app:delegated
-      - frontend_node_modules:/app/node_modules
+      - /app/node_modules
+    depends_on:
+      - app
+    environment:
+      - CHOKIDAR_USEPOLLING=true
+      - WDS_SOCKET_PORT=3000
+      - REACT_APP_API_URL=http://localhost:8000
+
+  # Опциональная конфигурация для продакшена
+  frontend-prod:
+    build:
+      context: .
+      target: production
+    ports:
+      - "80:80"
+    depends_on:
+      - app
+    restart: unless-stopped
+    profiles:
+      - prod
 
   db:
     image: postgres:15
@@ -43,10 +66,31 @@ services:
     command: server --console-address ":9001" /data
     env_file:
       - ./.env.minio
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  minio-init:
+    image: minio/mc
+    depends_on:
+      - minio
+    entrypoint: >
+      /bin/sh -c "
+      until /usr/bin/mc config host add myminio http://minio:9000 minioadmin minioadmin; do
+        echo 'Ждем доступности MinIO...';
+        sleep 1;
+      done;
+      /usr/bin/mc mb myminio/rpg-assets --ignore-existing;
+      /usr/bin/mc policy set download myminio/rpg-assets;
+      echo 'MinIO инициализирован!';
+      exit 0;
+      "
 
 volumes:
   postgres_data:
   minio_data:
   static_volume:
   media_volume:
-  frontend_node_modules:

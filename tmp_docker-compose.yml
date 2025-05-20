@@ -1,0 +1,50 @@
+version: '3.9'
+
+services:
+  db:
+    image: postgres:14
+    environment:
+      - POSTGRES_DB=mydb
+      - POSTGRES_USER=myuser
+      - POSTGRES_PASSWORD=mypassword
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+
+  backend:
+    build: ./RPGBackendFastAPI
+    ports:
+      - "4050:4050"
+    volumes:
+      - ./backend-fastapi:/app
+    command: uvicorn app.main:app --host 0.0.0.0 --port 4050 --reload
+    # depends_on:
+    #   - db
+    restart: always
+
+  frontend:
+    build: ./RPGFrontendReact
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./frontend-react:/app
+      - /app/node_modules
+    environment:
+      - NODE_ENV=development
+    command: npm start
+    stdin_open: true
+    tty: true
+
+  desktop:
+    build: ./RPGQtWebApp
+    environment:
+      - DISPLAY=$DISPLAY
+      - QT_X11_NO_MITSHM=1
+    volumes:
+      - /tmp/.X11-unix:/tmp/.X11-unix:rw
+    stdin_open: true
+    tty: true
+
+volumes:
+  db-data:
