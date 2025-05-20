@@ -119,8 +119,10 @@ erDiagram
         string name
         string story
         int body_id FK
+        int scenario_id FK
     }
     NPC }|--|| Body: has
+    NPC }o--|| Scenario: belongs_to
 
 
     WhereObject {
@@ -148,8 +150,10 @@ erDiagram
         xml description_for_players
         int add_time_secs
         int riggers_note_id FK
+        int scenario_id FK
     }
     PlayerAction }o--|| Note: triggers
+    PlayerAction }o--|| Scenario: belongs_to
 
     Requirements {
         int id PK
