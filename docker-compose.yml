@@ -4,7 +4,7 @@ services:
   app:
     build: ./RPGdata
     ports:
-      - "8000:8000"
+      - "8001:8000"
     volumes:
       - ./RPGdata:/app
     depends_on:
@@ -14,16 +14,37 @@ services:
     environment:
       - S3_ENDPOINT=http://minio:9000
       - PG_ENDPOINT=postgresql://db:5432
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=rpg_sessions
+      - SECRET_KEY=your-secret-key-change-in-production
     env_file:
-      - ./.env.db
       - ./.env.minio
+
+  game-sessions:
+    build: ./RPGQtWebApp
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./RPGQtWebApp:/app
+    depends_on:
+      db:
+        condition: service_healthy
+      mongodb:
+        condition: service_healthy
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=rpg_sessions
+      - SECRET_KEY=your-secret-key-change-in-production
+    restart: unless-stopped
 
   frontend-dev:
     build:
       context: ./RPGFrontendReact
       target: development
     ports:
-      - "3000:3000"
+      - "3001:3000"
     volumes:
       - ./RPGFrontendReact/frontend:/app:delegated
       - /app/node_modules
@@ -51,10 +72,57 @@ services:
     image: postgres:15
     volumes:
       - postgres_data:/var/lib/postgresql/data/
-    env_file:
-      - ./.env.db
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=rpg_sessions
     ports:
       - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # Новый сервис для React TypeScript приложения
+  web-client:
+    build:
+      context: ./RPGWebMainClient
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./RPGWebMainClient:/app
+      - /app/node_modules
+      - /app/.next
+    depends_on:
+      - game-sessions
+    environment:
+      - NODE_ENV=development
+      - NEXT_PUBLIC_API_URL=http://localhost:8000
+    restart: unless-stopped
+
+  mongodb:
+    image: mongo:7.0
+    container_name: game-sessions-mongodb
+    restart: always
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodb_data:/data/db
+      - mongodb_config:/data/configdb
+    environment:
+      - MONGO_INITDB_ROOT_USERNAME=admin
+      - MONGO_INITDB_ROOT_PASSWORD=admin
+      - MONGO_INITDB_DATABASE=game_sessions
+      - MONGODB_LOG_LEVEL=warning
+    command: mongod --quiet --logpath /dev/null
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.runCommand('ping').ok"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
 
   minio:
     image: minio/minio
@@ -92,5 +160,7 @@ services:
 volumes:
   postgres_data:
   minio_data:
+  mongodb_data:
+  mongodb_config:
   static_volume:
   media_volume:
