@@ -4,13 +4,18 @@ services:
   app:
     build: ./RPGdata
     ports:
-      - "8001:8000"
+      - "8000:8000"
     volumes:
       - ./RPGdata:/app
     depends_on:
-      - db
-      - minio
-      - minio-init
+      db:
+        condition: service_healthy
+      mongodb:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+      minio-init:
+        condition: service_completed_successfully
     environment:
       - S3_ENDPOINT=http://minio:9000
       - PG_ENDPOINT=postgresql://db:5432
@@ -18,55 +23,30 @@ services:
       - POSTGRES_PASSWORD=postgres
       - POSTGRES_DB=rpg_sessions
       - SECRET_KEY=your-secret-key-change-in-production
+      - MONGODB_URL=mongodb://admin:admin@mongodb:27017/game_sessions_db?authSource=admin
     env_file:
       - ./.env.minio
-
-  game-sessions:
-    build: ./RPGQtWebApp
-    ports:
-      - "8000:8000"
-    volumes:
-      - ./RPGQtWebApp:/app
-    depends_on:
-      db:
-        condition: service_healthy
-      mongodb:
-        condition: service_healthy
-    environment:
-      - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=postgres
-      - POSTGRES_DB=rpg_sessions
-      - SECRET_KEY=your-secret-key-change-in-production
     restart: unless-stopped
 
-  frontend-dev:
+
+  web-client:
     build:
-      context: ./RPGFrontendReact
-      target: development
+      context: ./RPGWebMainClient
+      # dockerfile: Dockerfile
+    working_dir: /app/RPGWebMainClient
     ports:
-      - "3001:3000"
+      - "3000:3000"
     volumes:
-      - ./RPGFrontendReact/frontend:/app:delegated
+      - .:/app
       - /app/node_modules
     depends_on:
       - app
     environment:
-      - CHOKIDAR_USEPOLLING=true
-      - WDS_SOCKET_PORT=3000
-      - REACT_APP_API_URL=http://localhost:8000
-
-  # Опциональная конфигурация для продакшена
-  frontend-prod:
-    build:
-      context: .
-      target: production
-    ports:
-      - "80:80"
-    depends_on:
-      - app
+      - NODE_ENV=development
+      - NEXT_PUBLIC_API_URL=http://localhost:8000
+      # - WATCHPACK_POLLING=true
     restart: unless-stopped
-    profiles:
-      - prod
+    command: pnpm dev 
 
   db:
     image: postgres:15
@@ -83,24 +63,6 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
-
-  # Новый сервис для React TypeScript приложения
-  web-client:
-    build:
-      context: ./RPGWebMainClient
-      dockerfile: Dockerfile
-    ports:
-      - "3000:3000"
-    volumes:
-      - ./RPGWebMainClient:/app
-      - /app/node_modules
-      - /app/.next
-    depends_on:
-      - game-sessions
-    environment:
-      - NODE_ENV=development
-      - NEXT_PUBLIC_API_URL=http://localhost:8000
-    restart: unless-stopped
 
   mongodb:
     image: mongo:7.0
