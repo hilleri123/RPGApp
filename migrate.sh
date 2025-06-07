@@ -14,7 +14,7 @@ NC='\033[0m' # No Color
 
 # Function to check if docker-compose is running
 check_docker_compose() {
-    if ! docker-compose -f "$COMPOSE_FILE" ps | grep -q "running"; then
+    if ! docker-compose -f "$COMPOSE_FILE" ps | grep -q "Up"; then
         echo -e "${YELLOW}Docker Compose services are not running. Please start them first with:${NC}"
         echo "docker-compose -f $COMPOSE_FILE up -d"
         exit 1
@@ -33,12 +33,10 @@ wait_for_postgres() {
 # Generate migration
 generate_migration() {
     echo -e "${YELLOW}Generating new migration...${NC}"
-    cd RPGdata
-    if ! alembic revision --autogenerate -m "$MESSAGE"; then
+    if ! docker-compose -f "$COMPOSE_FILE" exec -T "$SERVICE_NAME" bash -c "alembic revision --autogenerate -m \"$MESSAGE\""; then
         echo "Failed to generate migration"
         exit 1
     fi
-    cd ..
     echo -e "${GREEN}Migration generated successfully!${NC}"
 }
 
