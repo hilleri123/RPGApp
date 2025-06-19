@@ -118,6 +118,26 @@ services:
       echo 'MinIO инициализирован!';
       exit 0;
       "
+  redis:
+    image: redis:6
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    networks:
+      - app-network
+  
+  zookeeper:
+    image: confluentinc/cp-zookeeper:latest
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    networks:
+      - app-network
+
 
 volumes:
   postgres_data:
@@ -126,3 +146,9 @@ volumes:
   mongodb_config:
   static_volume:
   media_volume:
+
+   
+networks:
+  app-network:
+    driver: bridge
+
