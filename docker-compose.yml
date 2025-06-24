@@ -119,7 +119,7 @@ services:
       exit 0;
       "
   redis:
-    image: redis:6
+    image: redis/redis-stack:latest
     ports:
       - "6379:6379"
     healthcheck:
