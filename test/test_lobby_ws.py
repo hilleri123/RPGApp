@@ -3,6 +3,7 @@ import threading
 import httpx
 import websockets
 import json
+import random
 import uuid
 
 # Конфигурация
@@ -10,6 +11,7 @@ SERVER_URL = "http://localhost:8000"
 WS_URL = "ws://localhost:8000/lobby/ws"
 LOGIN_ENDPOINT = "/auth/login"
 LOBBY_ENDPOINT = "/lobby"
+SCENARIO_ENDPOINT = "/scenarios"
 
 # Тестовые пользователи
 MASTER_USER = {"username": "a@aa.ru", "password": "111111"}
@@ -32,6 +34,32 @@ def get_access_token(user_data):
         response.raise_for_status()
         return response.json()["access_token"]
 
+async def receive_messages(websocket, username):
+    async for message in websocket:
+        print(f"{username} получил состояние: {message}")
+
+async def send_master_commands(websocket, token):
+    headers = {"authorization": f"Bearer {token}"}
+    with httpx.Client() as client:
+        response = client.get(
+            f"{SERVER_URL}{SCENARIO_ENDPOINT}",
+            headers=headers
+        )
+        response.raise_for_status()
+        scenarios = response.json()
+    scenarios_ids = [s["id"] for s in scenarios]
+
+    base_action = {"user_role":"master"}
+    while True:
+        delay = random.uniform(1, 2)
+        await asyncio.sleep(delay)
+        action = base_action.copy()
+        action.update({"msg_type":"select_scenario", "scenario_id":random.choice(scenarios_ids)})
+
+        await websocket.send(json.dumps(action))
+        print(f"Отправлена команда: {action}")
+
+
 async def websocket_client_master(token, master_username):
     headers = {"authorization": f"Bearer {token}"}
     with httpx.Client() as client:
@@ -44,13 +72,16 @@ async def websocket_client_master(token, master_username):
             }
         )
         response.raise_for_status()
-    lobby = response.json()
+        lobby = response.json()
 
     async with websockets.connect(
         f"{WS_URL}/{lobby['id']}",
         extra_headers=headers
     ) as websocket:
-        pass
+        await asyncio.gather(
+            receive_messages(websocket, master_username),
+            send_master_commands(websocket, token)
+        )
 
 async def websocket_client(token, client_username):
     """Асинхронная работа с WebSocket"""
@@ -74,7 +105,10 @@ async def websocket_client(token, client_username):
         f"{WS_URL}/{lobby_id}",
         extra_headers=headers
     ) as websocket:
-        pass
+        await asyncio.gather(
+            receive_messages(websocket, client_username),
+            # send_master_commands(websocket)
+        )
 
 def client_thread(user, websocket_func):
     username = user["username"]
