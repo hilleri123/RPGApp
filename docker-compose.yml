@@ -38,6 +38,7 @@ services:
       - "3000:3000"
     volumes:
       - .:/app
+      - /app/.next
       - /app/node_modules
     depends_on:
       - app
@@ -47,6 +48,7 @@ services:
       # - WATCHPACK_POLLING=true
     restart: unless-stopped
     command: pnpm dev 
+  #   command: sh -c "pnpm install && pnpm dev"
 
   db:
     image: postgres:15
