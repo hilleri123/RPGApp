@@ -5,24 +5,37 @@ import websockets
 import json
 import random
 import uuid
-from .config import *
-from .common import *
+from common import *
 
 
-async def send_master_commands(websocket, token):
+
+
+async def send_master_commands(websocket: websockets.WebSocketClientProtocol, token):
     headers = {"authorization": f"Bearer {token}"}
     scenarios = await get_scenarios(token)
     scenarios_ids = [s["id"] for s in scenarios]
 
-    base_action = {"user_role":"master"}
+    data: dict = json.loads(websocket.recv())
+    characters = []
+    players = []
+    parse_lobby(data)
+
+    def parse_lobby(data: dict):
+        lobby = data
+        characters = data.get("characters", [])
+        players = data.get("players", [])
     while True:
+        if len(characters) == 0:
+            action = master_cmd({
+                "msg_type":"select_scenario", 
+                "scenario_id":random.choice(scenarios_ids)
+                })
+            await websocket.send(json.dumps(action))
+            parse_lobby(json.loads(await websocket.recv()))
+        
+
         delay = random.uniform(1, 2)
         await asyncio.sleep(delay)
-        action = base_action.copy()
-        action.update({"msg_type":"select_scenario", "scenario_id":random.choice(scenarios_ids)})
-
-        await websocket.send(json.dumps(action))
-        print(f"Отправлена команда: {action}")
 
 
 async def websocket_client_master(token, master_username):
@@ -34,8 +47,7 @@ async def websocket_client_master(token, master_username):
         extra_headers=headers
     ) as websocket:
         await asyncio.gather(
-            receive_messages(websocket, master_username),
-            send_master_commands(websocket, token)
+            receive_messages(websocket, master_username)
         )
 
 
@@ -53,6 +65,7 @@ async def websocket_client(token, client_username):
             receive_messages(websocket, client_username),
             # send_master_commands(websocket)
         )
+
 
 
 if __name__ == "__main__":
