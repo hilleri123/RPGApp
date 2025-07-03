@@ -116,10 +116,11 @@ services:
         sleep 1;
       done;
       /usr/bin/mc mb myminio/rpg-assets --ignore-existing;
-      /usr/bin/mc policy set download myminio/rpg-assets;
+      /usr/bin/mc anonymous set download myminio/rpg-assets;
       echo 'MinIO инициализирован!';
       exit 0;
       "
+
   redis:
     image: redis/redis-stack:latest
     ports:
