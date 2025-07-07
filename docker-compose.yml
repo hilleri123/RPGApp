@@ -16,6 +16,8 @@ services:
         condition: service_healthy
       minio-init:
         condition: service_completed_successfully
+      redis:
+        condition: service_healthy
     environment:
       - S3_ENDPOINT=http://minio:9000
       - PG_ENDPOINT=postgresql://db:5432
