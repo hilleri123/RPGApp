@@ -12,4 +12,4 @@
 	url = git@github.com:hilleri123/RPGdata.git
 [submodule "RPGWebMainClient"]
 	path = RPGWebMainClient
-	url = https://github.com/hilleri123/RPGWebMainClient.git
+	url = git@github.com:hilleri123/RPGWebMainClient.git
