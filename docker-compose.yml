@@ -46,7 +46,7 @@ services:
       - app
     environment:
       - NODE_ENV=development
-      - NEXT_PUBLIC_API_URL=http://localhost:8000/api
+      - NEXT_PUBLIC_API_URL=https://byury.online:8000/api
       # - WATCHPACK_POLLING=true
     restart: unless-stopped
     command: pnpm dev 
