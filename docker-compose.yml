@@ -108,22 +108,24 @@ services:
       retries: 3
       start_period: 10s
 
-        #  minio-init:
-        #    image: minio/mc
-        #    depends_on:
-        #      - minio
-        #    entrypoint: >
-        #      /bin/sh -c "
-        #      until /usr/bin/mc config host add myminio http://minio:9000 minioadmin minioadmin; do
-        #        echo 'Ждем доступности MinIO...';
-        #        sleep 1;
-        #      done;
-        #      /usr/bin/mc mb myminio/rpg-assets --ignore-existing;
-        #      /usr/bin/mc anonymous set download myminio/rpg-assets;
-        #      echo 'MinIO инициализирован!';
-        #      exit 0;
-        #      "
-        #
+  minio-init:
+    image: minio/mc
+    depends_on:
+      - minio
+    env_file:
+      - .env.minio
+    entrypoint: >
+      /bin/sh -c "
+      until /usr/bin/mc alias set myminio http://minio:9000 $MINIO_ROOT_USER $MINIO_ROOT_PASSWORD; do
+        echo 'Ждем доступности MinIO...';
+        sleep 1;
+      done;
+      /usr/bin/mc mb myminio/rpg-assets --ignore-existing;
+      /usr/bin/mc anonymous set download myminio/rpg-assets;
+      echo 'MinIO инициализирован!';
+      exit 0;
+      "
+
   redis:
     image: redis/redis-stack:latest
     ports:
