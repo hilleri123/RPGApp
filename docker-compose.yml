@@ -10,12 +10,12 @@ services:
     depends_on:
       db:
         condition: service_healthy
-      mongodb:
-        condition: service_healthy
+      # mongodb:
+      #   condition: service_healthy
       minio:
         condition: service_healthy
-      minio-init:
-        condition: service_completed_successfully
+          #      minio-init:
+          #        condition: service_completed_successfully
       redis:
         condition: service_healthy
     environment:
@@ -46,7 +46,7 @@ services:
       - app
     environment:
       - NODE_ENV=development
-      - NEXT_PUBLIC_API_URL=http://localhost:8000
+      - NEXT_PUBLIC_API_URL=http://localhost:8000/api
       # - WATCHPACK_POLLING=true
     restart: unless-stopped
     command: pnpm dev 
@@ -69,27 +69,27 @@ services:
       retries: 5
       start_period: 2s
 
-  mongodb:
-    image: mongo:7.0
-    container_name: game-sessions-mongodb
-    restart: always
-    ports:
-      - "27017:27017"
-    volumes:
-      - mongodb_data:/data/db
-      - mongodb_config:/data/configdb
-    environment:
-      - MONGO_INITDB_ROOT_USERNAME=admin
-      - MONGO_INITDB_ROOT_PASSWORD=admin
-      - MONGO_INITDB_DATABASE=game_sessions
-      - MONGODB_LOG_LEVEL=warning
-    command: mongod --quiet --logpath /dev/null
-    healthcheck:
-      test: ["CMD", "mongosh", "--eval", "db.runCommand('ping').ok"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 30s
+  # mongodb:
+  #   image: mongo:7.0
+  #   container_name: game-sessions-mongodb
+  #   restart: always
+  #   ports:
+  #     - "27017:27017"
+  #   volumes:
+  #     - mongodb_data:/data/db
+  #     - mongodb_config:/data/configdb
+  #   environment:
+  #     - MONGO_INITDB_ROOT_USERNAME=admin
+  #     - MONGO_INITDB_ROOT_PASSWORD=admin
+  #     - MONGO_INITDB_DATABASE=game_sessions
+  #     - MONGODB_LOG_LEVEL=warning
+  #   command: mongod --quiet --logpath /dev/null
+  #   healthcheck:
+  #     test: ["CMD", "mongosh", "--eval", "db.runCommand('ping').ok"]
+  #     interval: 10s
+  #     timeout: 5s
+  #     retries: 5
+  #     start_period: 30s
 
   minio:
     image: minio/minio
@@ -108,22 +108,22 @@ services:
       retries: 3
       start_period: 10s
 
-  minio-init:
-    image: minio/mc
-    depends_on:
-      - minio
-    entrypoint: >
-      /bin/sh -c "
-      until /usr/bin/mc config host add myminio http://minio:9000 minioadmin minioadmin; do
-        echo 'Ждем доступности MinIO...';
-        sleep 1;
-      done;
-      /usr/bin/mc mb myminio/rpg-assets --ignore-existing;
-      /usr/bin/mc anonymous set download myminio/rpg-assets;
-      echo 'MinIO инициализирован!';
-      exit 0;
-      "
-
+        #  minio-init:
+        #    image: minio/mc
+        #    depends_on:
+        #      - minio
+        #    entrypoint: >
+        #      /bin/sh -c "
+        #      until /usr/bin/mc config host add myminio http://minio:9000 minioadmin minioadmin; do
+        #        echo 'Ждем доступности MinIO...';
+        #        sleep 1;
+        #      done;
+        #      /usr/bin/mc mb myminio/rpg-assets --ignore-existing;
+        #      /usr/bin/mc anonymous set download myminio/rpg-assets;
+        #      echo 'MinIO инициализирован!';
+        #      exit 0;
+        #      "
+        #
   redis:
     image: redis/redis-stack:latest
     ports:
@@ -137,11 +137,11 @@ services:
     # networks:
     #   - app-network
   
-  zookeeper:
-    image: confluentinc/cp-zookeeper:latest
-    environment:
-      ZOOKEEPER_CLIENT_PORT: 2181
-      ZOOKEEPER_TICK_TIME: 2000
+        #  zookeeper:
+        #    image: confluentinc/cp-zookeeper:latest
+        #    environment:
+        #      ZOOKEEPER_CLIENT_PORT: 2181
+        #      ZOOKEEPER_TICK_TIME: 2000
     # networks:
     #   - app-network
 
