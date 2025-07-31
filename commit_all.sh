@@ -7,7 +7,7 @@ for dir in RPG* ; do
     git add .
     git commit -m "Описание изменений"
     echo "Отправка изменений в удалённый репозиторий"
-    git push
+    git push origin HEAD:master
     cd ..
 done
 
