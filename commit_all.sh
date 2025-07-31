@@ -7,7 +7,16 @@ for dir in RPG* ; do
     git add .
     git commit -m "Описание изменений"
     echo "Отправка изменений в удалённый репозиторий"
-    git push origin HEAD:master
+    # git push origin HEAD:master
+    # Проверяем текущую ветку
+    branch=$(git symbolic-ref --short -q HEAD)
+    if [ -z "$branch" ]; then  # detached HEAD
+        branch="master"        # или main, если так у тебя
+        echo "detached HEAD — пушим на $branch"
+        git push origin HEAD:$branch
+    else
+        git push
+    fi
     cd ..
 done
 
