@@ -28,6 +28,7 @@ services:
       - MONGODB_URL=mongodb://admin:admin@mongodb:27017/game_sessions_db?authSource=admin
     env_file:
       - ./.env.minio
+      - ./.env.tgbot
     restart: unless-stopped
 
 
