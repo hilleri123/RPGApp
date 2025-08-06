@@ -129,6 +129,8 @@ services:
 
   redis:
     image: redis/redis-stack:latest
+    volumes:
+      - redis_data:/redis_data
     ports:
       - "6379:6379"
     healthcheck:
@@ -156,6 +158,7 @@ volumes:
   mongodb_config:
   static_volume:
   media_volume:
+  redis_data:
 
    
 # networks:
