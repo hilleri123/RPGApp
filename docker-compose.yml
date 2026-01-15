@@ -7,6 +7,7 @@ services:
       - "8000:8000"
     volumes:
       - ./RPGdata:/app
+      - ./plugins:/app/plugins
     depends_on:
       db:
         condition: service_healthy
@@ -18,6 +19,8 @@ services:
           #        condition: service_completed_successfully
       redis:
         condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
     environment:
       - S3_ENDPOINT=http://minio:9000
       - PG_ENDPOINT=postgresql://db:5432
@@ -25,6 +28,7 @@ services:
       - POSTGRES_PASSWORD=postgres
       - POSTGRES_DB=rpg_sessions
       - SECRET_KEY=your-secret-key-change-in-production
+      - RABBIT_URL=amqp://guest:guest@rabbitmq:5672/
       - MONGODB_URL=mongodb://admin:admin@mongodb:27017/game_sessions_db?authSource=admin
     env_file:
       - ./.env.minio
@@ -43,6 +47,7 @@ services:
       - .:/app
       - /app/.next
       - /app/node_modules
+      - ./plugins:/app/plugins
     depends_on:
       - app
     environment:
@@ -182,6 +187,23 @@ services:
     # networks:
     #   - app-network
 
+  rabbitmq:
+    image: rabbitmq:3-management
+    ports:
+      - "5672:5672"     # AMQP
+      - "15672:15672"   # Web UI
+    environment:
+      - RABBITMQ_DEFAULT_USER=guest
+      - RABBITMQ_DEFAULT_PASS=guest
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
 
 volumes:
   postgres_data:
@@ -191,6 +213,7 @@ volumes:
   static_volume:
   media_volume:
   redis_data:
+  rabbitmq_data:
 
    
 # networks:
