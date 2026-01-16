@@ -7,7 +7,7 @@ services:
       - "8000:8000"
     volumes:
       - ./RPGdata:/app
-      - ./plugins:/app/plugins
+      - ./plugins:/plugins
     depends_on:
       db:
         condition: service_healthy
@@ -47,7 +47,7 @@ services:
       - .:/app
       - /app/.next
       - /app/node_modules
-      - ./plugins:/app/plugins
+      - ./plugins:/plugins
     depends_on:
       - app
     environment:
