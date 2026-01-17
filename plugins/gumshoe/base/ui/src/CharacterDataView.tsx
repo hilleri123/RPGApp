@@ -60,7 +60,7 @@ export default function CharacterDataView({ data, config }: Props) {
             <div className="divide-y divide-gray-800">
               {items.map((s) => {
                 const min = s.min ?? 0;
-                const max = s.max ?? 5;
+                const max = s.max ?? 10;
                 const raw = Number(skillValues?.[s.id] ?? 0);
                 const value = clamp(isFinite(raw) ? raw : 0, min, max);
                 const pct = max > min ? ((value - min) / (max - min)) * 100 : 0;
