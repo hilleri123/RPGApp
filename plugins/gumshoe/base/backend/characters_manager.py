@@ -44,8 +44,6 @@ class CharactersManager:
                 issues.append(ValidationIssue(path=f"data.skills.{sid}", message="Unknown skill", icon="error"))
                 continue
             s = allowed[sid]
-            if val < s.min or val > s.max:
-                issues.append(ValidationIssue(path=f"data.skills.{sid}", message=f"Value must be {s.min}..{s.max}", icon="error"))
             total += val
 
         if total > max_points:
