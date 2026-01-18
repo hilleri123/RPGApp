@@ -4,6 +4,7 @@ from .codex_skills import SkillsCodex
 from .items_manager import ItemsManager
 from .characters_manager import CharactersManager
 from .npcs_manager import NpcsManager
+from .location_manager import LocationManager
 
 class RulesFactory:
     system_id = "example"
@@ -13,26 +14,29 @@ class RulesFactory:
         self.items = ItemsManager()
         self.characters = CharactersManager(self.skills)
         self.npcs = NpcsManager(self.skills)
+        self.locations = LocationManager()
 
     # единый диспетчер, чтобы бэк не знал типов
     def handle(self, kind: str, entity: str, payload: Any, context: Any) -> Any:
         ctx = context if isinstance(context, dict) else {}
 
-        if kind == "config" and entity == "character":
-            return self.characters.config(ctx)
-        if kind == "validate" and entity == "character":
-            return self.characters.validate_and_enrich(payload or {}, ctx).model_dump() if hasattr(self.characters.validate_and_enrich(payload or {}, ctx), "model_dump") else self.characters.validate_and_enrich(payload or {}, ctx).dict()
+        manager = None
 
-        if kind == "config" and entity == "npc":
-            return self.npcs.config(ctx)
-        if kind == "validate" and entity == "npc":
-            res = self.npcs.validate_and_enrich(payload or {}, ctx)
-            return res.model_dump() if hasattr(res, "model_dump") else res.dict()
+        if entity == "character":
+            manager = self.characters
+        elif entity == "item":
+            manager = self.items
+        elif entity == "npc":
+            manager = self.npcs
+        elif entity == "location":
+            manager = self.locations
+        else:
+            return {"ok": False, "issues": [{"path": "", "message": "Unknown route", "icon": "error", "level": "error"}]}
 
-        if kind == "config" and entity == "item":
-            return self.items.config(ctx)
-        if kind == "validate" and entity == "item":
-            res = self.items.validate_and_enrich(payload or {}, ctx)
+        if kind == "config":
+            return manager.config(ctx)
+        if kind == "validate":
+            res = manager.validate_and_enrich(payload or {}, ctx)
             return res.model_dump() if hasattr(res, "model_dump") else res.dict()
 
         return {"ok": False, "issues": [{"path": "", "message": "Unknown route", "icon": "error", "level": "error"}]}
