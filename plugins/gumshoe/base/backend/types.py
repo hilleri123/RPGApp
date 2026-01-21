@@ -1,8 +1,10 @@
 from __future__ import annotations
 from typing import Any, Protocol, Literal, Optional, runtime_checkable
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, NonNegativeInt
 
 EntityKind = Literal["character", "npc", "item"]
+
+
 
 class ValidationIssue(BaseModel):
     path: str                  # "data.skills.athletics"
@@ -27,8 +29,21 @@ class HasItems(BaseModel):
 class HasStats(BaseModel):
     skills: dict[str, int] = Field(default_factory=dict)
 
-class CharacterData(HasItems, HasStats):
-    name: str
+
+
+class CharacterPoints(BaseModel):
+    investigativeMax: NonNegativeInt = 0
+    generalMax: NonNegativeInt = 0
+
+
+class CharacterData(BaseModel):
+    name: str = ""
+    skills: dict[str, NonNegativeInt] = Field(default_factory=dict)
+    items: list[dict] = Field(default_factory=list)
+
+    # Новое: бюджеты очков, которые задаёт мастер
+    points: CharacterPoints = Field(default_factory=CharacterPoints)
+
 
 class NpcData(HasItems, HasStats):
     name: str
