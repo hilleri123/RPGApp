@@ -41,6 +41,7 @@ class CharactersManager:
 
     def validate_and_enrich(self, payload: dict[str, Any], context: dict[str, Any] | None = None) -> ValidateResult:
         issues: list[ValidationIssue] = []
+        print(payload)
 
         try:
             ch = (

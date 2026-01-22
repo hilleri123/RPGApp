@@ -13,25 +13,46 @@ class NpcsManager:
 
     def config(self, context: dict[str, Any] | None = None) -> dict[str, Any]:
         base = self.skills.as_config()
+
+        general_ids = [s.id for s in self.skills.skills_by_kind("general")]
         return {
             **base,
-            "constraints": {"maxSkillPoints": 6},
-            "initialData": {"name": "", "role": "npc", "skills": {s["id"]: 0 for s in base["skills"]}, "items": []},
+            "initialData": {
+                "name": "",
+                "description": "",
+                "skills": {sid: 0 for sid in general_ids},
+                "items": [],
+                "health": None,
+                "stability": None,
+                "armor": None,
+                "hitThreshold": None,
+            },
         }
 
     def validate_and_enrich(self, payload: dict[str, Any], context: dict[str, Any] | None = None) -> ValidateResult:
+        issues: list[ValidationIssue] = []
+
         try:
             npc = NpcData.model_validate(payload) if hasattr(NpcData, "model_validate") else NpcData.parse_obj(payload)
         except ValidationError as e:
-            issues = [
-                ValidationIssue(path="data." + ".".join(str(x) for x in err.get("loc", [])),
-                                message=err.get("msg", "Invalid"),
-                                icon="error")
-                for err in e.errors()
-            ]
+            for err in e.errors():
+                loc = ".".join(str(x) for x in err.get("loc", []))
+                issues.append(ValidationIssue(path=f"data.{loc}" if loc else "data", message=err.get("msg", "Invalid"), icon="error"))
             return ValidateResult(ok=False, issues=issues, data=None)
 
-        # простой enrich пример
+        allowed = self.skills.allowed_map()
+
+        for sid, val in (npc.skills or {}).items():
+            if sid not in allowed:
+                issues.append(ValidationIssue(path=f"data.skills.{sid}", message="Unknown skill", icon="error"))
+                continue
+            kind = self.skills.skill_kind(sid)
+            if kind != "general":
+                issues.append(ValidationIssue(path=f"data.skills.{sid}", message="NPC skills must be general abilities only", icon="error"))
+                continue
+
+        if issues:
+            return ValidateResult(ok=False, issues=issues, data=None)
+
         data = npc.model_dump() if hasattr(npc, "model_dump") else npc.dict()
-        data["role"] = (data.get("role") or "npc").lower()
         return ValidateResult(ok=True, issues=[], data=data)

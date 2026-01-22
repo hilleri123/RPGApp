@@ -5,6 +5,7 @@ from .items_manager import ItemsManager
 from .characters_manager import CharactersManager
 from .npcs_manager import NpcsManager
 from .location_manager import LocationManager
+from .obstacles_manager import ObstaclesManager
 
 class RulesFactory:
     system_id = "example"
@@ -15,6 +16,7 @@ class RulesFactory:
         self.characters = CharactersManager(self.skills)
         self.npcs = NpcsManager(self.skills)
         self.locations = LocationManager()
+        self.obstacles = ObstaclesManager(self.skills)
 
     # единый диспетчер, чтобы бэк не знал типов
     def handle(self, kind: str, entity: str, payload: Any, context: Any) -> Any:
@@ -30,6 +32,8 @@ class RulesFactory:
             manager = self.npcs
         elif entity == "location":
             manager = self.locations
+        elif entity == "obstacle":
+            manager = self.obstacles
         else:
             return {"ok": False, "issues": [{"path": "", "message": "Unknown route", "icon": "error", "level": "error"}]}
 

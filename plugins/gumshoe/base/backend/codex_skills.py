@@ -1,45 +1,19 @@
 from __future__ import annotations
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, PositiveInt
-
-
-class SkillGroup(BaseModel):
-    model_config = ConfigDict(frozen=True)
-
-    id: str
-    title: str
-    color: str
-
-
-class Skill(BaseModel):
-    model_config = ConfigDict(frozen=True)
-
-    id: str
-    title: str
-    group: str
-
+from .types import *
 
 
 class SkillsCodex:
-    INVESTIGATIVE_GROUPS = {
-        "investigative_academic",
-        "investigative_interpersonal",
-        "investigative_technical",
-    }
-    GENERAL_GROUPS = {
-        "general_action",
-        "general_combat",
-        "general_survival",
-    }
-
     def __init__(self) -> None:
         self.groups: list[SkillGroup] = [
-            SkillGroup(id="investigative_academic", title="Исследование: академическое", color="#22c55e"),
-            SkillGroup(id="investigative_interpersonal", title="Исследование: социальное", color="#14b8a6"),
-            SkillGroup(id="investigative_technical", title="Исследование: техническое", color="#a78bfa"),
-            SkillGroup(id="general_action", title="Общие: действие", color="#60a5fa"),
-            SkillGroup(id="general_combat", title="Общие: бой", color="#f97316"),
-            SkillGroup(id="general_survival", title="Общие: выживание", color="#f43f5e"),
+            SkillGroup(id="investigative_academic", title="Исследование: академическое", color="#22c55e", kind="investigative"),
+            SkillGroup(id="investigative_interpersonal", title="Исследование: социальное", color="#14b8a6", kind="investigative"),
+            SkillGroup(id="investigative_technical", title="Исследование: техническое", color="#a78bfa", kind="investigative"),
+            SkillGroup(id="general_action", title="Общие: действие", color="#60a5fa", kind="general"),
+            SkillGroup(id="general_combat", title="Общие: бой", color="#f97316", kind="general"),
+            SkillGroup(id="general_survival", title="Общие: выживание", color="#f43f5e", kind="general"),
         ]
 
         # Набор абилок составлен по списку GUMSHOE SRD (CC v3). [web:3]
@@ -148,12 +122,24 @@ class SkillsCodex:
     def allowed_map(self) -> dict[str, Skill]:
         return {s.id: s for s in self.skills}
 
-    def skill_kind(self, skill_id: str) -> str:
-        s = self.allowed_map().get(skill_id)
-        if not s:
-            return "unknown"
-        if s.group in self.INVESTIGATIVE_GROUPS:
-            return "investigative"
-        if s.group in self.GENERAL_GROUPS:
-            return "general"
-        return "unknown"
+    def group_map(self) -> dict[str, SkillGroup]:
+        return {g.id: g for g in self.groups}
+
+    def get_group(self, skill_id: str) -> Optional[SkillGroup]:
+        skill = self.allowed_map().get(skill_id)
+        if not skill:
+            return None
+        return self.group_map().get(skill.group)
+
+    def skill_kind(self, skill_id: str) -> SkillKind:
+        g = self.get_group(skill_id)
+        return g.kind if g else "unknown"
+
+    def skills_by_kind(self, kind: SkillKind) -> list[Skill]:
+        if kind == "unknown":
+            return []
+        return [s for s in self.skills if self.skill_kind(s.id) == kind]
+
+    def skill_ids_by_kind(self, kind: SkillKind) -> list[str]:
+        return [s.id for s in self.skills_by_kind(kind)]
+
