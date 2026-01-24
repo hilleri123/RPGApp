@@ -6,6 +6,7 @@ from .characters_manager import CharactersManager
 from .npcs_manager import NpcsManager
 from .location_manager import LocationManager
 from .obstacles_manager import ObstaclesManager
+from .types import EntityKind
 
 class RulesFactory:
     system_id = "example"
@@ -19,7 +20,7 @@ class RulesFactory:
         self.obstacles = ObstaclesManager(self.skills)
 
     # единый диспетчер, чтобы бэк не знал типов
-    def handle(self, kind: str, entity: str, payload: Any, context: Any) -> Any:
+    def handle(self, kind: str, entity: EntityKind, payload: Any, context: Any) -> Any:
         ctx = context if isinstance(context, dict) else {}
 
         manager = None

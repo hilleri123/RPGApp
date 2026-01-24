@@ -16,6 +16,7 @@ class ObstaclesManager:
         self.skills = skills
 
     def config(self, context: dict[str, Any] | None = None) -> dict[str, Any]:
+        print("!!!!!!")
         base = self.skills.as_config()
         return {
             **base,

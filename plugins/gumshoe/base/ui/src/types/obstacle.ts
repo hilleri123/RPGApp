@@ -2,8 +2,6 @@ import { SkillsConfig } from "./skills";
 
 export type ObstacleClue = {
   type: 'clue';
-  name: string;
-  description?: string;
 
   // список investigative skills, которыми можно получить/купить улику
   investigative_skills: string[];
@@ -13,8 +11,6 @@ export type ObstacleClue = {
 
 export type ObstacleChallenge = {
   type: 'challenge';
-  name: string;
-  description?: string;
 
   general_skill: string; // id general skill
   difficulty: number;    // >= 2 (на бэке PositiveInt, но можно ограничить в UI)

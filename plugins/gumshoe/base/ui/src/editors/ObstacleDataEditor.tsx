@@ -34,7 +34,7 @@ export default function ObstacleDataEditor({ data, config, issues, onChange }: P
     const hasType = hasObject && typeof (data as any).type === 'string';
     if (!hasType) {
       if (config?.initialData) onChange(structuredClone(config.initialData));
-      else onChange({ type: 'clue', name: '', description: '', investigative_skills: [], spend_cost: 0, reward: '' });
+      else onChange({ type: 'clue', investigative_skills: [], spend_cost: 0, reward: '' });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [config]);
@@ -72,7 +72,7 @@ export default function ObstacleDataEditor({ data, config, issues, onChange }: P
   const setType = (t: 'clue' | 'challenge') => {
     if (t === value.type) return;
 
-    const base = { name: (value as any).name ?? '', description: (value as any).description ?? '' };
+    const base = { };
 
     if (t === 'clue') {
       const next: ObstacleClue = { type: 'clue', ...base, investigative_skills: [], spend_cost: 0, reward: '' };
@@ -97,37 +97,16 @@ export default function ObstacleDataEditor({ data, config, issues, onChange }: P
   return (
     <div className="space-y-4">
       <div className="rounded border border-gray-700 bg-black/20 p-3 space-y-3">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          <label className="space-y-1">
-            <div className="text-sm text-gray-300">Название</div>
-            <Input
-              value={(value as any).name ?? ''}
-              onChange={(e) => set({ name: e.target.value })}
-              className={hasErr('name') ? 'border-red-500 focus-visible:ring-red-500/30' : undefined}
-            />
-            {err('name') ? <div className="text-xs text-red-400">{err('name')}</div> : null}
-          </label>
-
-          <label className="space-y-1">
-            <div className="text-sm text-gray-300">Тип</div>
-            <select
-              className="w-full rounded-md border border-gray-700 bg-black/20 px-3 py-2 text-gray-100"
-              value={value.type ?? 'clue'}
-              onChange={(e) => setType(e.target.value as any)}
-            >
-              <option value="clue">Улика (spend)</option>
-              <option value="challenge">Препятствие (проверка)</option>
-            </select>
-          </label>
-        </div>
-
         <label className="space-y-1">
-          <div className="text-sm text-gray-300">Описание</div>
-          <textarea
-            className="w-full min-h-[88px] rounded-md border border-gray-700 bg-black/20 px-3 py-2 text-gray-100 outline-none"
-            value={(value as any).description ?? ''}
-            onChange={(e) => set({ description: e.target.value })}
-          />
+          <div className="text-sm text-gray-300">Тип</div>
+          <select
+            className="w-full rounded-md border border-gray-700 bg-black/20 px-3 py-2 text-gray-100"
+            value={value.type ?? 'clue'}
+            onChange={(e) => setType(e.target.value as any)}
+          >
+            <option value="clue">Улика (spend)</option>
+            <option value="challenge">Препятствие (проверка)</option>
+          </select>
         </label>
       </div>
 
