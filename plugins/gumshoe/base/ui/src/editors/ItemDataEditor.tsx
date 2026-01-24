@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { Input } from '@/components/ui/input';
 import { ValidationIssue, ItemData } from '../types';
 
@@ -20,15 +20,42 @@ function asNumber(x: any, fallback = 0) {
   return Number.isFinite(n) ? n : fallback;
 }
 
-export default function ItemDataEditor({ data, config, issues, onChange }: Props) {
-  useEffect(() => {
-    const hasObject = data && typeof data === 'object';
-    const hasName = hasObject && typeof data.name === 'string';
-    if (!hasName && config?.initialData) onChange(structuredClone(config.initialData));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [config]);
+function isPlainObject(x: any): x is Record<string, any> {
+  return !!x && typeof x === 'object' && !Array.isArray(x);
+}
 
-  const value = (data ?? {}) as ItemData;
+function isEmptyItemData(x: any) {
+  if (!isPlainObject(x)) return true;
+  // считаем "инициализированным", если есть хотя бы один из ключей домена
+  return !('tags' in x) && !('weapon' in x) && !('armor' in x) && Object.keys(x).length === 0;
+}
+
+export default function ItemDataEditor({ data, config, issues, onChange }: Props) {
+  // защитимся от двойного эффекта в dev/StrictMode
+  const initKeyRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    const init = config?.initialData;
+    if (!init) return;
+
+    // ключ, который меняется при смене конфига (подстрой под твою структуру)
+    const key = String(config?.id ?? config?.schemaId ?? 'default');
+
+    // если для этого key уже инициализировали — не трогаем
+    if (initKeyRef.current === key) return;
+
+    // если данные уже не пустые — тоже не трогаем (пользователь мог начать редактировать)
+    if (!isEmptyItemData(data)) {
+      initKeyRef.current = key;
+      return;
+    }
+
+    initKeyRef.current = key;
+    onChange(structuredClone(init));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [config, onChange]); // data специально НЕ в deps, иначе можно получить “гонку” и повторные перетирания
+
+  const value = (isPlainObject(data) ? data : {}) as ItemData;
 
   const issueMap = useMemo(() => {
     const m = new Map<string, ValidationIssue>();
@@ -73,13 +100,12 @@ export default function ItemDataEditor({ data, config, issues, onChange }: Props
         </div>
       </div>
 
-      {/* Weapon toggle */}
       <div className="rounded border border-gray-700 bg-black/20 p-3 space-y-3">
         <label className="flex items-center gap-2 text-sm text-gray-200">
           <input
             type="checkbox"
             checked={!!value.weapon}
-            onChange={(e) => set({ weapon: e.target.checked ? { type: 'melee', damage: ''} : null })}
+            onChange={(e) => set({ weapon: e.target.checked ? { type: 'melee', damage: '' } : null })}
           />
           Это оружие
         </label>
@@ -111,13 +137,12 @@ export default function ItemDataEditor({ data, config, issues, onChange }: Props
         ) : null}
       </div>
 
-      {/* Armor toggle */}
       <div className="rounded border border-gray-700 bg-black/20 p-3 space-y-3">
         <label className="flex items-center gap-2 text-sm text-gray-200">
           <input
             type="checkbox"
             checked={!!value.armor}
-            onChange={(e) => set({ armor: e.target.checked ? { rating: 0, vs: ['all']} : null })}
+            onChange={(e) => set({ armor: e.target.checked ? { rating: 0, vs: ['all'] } : null })}
           />
           Это броня
         </label>
