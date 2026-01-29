@@ -1,4 +1,3 @@
-# plugin.py
 from __future__ import annotations
 
 from typing import Any
@@ -7,7 +6,9 @@ from .types import EntityKind
 from .characters_manager import CharactersManager
 from .items_manager import ItemsManager
 from .actions_manager import ActionsManager
-from .workflows import RollActionWorkflow
+
+from .workflows import RollActionWorkflow, WorkflowRouter
+
 
 class RulesFactory:
     system_id = "blades"
@@ -16,53 +17,64 @@ class RulesFactory:
         self.characters = CharactersManager()
         self.items = ItemsManager()
         self.actions = ActionsManager()
+
         self.roll_action = RollActionWorkflow()
+        self.workflow_router = WorkflowRouter()
+        self.workflow_router.register(
+            "blades.roll_action",
+            start=self.roll_action.start,
+            present=self.roll_action.present,
+            submit=self.roll_action.submit,
+        )
 
     def handle(self, kind: str, entity: EntityKind, payload: Any, context: Any) -> Any:
         ctx = context if isinstance(context, dict) else {}
-        # --- NEW: actions.list ---
+        p = payload or {}
+
         if kind == "actions.list":
-            role = payload.get("role")  # "gm"|"initiator"|"player"
-            # ты передаешь {"scene": scene_dump, "role": ...}
-            scene = payload.get("scene") or {}
+            role = p.get("role")
+            scene = p.get("scene") or {}
             res = self.actions.list_actions(scene, role)
             return [a.model_dump(mode="json") for a in res]
-        
-        # --- NEW: workflow routes ---
-        p = payload or {}
 
         if kind == "workflow.start":
             action_key = p.get("actionKey")
             scene = p.get("scene") or {}
-            if action_key == "blades.roll_action":
-                wf = self.roll_action.start(scene)
+            wf = self.workflow_router.start(action_key, scene=scene)
+            # оставляем ok для твоего SessionActionManager.create_action
+            if hasattr(wf, "model_dump"):
                 d = wf.model_dump(mode="json")
-                d["ok"] = True              # чтобы SessionActionManager прошёл check
-                return d
-            return {"ok": False, "issues": [{"path": "actionKey", "message": "Unknown actionKey", "level": "error"}]}
+            elif isinstance(wf, dict):
+                d = wf
+            else:
+                d = dict(wf)
+            d["ok"] = True
+            return d
 
         if kind == "workflow.present":
             action_key = p.get("actionKey")
-            scene = p.get("scene") or {}
-            role = p.get("role")
-            wf = p.get("workflow") or {}
-            if action_key == "blades.roll_action":
-                env = self.roll_action.present(scene, role, wf)
-                return env.model_dump(mode="json")
-            return {"ok": False, "issues": [{"path": "actionKey", "message": "Unknown actionKey", "level": "error"}]}
+            env = self.workflow_router.present(
+                action_key,
+                scene=p.get("scene") or {},
+                actor_user_id=p.get("actorUserId") or "",
+                participants_dict=p.get("participants") or {},
+                wf_dict=p.get("workflow") or {},
+            )
+            return env.model_dump(mode="json") if hasattr(env, "model_dump") else env
 
         if kind == "workflow.submit":
             action_key = p.get("actionKey")
-            scene = p.get("scene") or {}
-            role = p.get("role")
-            wf = p.get("workflow") or {}
-            inp = p.get("input") or {}
-            if action_key == "blades.roll_action":
-                res = self.roll_action.submit(scene, role, wf, inp)
-                return res.model_dump(mode="json")
-            return {"ok": False, "issues": [{"path": "actionKey", "message": "Unknown actionKey", "level": "error"}]}
+            res = self.workflow_router.submit(
+                action_key,
+                scene=p.get("scene") or {},
+                actor_user_id=p.get("actorUserId") or "",
+                participants_dict=p.get("participants") or {},
+                wf_dict=p.get("workflow") or {},
+                input_dict=p.get("input") or {},
+            )
+            return res.model_dump(mode="json") if hasattr(res, "model_dump") else res
 
-        # --- old entity routing ---
+        # old entity routing
         if entity == "character":
             manager = self.characters
         elif entity == "item":
@@ -89,6 +101,7 @@ class RulesFactory:
 
         return {"ok": False, "issues": [{"path": "", "message": "Unknown route", "icon": "error", "level": "error"}]}
 
+
 class BladesPlugin:
     plugin_id = "blades_in_the_dark"
     plugin_name = "Blades in the Dark"
@@ -100,6 +113,7 @@ class BladesPlugin:
 
     def describe(self):
         return {"id": self.plugin_id, "name": self.plugin_name, "version": self.plugin_version}
+
 
 def create_plugin():
     return BladesPlugin()

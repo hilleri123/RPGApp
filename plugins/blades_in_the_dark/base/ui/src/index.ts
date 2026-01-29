@@ -9,4 +9,4 @@ export { default as ItemDataEditor } from './editors/ItemDataEditor';
 // export { default as ObstacleDataView } from './views/ObstacleDataView';
 // export { default as ObstacleDataEditor } from './editors/ObstacleDataEditor';
 
-export { default as ActionHandler } from './actions/RollActionStage';
+export { default as ActionHandler } from './actions/rollActionStage/RollActionStage';

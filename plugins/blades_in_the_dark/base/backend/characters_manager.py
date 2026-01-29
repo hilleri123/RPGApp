@@ -13,6 +13,7 @@ from .types import (
     TraumaId,
     LoadId,
     LOAD_VALUE,
+    PLAYBOOKS,
     ItemData
 )
 
@@ -53,6 +54,10 @@ ALL_TRAUMAS: list[TraumaId] = [
 
 ALL_LOADS: list[LoadId] = ["light", "normal", "heavy"]
 
+# --- Playbooks / Special abilities (RU) ---
+
+
+
 
 class CharactersManager:
     kind = "character"
@@ -64,9 +69,11 @@ class CharactersManager:
             "actions": [{"id": a, "title": a, "attribute": ACTION_TO_ATTRIBUTE[a]} for a in ALL_ACTIONS],
             "traumas": [{"id": t, "title": t} for t in ALL_TRAUMAS],
             "loads": [{"id": lid, "value": LOAD_VALUE[lid]} for lid in ALL_LOADS],
-            "constraints": {"stressMax": 9, "traumaMax": 4},
+            "constraints": {"stressMax": 9, "traumaMax": 4, "abilitiesMaxAtStart": 1},
+            "playbooks": PLAYBOOKS,
             "initialData": {
-                "name": "",
+                "playbookId": None,
+                "abilities": [],
                 "actions": actions0,
                 "stress": 0,
                 "traumas": [],
@@ -117,6 +124,76 @@ class CharactersManager:
                 issues.append(ValidationIssue(path=f"data.actions.{key}", message="Unknown action", icon="error"))
 
         normalized_actions: dict[ActionId, int] = {a: int(ch.actions.get(a, 0)) for a in ALL_ACTIONS}
+
+        # --- playbook / abilities ---
+
+        # Собираем доступные плейбуки и их способности из конфига (PLAYBOOKS)
+        valid_playbook_ids = {p.get("id") for p in PLAYBOOKS if isinstance(p, dict)}
+        playbook_map: dict[str, dict[str, Any]] = {
+            p["id"]: p for p in PLAYBOOKS
+            if isinstance(p, dict) and isinstance(p.get("id"), str)
+        }
+
+        # playbookId: либо None, либо валидный id
+        if ch.playbookId is not None and ch.playbookId not in valid_playbook_ids:
+            issues.append(
+                ValidationIssue(
+                    path="data.playbookId",
+                    message="Unknown playbook",
+                    icon="error",
+                )
+            )
+
+        # abilities: нормализация + проверки
+        abilities = list(ch.abilities or [])
+
+        # уникальность
+        if len(set(abilities)) != len(abilities):
+            issues.append(
+                ValidationIssue(
+                    path="data.abilities",
+                    message="Abilities must be unique",
+                    icon="error",
+                )
+            )
+
+        # проверка принадлежности к выбранному плейбуку
+        if ch.playbookId is not None and ch.playbookId in playbook_map:
+            pb = playbook_map[ch.playbookId]
+            pb_abilities = pb.get("abilities") or []
+            allowed_ability_ids = {
+                a.get("id")
+                for a in pb_abilities
+                if isinstance(a, dict) and isinstance(a.get("id"), str)
+            }
+
+            for ab in abilities:
+                if ab not in allowed_ability_ids:
+                    issues.append(
+                        ValidationIssue(
+                            path="data.abilities",
+                            message=f"Ability '{ab}' is not available for playbook '{ch.playbookId}'",
+                            icon="error",
+                        )
+                    )
+
+        # лимит на стартовые способности (из constraints; по умолчанию 1)
+        abilities_max = 1
+        try:
+            cfg = self.config(ctx)
+            abilities_max = int((cfg.get("constraints") or {}).get("abilitiesMaxAtStart", 1))
+        except Exception:
+            abilities_max = 1
+
+        if abilities_max >= 0 and len(abilities) > abilities_max:
+            issues.append(
+                ValidationIssue(
+                    path="data.abilities",
+                    message=f"Too many abilities (max {abilities_max})",
+                    icon="error",
+                )
+            )
+
 
         # --- stress ---
         # RAW: max track 9; overflow means take trauma. Here we warn if > 9. [file:17]
@@ -185,6 +262,8 @@ class CharactersManager:
         # --- enrich ---
         data = ch.model_dump() if hasattr(ch, "model_dump") else ch.dict()
         data["actions"] = normalized_actions
+        data["playbookId"] = ch.playbookId
+        data["abilities"] = abilities
         data["items"] = enriched_items
         data["harm"] = {"l1": harm_l1, "l2": harm_l2, "l3": l3}
 

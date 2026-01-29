@@ -17,6 +17,16 @@ TraumaId = Literal[
     "reckless", "soft", "unstable", "vicious",
 ]
 
+PlaybookId = Literal[
+    "cutter",
+    "hound",
+    "leech",
+    "lurk",
+    "slide",
+    "spider",
+    "whisper",
+]
+
 LoadId = Literal["light", "normal", "heavy"]
 LOAD_VALUE: dict[LoadId, int] = {"light": 3, "normal": 5, "heavy": 6}
 
@@ -31,6 +41,9 @@ class HarmTrack(BaseModel):
 class CharacterData(BaseModel):
     actions: dict[ActionId, NonNegativeInt] = Field(default_factory=dict)
 
+    playbookId: Optional[PlaybookId] = None
+    abilities: list[str] = Field(default_factory=list)
+    
     stress: NonNegativeInt = 0
     traumas: list[TraumaId] = Field(default_factory=list)
     load: Optional[LoadId] = None

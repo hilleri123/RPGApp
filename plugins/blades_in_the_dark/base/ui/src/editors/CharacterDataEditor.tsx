@@ -1,8 +1,18 @@
 'use client';
 
 import { useEffect, useMemo } from 'react';
+
 import { Input } from '@/components/ui/input';
-import { ValidationIssue, CharacterConfig, ActionId, AttributeId, TraumaId, LoadId } from '../types';
+
+import {
+  ValidationIssue,
+  CharacterConfig,
+  ActionId,
+  AttributeId,
+  TraumaId,
+  LoadId,
+  PlaybookId,
+} from '../types';
 
 type Props = {
   data: Record<string, any>;
@@ -69,8 +79,21 @@ export default function CharacterDataEditor({ data, config, issues, onChange }: 
       changed = true;
     }
 
+    // playbook + abilities init
+    if (next.playbookId === undefined) {
+      next.playbookId = (config.initialData as any).playbookId ?? null;
+      changed = true;
+    }
+
+    if (!Array.isArray(next.abilities)) {
+      next.abilities = structuredClone((config.initialData as any).abilities ?? []);
+      changed = true;
+    }
+
     if (!isPlainObject(next.harm)) {
-      next.harm = structuredClone((config.initialData as any).harm ?? { l3: null, l2: [null, null], l1: [null, null] });
+      next.harm = structuredClone(
+        (config.initialData as any).harm ?? { l3: null, l2: [null, null], l1: [null, null] }
+      );
       changed = true;
     } else {
       const fixed = ensureHarmShape(next.harm);
@@ -148,6 +171,28 @@ export default function CharacterDataEditor({ data, config, issues, onChange }: 
     setPatch({ traumas: Array.from(cur) });
   };
 
+  // playbook + abilities UI state
+  const playbookId: PlaybookId | null = (value.playbookId ?? null) as any;
+  const abilitiesMax = Number(config?.constraints?.abilitiesMaxAtStart ?? 1);
+
+  const playbook = (config.playbooks ?? []).find((p) => p.id === playbookId) ?? null;
+  const selectedAbilities: string[] = Array.isArray(value.abilities) ? value.abilities : [];
+
+  const toggleAbility = (aid: string) => {
+    const cur = new Set<string>(selectedAbilities);
+    if (cur.has(aid)) cur.delete(aid);
+    else {
+      if (cur.size >= abilitiesMax) return;
+      cur.add(aid);
+    }
+    setPatch({ abilities: Array.from(cur) });
+  };
+
+  const setPlaybook = (pid: PlaybookId | null) => {
+    // при смене плейбука сбрасываем способности, чтобы не словить "не из этого плейбука"
+    setPatch({ playbookId: pid, abilities: [] });
+  };
+
   const setHarmCell = (level: 'l1' | 'l2' | 'l3', idx: number | null, text: string) => {
     const next = structuredClone(value ?? {}) as any;
     next.harm = ensureHarmShape(next.harm);
@@ -163,14 +208,75 @@ export default function CharacterDataEditor({ data, config, issues, onChange }: 
 
   return (
     <div className="flex flex-col gap-4">
+      {/* Playbook / Abilities */}
+      <div className="rounded border p-3">
+        <div className="font-medium">Плейбук</div>
+
+        <div className="mt-2">
+          <select
+            className={
+              err('playbookId')
+                ? 'w-full border border-red-500 rounded px-3 py-2 text-sm text-black bg-background'
+                : 'w-full border rounded px-3 py-2 text-sm text-black bg-background'
+            }
+            value={(playbookId ?? '') as any}
+            onChange={(e) => setPlaybook(e.target.value ? (e.target.value as PlaybookId) : null)}
+          >
+            <option value="">—</option>
+            {(config.playbooks ?? []).map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.title}
+              </option>
+            ))}
+          </select>
+          {err('playbookId') ? <div className="text-xs text-red-500 mt-1">{err('playbookId')}</div> : null}
+        </div>
+
+        <div className="mt-4">
+          <div className="text-sm text-muted-foreground">
+            Способности ({selectedAbilities.length}/{abilitiesMax})
+          </div>
+
+          {playbook ? (
+            <div className="flex flex-col gap-2 mt-2">
+              {(playbook.abilities ?? []).map((a) => {
+                const checked = selectedAbilities.includes(a.id);
+                const disabled = !checked && selectedAbilities.length >= abilitiesMax;
+
+                return (
+                  <label
+                    key={a.id}
+                    className={`rounded border px-2 py-2 text-sm cursor-pointer ${checked ? 'bg-muted' : ''} ${
+                      disabled ? 'opacity-50 cursor-not-allowed' : ''
+                    }`}
+                  >
+                    <input
+                      type="checkbox"
+                      className="mr-2"
+                      checked={checked}
+                      disabled={disabled}
+                      onChange={() => toggleAbility(a.id)}
+                    />
+                    <span className="font-medium">{a.title}</span>
+                    {a.description ? <div className="text-xs text-muted-foreground mt-1">{a.description}</div> : null}
+                  </label>
+                );
+              })}
+
+              {err('abilities') ? <div className="text-xs text-red-500 mt-1">{err('abilities')}</div> : null}
+            </div>
+          ) : (
+            <div className="text-xs text-muted-foreground mt-2">Сначала выбери плейбук.</div>
+          )}
+        </div>
+      </div>
+
       {/* ACTIONS grouped by attributes */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
         {(['insight', 'prowess', 'resolve'] as AttributeId[]).map((aid) => (
           <div key={aid} className="rounded border p-3">
             <div className="font-medium">{config.attributes?.find((x) => x.id === aid)?.title ?? aid}</div>
-            <div className="text-xs text-muted-foreground">
-              Атрибут (для resistance): {attrs[aid]}
-            </div>
+            <div className="text-xs text-muted-foreground">Атрибут (для resistance): {attrs[aid]}</div>
 
             <div className="mt-3 flex flex-col gap-2">
               {(actionsByAttr[aid] ?? []).map((a) => {
@@ -209,9 +315,9 @@ export default function CharacterDataEditor({ data, config, issues, onChange }: 
         <div>
           <div className="text-sm text-muted-foreground">Load</div>
           <select
-            className="w-full border rounded px-3 py-2 text-sm bg-background"
+            className="w-full text-black border rounded px-3 py-2 text-sm bg-background"
             value={(value.load ?? '') as any}
-            onChange={(e) => setPatch({ load: (e.target.value ? (e.target.value as LoadId) : null) })}
+            onChange={(e) => setPatch({ load: e.target.value ? (e.target.value as LoadId) : null })}
           >
             <option value="">—</option>
             {(config.loads ?? []).map((l) => (
@@ -224,13 +330,20 @@ export default function CharacterDataEditor({ data, config, issues, onChange }: 
         </div>
 
         <div>
-          <div className="text-sm text-muted-foreground">Traumas ({selectedTraumas.length}/{traumaMax})</div>
+          <div className="text-sm text-muted-foreground">
+            Traumas ({selectedTraumas.length}/{traumaMax})
+          </div>
           <div className="flex flex-wrap gap-2 mt-2">
             {(config.traumas ?? []).map((t) => {
               const checked = selectedTraumas.includes(t.id);
               const disabled = !checked && selectedTraumas.length >= traumaMax;
               return (
-                <label key={t.id} className={`text-xs px-2 py-1 rounded border cursor-pointer ${checked ? 'bg-muted' : ''} ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}>
+                <label
+                  key={t.id}
+                  className={`text-xs px-2 py-1 rounded border cursor-pointer ${checked ? 'bg-muted' : ''} ${
+                    disabled ? 'opacity-50 cursor-not-allowed' : ''
+                  }`}
+                >
                   <input
                     type="checkbox"
                     className="mr-2"

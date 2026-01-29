@@ -1,4 +1,3 @@
-# actions_manager.py
 from __future__ import annotations
 
 from typing import Any, Literal
@@ -18,7 +17,7 @@ class ActionsManager:
             ActionInfo(
                 key="blades.roll_action",
                 title="Action roll",
-                roles=["gm", "initiator", "player"],  # <-- всегда доступно всем
+                roles=["gm", "initiator", "player"],
                 description="Выбрать action → GM задаёт position/effect → подтверждение → бросок → (опционально) resistance.",
             )
         ]
