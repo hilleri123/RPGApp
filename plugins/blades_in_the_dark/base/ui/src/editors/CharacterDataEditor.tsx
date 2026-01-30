@@ -14,6 +14,8 @@ import {
   PlaybookId,
 } from '../types';
 
+import { ATTR_RU, ACTION_RU } from '../i18n';
+
 type Props = {
   data: Record<string, any>;
   config: CharacterConfig;
@@ -56,6 +58,26 @@ function ensureHarmShape(x: any) {
     l2: [l2[0] ?? null, l2[1] ?? null] as [string | null, string | null],
     l1: [l1[0] ?? null, l1[1] ?? null] as [string | null, string | null],
   };
+}
+
+function allActionRatingsZero(actions: any) {
+  if (!isPlainObject(actions)) return true;
+  for (const v of Object.values(actions)) {
+    if ((Number(v) || 0) > 0) return false;
+  }
+  return true;
+}
+
+function toStartingMap(x: any): Partial<Record<ActionId, number>> {
+  const res: Partial<Record<ActionId, number>> = {};
+  if (!x || typeof x !== 'object') return res;
+  for (const [k, v] of Object.entries(x)) {
+    if (!k) continue;
+    const n = Number(v);
+    if (!Number.isFinite(n)) continue;
+    res[k as ActionId] = Math.max(0, Math.floor(n));
+  }
+  return res;
 }
 
 export default function CharacterDataEditor({ data, config, issues, onChange }: Props) {
@@ -111,6 +133,21 @@ export default function CharacterDataEditor({ data, config, issues, onChange }: 
     if (next.stress === undefined) {
       next.stress = (config.initialData as any).stress ?? 0;
       changed = true;
+    }
+
+    // apply startingActions on init if:
+    // - playbook selected
+    // - actions are empty/zero (so we don't unexpectedly overwrite user's edits)
+    if (next.playbookId && allActionRatingsZero(next.actions)) {
+      const pb = (config.playbooks ?? []).find((p) => p.id === next.playbookId) ?? null;
+      const sa = toStartingMap((pb as any)?.startingActions);
+
+      if (Object.keys(sa).length) {
+        for (const [k, dots] of Object.entries(sa)) {
+          next.actions[k as ActionId] = Math.max(0, Math.floor(Number(dots)));
+        }
+        changed = true;
+      }
     }
 
     if (changed) onChange(next);
@@ -188,9 +225,85 @@ export default function CharacterDataEditor({ data, config, issues, onChange }: 
     setPatch({ abilities: Array.from(cur) });
   };
 
+  // defaults/highlight per attribute + action row highlight
+  const startingActions = useMemo(
+    () => toStartingMap((playbook as any)?.startingActions),
+    [playbook]
+  );
+
+  const defaultsByAttr = useMemo(() => {
+    const res: Record<AttributeId, Array<{ id: ActionId; dots: number }>> = {
+      insight: [],
+      prowess: [],
+      resolve: [],
+    };
+
+    for (const [k, v] of Object.entries(startingActions)) {
+      const aid = k as ActionId;
+      const dots = Number(v);
+      if (!aid) continue;
+      if (!Number.isFinite(dots)) continue;
+
+      const attr = actionToAttr.get(aid);
+      if (!attr) continue;
+
+      res[attr].push({ id: aid, dots });
+    }
+
+    for (const key of Object.keys(res) as AttributeId[]) {
+      res[key].sort((a, b) => a.id.localeCompare(b.id));
+    }
+
+    return res;
+  }, [startingActions, actionToAttr]);
+
+  const defaultTooltipAttr = (attr: AttributeId) => {
+    const rows = defaultsByAttr[attr] ?? [];
+    if (!rows.length) return '';
+    const pretty = rows.map((x) => `${ACTION_RU[x.id] ?? x.id}: ${x.dots}`).join(', ');
+    return `Значения по умолчанию: ${pretty}`;
+  };
+
+  const defaultTooltipAction = (aid: ActionId) => {
+    const d = Number(startingActions[aid] ?? 0) || 0;
+    if (d <= 0) return '';
+    return `Значение по умолчанию: ${ACTION_RU[aid] ?? aid} = ${d}`;
+  };
+
+  const manualSpent = useMemo(() => {
+    let total = 0;
+    for (const a of config.actions ?? []) {
+      const cur = Number(actions?.[a.id] ?? 0) || 0;
+      const def = Number(startingActions?.[a.id] ?? 0) || 0;
+      total += Math.max(0, cur - def);
+    }
+    return total;
+  }, [actions, startingActions, config.actions]);
+
+  const totalSpent = useMemo(() => {
+    let total = 0;
+    for (const a of config.actions ?? []) total += Number(actions?.[a.id] ?? 0) || 0;
+    return total;
+  }, [actions, config.actions]);
+
   const setPlaybook = (pid: PlaybookId | null) => {
-    // при смене плейбука сбрасываем способности, чтобы не словить "не из этого плейбука"
-    setPatch({ playbookId: pid, abilities: [] });
+    const next = structuredClone(value ?? {}) as any;
+
+    next.playbookId = pid;
+    next.abilities = [];
+
+    // СБРОС действий до базового состояния
+    next.actions = structuredClone((config.initialData as any).actions ?? {});
+
+    // apply playbook.startingActions -> next.actions
+    const pb = (config.playbooks ?? []).find((p) => p.id === pid) ?? null;
+    const sa = toStartingMap((pb as any)?.startingActions);
+
+    for (const [k, dots] of Object.entries(sa)) {
+      next.actions[k as ActionId] = Math.max(0, Math.floor(Number(dots)));
+    }
+
+    onChange(next);
   };
 
   const setHarmCell = (level: 'l1' | 'l2' | 'l3', idx: number | null, text: string) => {
@@ -271,33 +384,66 @@ export default function CharacterDataEditor({ data, config, issues, onChange }: 
         </div>
       </div>
 
-      {/* ACTIONS grouped by attributes */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-        {(['insight', 'prowess', 'resolve'] as AttributeId[]).map((aid) => (
-          <div key={aid} className="rounded border p-3">
-            <div className="font-medium">{config.attributes?.find((x) => x.id === aid)?.title ?? aid}</div>
-            <div className="text-xs text-muted-foreground">Атрибут (для resistance): {attrs[aid]}</div>
-
-            <div className="mt-3 flex flex-col gap-2">
-              {(actionsByAttr[aid] ?? []).map((a) => {
-                const v = Number(actions?.[a.id] ?? 0) || 0;
-                const msg = err(`actions.${a.id}`);
-                return (
-                  <div key={a.id} className="flex items-center gap-2">
-                    <div className="w-28 text-sm">{a.title}</div>
-                    <Input
-                      type="number"
-                      value={v}
-                      onChange={(e) => setAction(a.id, asNumber(e.target.value, 0))}
-                      className={msg ? 'border-red-500 focus-visible:ring-red-500/30' : undefined}
-                    />
-                    {msg ? <div className="text-xs text-red-500">{msg}</div> : null}
-                  </div>
-                );
-              })}
-            </div>
+      {/* ACTIONS header + summary */}
+      <div className="rounded border p-3">
+        <div className="flex items-center justify-between gap-3">
+          <div className="font-medium">Навыки (actions)</div>
+          <div
+            className="text-xs text-muted-foreground"
+            title="Ручные очки = сумма max(0, текущее - значение по умолчанию плейбука)."
+          >
+            Потрачено вручную: {manualSpent} | Всего: {totalSpent}
           </div>
-        ))}
+        </div>
+
+        {/* ACTIONS grouped by attributes */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mt-3">
+          {(['insight', 'prowess', 'resolve'] as AttributeId[]).map((aid) => {
+            const hasDefaults = (defaultsByAttr[aid] ?? []).length > 0;
+            const tooltip = defaultTooltipAttr(aid);
+
+            return (
+              <div key={aid} className={`rounded border p-3 ${hasDefaults ? 'bg-muted/40' : ''}`} title={tooltip || undefined}>
+                <div className="font-medium">
+                  {ATTR_RU[aid] ?? config.attributes?.find((x) => x.id === aid)?.title ?? aid}
+                </div>
+                <div className="text-xs text-muted-foreground">Атрибут (для resistance): {attrs[aid]}</div>
+
+                <div className="mt-3 flex flex-col gap-2">
+                  {(actionsByAttr[aid] ?? []).map((a) => {
+                    const v = Number(actions?.[a.id] ?? 0) || 0;
+                    const msg = err(`actions.${a.id}`);
+
+                    const def = Number(startingActions?.[a.id] ?? 0) || 0;
+                    const isDefaultAction = def > 0;
+
+                    return (
+                      <div
+                        key={a.id}
+                        className={`flex items-center gap-2 rounded px-1 py-1 ${isDefaultAction ? 'bg-muted/60' : ''}`}
+                        title={isDefaultAction ? defaultTooltipAction(a.id) : undefined}
+                      >
+                        <div className="w-28 text-sm">
+                          {ACTION_RU[a.id] ?? a.title}
+                          {isDefaultAction ? (
+                            <span className="text-xs text-muted-foreground"> (def {def})</span>
+                          ) : null}
+                        </div>
+                        <Input
+                          type="number"
+                          value={v}
+                          onChange={(e) => setAction(a.id, asNumber(e.target.value, 0))}
+                          className={msg ? 'border-red-500 focus-visible:ring-red-500/30' : undefined}
+                        />
+                        {msg ? <div className="text-xs text-red-500">{msg}</div> : null}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })}
+        </div>
       </div>
 
       {/* Stress / Load */}

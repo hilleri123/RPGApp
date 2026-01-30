@@ -81,7 +81,7 @@ class RulesFactory:
             manager = self.items
         elif entity in ("npc", "location", "obstacle"):
             return {
-                "ok": False,
+                "ok": True,
                 "issues": [{
                     "path": "",
                     "message": f"Entity '{entity}' is not supported in Blades in the Dark plugin",

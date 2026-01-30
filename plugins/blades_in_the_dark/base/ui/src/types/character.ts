@@ -63,6 +63,7 @@ export type CharacterConfig = {
   playbooks: {
     id: PlaybookId;
     title: string;
+    startingActions?: Partial<Record<ActionId, number>>;
     abilities: {
       id: PlaybookAbilityId;
       title: string;
