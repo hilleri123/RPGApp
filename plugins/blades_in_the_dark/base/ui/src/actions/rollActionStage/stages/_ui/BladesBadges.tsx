@@ -16,7 +16,7 @@ const EFFECT_COLORS: Record<string, string> = {
   great: '#22c55e',
 };
 
-const ITEM_COLOR = '#a78bfa'; // фиолетовый
+const ITEM_COLOR = '#a78bfa';
 
 export function Badge({ text, color, title }: { text: string; color: string; title?: string }) {
   return (
@@ -37,29 +37,32 @@ function safeNum(x: any): number {
 }
 
 function getMods(ctx: any): any {
-  return ctx?.mods ?? ctx ?? {};
+  return ctx?.mods ?? {};
 }
 
-function findSelectedItem(ctx: any): any | null {
+/**
+ * Ищем предмет НЕ в ctx.scene (его нет), а в action.scene.items (ты обогащаешь action на бэке).
+ * При этом поддерживаем старые варианты, если где-то всё-таки прокинули items в ctx.
+ */
+function findSelectedItem(ctx: any, action: any | null): any | null {
   const mods = getMods(ctx);
 
-  // поддержим несколько возможных названий поля
   const itemId = mods?.item_id ?? mods?.itemId ?? ctx?.item_id ?? null;
   if (!itemId) return null;
 
-  const items: any[] = (ctx?.scene?.items ?? ctx?.items ?? []) as any[];
+  const items: any[] =
+    (action?.scene?.items ?? null) ||
+    (ctx?.items ?? null) ||
+    (ctx?.scene?.items ?? null) ||
+    [];
+
   if (!Array.isArray(items) || items.length === 0) return { id: itemId };
 
   return items.find((it) => String(it?.id) === String(itemId)) ?? { id: itemId };
 }
 
 function itemQuality(item: any): number {
-  // аккуратно поддержим разные формы
-  const q =
-    safeNum(item?.quality) ||
-    safeNum(item?.data?.quality) ||
-    safeNum(item?.data?.tier) ||
-    0;
+  const q = safeNum(item?.quality) || safeNum(item?.data?.quality) || safeNum(item?.data?.tier) || 0;
   return Math.max(0, Math.trunc(q));
 }
 
@@ -76,7 +79,15 @@ function Delta({ label, delta, title, color }: { label: string; delta: number; t
   );
 }
 
-export function ActionPositionEffectLine({ ctx }: { ctx: any }) {
+/**
+ * NEW API:
+ * - передаёшь wf и action (опционально)
+ * - он сам берёт ctx = wf.context и рисует summary
+ */
+export function ActionPositionEffectLine({ action }: { action: any }) {
+  const wf: any = action?.workflow ?? {};
+  const ctx = wf?.context ?? {};
+
   const actionId = (ctx?.selectedAction ?? '') as ActionId;
   const g = actionId ? groupOfAction(actionId) : undefined;
 
@@ -96,21 +107,22 @@ export function ActionPositionEffectLine({ ctx }: { ctx: any }) {
   const roll = ctx?.roll ?? null;
   const mods = getMods(ctx);
 
-  // Пул: считаем ТОЛЬКО дайсовые моды (без item quality)
+  // Пул: считаем только дайсовые моды
   const base = safeNum(roll?.base ?? ctx?.base);
   const push = mods?.push ? 1 : 0;
-  const help = mods?.help ? 1 : 0;
+
+  // важно: help у тебя на бэке учитывается только если help_confirmed
+  const help = mods?.help && mods?.help_confirmed ? 1 : 0;
+
   const bargain = mods?.devils_bargain ? 1 : 0;
   const bonusDice = safeNum(mods?.bonus_dice ?? ctx?.bonus_dice);
 
   const computedPool = base + push + help + bargain + bonusDice;
   const pool = roll ? safeNum(roll.pool) : computedPool;
 
-  const showPoolLine =
-    Number.isFinite(pool) && (base || push || help || bargain || bonusDice || roll?.pool != null);
+  const showPoolLine = Number.isFinite(pool) && (base || push || help || bargain || bonusDice || roll?.pool != null);
 
-  // Предмет: только показываем
-  const item = findSelectedItem(ctx);
+  const item = findSelectedItem(ctx, action ?? null);
   const q = item ? itemQuality(item) : 0;
   const itemLabel = item ? (item?.name ? String(item.name) : `item:${String(item.id ?? '')}`) : null;
   const itemTitle = item
@@ -151,7 +163,7 @@ export function ActionPositionEffectLine({ ctx }: { ctx: any }) {
 
           <Delta label="Рейтинг" delta={base} title="Базовый рейтинг действия выбранного персонажа." color="#e5e7eb" />
           {push ? <Delta label="Push" delta={1} title="Push yourself: +1d (обычно стресс +2)." color="#34d399" /> : null}
-          {help ? <Delta label="Help" delta={1} title="Помощь союзника: +1d." color="#60a5fa" /> : null}
+          {help ? <Delta label="Help" delta={1} title="Помощь союзника: +1d (только если подтверждена)." color="#60a5fa" /> : null}
           {bargain ? <Delta label="Bargain" delta={1} title="Сделка с дьяволом: +1d." color="#f472b6" /> : null}
           {bonusDice ? <Delta label="Bonus" delta={bonusDice} title="Доп. бонус-дайсы (bonus_dice)." color="#facc15" /> : null}
         </div>

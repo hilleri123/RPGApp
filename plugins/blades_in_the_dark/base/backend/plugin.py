@@ -39,17 +39,9 @@ class RulesFactory:
 
         if kind == "workflow.start":
             action_key = p.get("actionKey")
-            scene = p.get("scene") or {}
-            wf = self.workflow_router.start(action_key, scene=scene)
+            res = self.workflow_router.start(action_key, payload=p)
             # оставляем ok для твоего SessionActionManager.create_action
-            if hasattr(wf, "model_dump"):
-                d = wf.model_dump(mode="json")
-            elif isinstance(wf, dict):
-                d = wf
-            else:
-                d = dict(wf)
-            d["ok"] = True
-            return d
+            return res.model_dump(mode="json") if hasattr(res, "model_dump") else res
 
         if kind == "workflow.present":
             action_key = p.get("actionKey")

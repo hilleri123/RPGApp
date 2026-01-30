@@ -3,7 +3,7 @@
 import { useMemo } from 'react';
 import { ACTION_RU, POSITION_RU, EFFECT_RU, ATTR_RU, groupOfAction } from '../../../i18n';
 import type { ActionId } from '../../../types';
-import { ActionPositionEffectLine } from './_ui/BladesBadges';
+import { ActionSummaryCarousel } from './_ui/ActionSummaryCarousel';
 
 const POSITION_COLORS: Record<string, string> = {
   controlled: '#22c55e',
@@ -31,18 +31,17 @@ function normId(x: any): string {
 }
 
 export function PlayerAddModsStage({
-  wf,
+  action,
   value,
   patch,
   user_id,
-  action, // <- session action, чтобы достать scene.players
 }: {
-  wf: any;
+  action: any;
   value: any;
   patch: (p: any) => void;
   user_id: string;
-  action: any;
 }) {
+  const wf: any = action?.workflow ?? {};
   const ctx = wf?.context ?? {};
 
   const actionId = String(ctx.selectedAction ?? '') as ActionId;
@@ -122,7 +121,7 @@ export function PlayerAddModsStage({
       <div className="font-medium">Модификаторы</div>
 
       <div className="rounded border px-3 py-2 bg-zinc-950/30">
-        <ActionPositionEffectLine ctx={wf?.context ?? {}} />
+        <ActionSummaryCarousel action={action} />
       </div>
 
       {ctx.consequence_hint ? (

@@ -30,18 +30,17 @@ function Badge({ text, color }: { text: string; color: string }) {
 }
 
 export function PreRollConfirmStage({
-  wf,
+  action,
   value,
   patch,
   user_id,
-  action,
 }: {
-  wf: any;
+  action: any;
   value: any;
   patch: (p: any) => void;
   user_id: string;
-  action: any;
 }) {
+  const wf: any = action?.workflow ?? {};
   const ctx = wf?.context ?? {};
 
   const actionId = String(ctx.selectedAction ?? '') as ActionId;

@@ -82,7 +82,7 @@ class SubmitResult(BaseModel):
     next: Optional[dict[str, Any]] = None
     broadcasts: list[dict[str, Any]] = Field(default_factory=list)
 
-    participants: Optional[dict[str, Any]] = None
+    participantIds: list[str] = Field(default_factory=list)
 
     # NEW: изменения сессии (выполняет SessionActionManager)
     sessionPatch: Optional[dict[str, Any]] = None

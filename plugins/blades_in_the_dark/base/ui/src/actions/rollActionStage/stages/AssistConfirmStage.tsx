@@ -2,7 +2,8 @@
 
 import React from 'react';
 
-export function AssistConfirmStage({ wf, value, patch }: { wf: any; value: any; patch: (p: any) => void }) {
+export function AssistConfirmStage({ action, value, patch }: { action: any; value: any; patch: (p: any) => void }) {
+  const wf: any = action?.workflow ?? {};
   const ctx = wf?.context ?? {};
   const accept: boolean | null = typeof value?.accept_help === 'boolean' ? value.accept_help : null;
 

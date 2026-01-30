@@ -1,8 +1,9 @@
 'use client';
 
-import { ActionPositionEffectLine } from './_ui/BladesBadges';
+import { ActionSummaryCarousel } from './_ui/ActionSummaryCarousel';
 
-export function GmFinalizeStage({ wf, value, patch }: { wf: any; value: any; patch: (p: any) => void }) {
+export function GmFinalizeStage({ action, value, patch }: { action: any; value: any; patch: (p: any) => void }) {
+  const wf: any = action?.workflow ?? {};
   const ctx = wf?.context ?? {};
   const mods = ctx.mods ?? {};
 
@@ -12,7 +13,7 @@ export function GmFinalizeStage({ wf, value, patch }: { wf: any; value: any; pat
     <div className="rounded border p-3 flex flex-col gap-3">
       <div className="font-medium">Финализация мастером</div>
 
-      <ActionPositionEffectLine ctx={ctx} />
+      <ActionSummaryCarousel action={action} />
 
       <div className="rounded border border-zinc-700 bg-zinc-950/40 p-2 text-xs text-muted-foreground">
         Моды: push={String(!!mods.push)} · help={String(!!mods.help)} · bargain={String(!!mods.devils_bargain)} · bonus=

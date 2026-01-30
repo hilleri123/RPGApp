@@ -15,10 +15,16 @@ import { MitigateStage } from './stages/MitigateStage';
 import { ResistStage } from './stages/ResistStage';
 import { WrapUpStage } from './stages/WrapUpStage';
 import { DoneStage } from './stages/DoneStage';
+import { CompletedSummaryStage } from './stages/CompletedSummaryStage';
 
 export default function RollActionStage({ user_id, action, value, onChange }: ActionHandlerProps) {
   const wf: any = action?.workflow ?? {};
   const stageKey: StageKey = (wf.stageKey ?? 'done') as StageKey;
+
+
+  if (action?.status === 'completed') {
+    return <CompletedSummaryStage action={action} />;
+  }
 
   const patch = (p: any) => onChange({ ...(value ?? {}), ...(p ?? {}) });
 
@@ -41,28 +47,28 @@ export default function RollActionStage({ user_id, action, value, onChange }: Ac
       return <ChooseActionStage user_id={user_id} action={action} value={value} patch={patch} />;
 
     case 'gm_set_position_effect':
-      return <GmSetPositionEffectStage wf={wf} value={value} patch={patch} />;
+      return <GmSetPositionEffectStage action={action} value={value} patch={patch} />;
 
     case 'player_add_mods':
-      return <PlayerAddModsStage wf={wf} value={value} patch={patch} user_id={user_id} action={action} />;
+      return <PlayerAddModsStage action={action} value={value} patch={patch} user_id={user_id} />;
 
     case 'assist_confirm':
-      return <AssistConfirmStage wf={wf} value={value} patch={patch} />;
+      return <AssistConfirmStage action={action} value={value} patch={patch} />;
 
     case 'gm_finalize':
-      return <GmFinalizeStage wf={wf} value={value} patch={patch} />;
+      return <GmFinalizeStage action={action} value={value} patch={patch} />;
 
     case 'prerollconfirm':
-      return <PreRollConfirmStage wf={wf} value={value} patch={patch} user_id={user_id} action={action} />;
+      return <PreRollConfirmStage action={action} value={value} patch={patch} user_id={user_id} />;
 
     case 'mitigate':
-      return <MitigateStage wf={wf} value={value} patch={patch} />;
+      return <MitigateStage action={action} value={value} patch={patch} />;
 
     case 'resist':
-      return <ResistStage wf={wf} value={value} patch={patch} />;
+      return <ResistStage action={action} value={value} patch={patch} />;
 
     case 'wrap_up':
-      return <WrapUpStage wf={wf} value={value} patch={patch} />;
+      return <WrapUpStage action={action} value={value} patch={patch} />;
 
     case 'done':
     default:

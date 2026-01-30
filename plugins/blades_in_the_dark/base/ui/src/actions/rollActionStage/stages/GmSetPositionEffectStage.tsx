@@ -3,7 +3,7 @@
 import React, { useMemo } from 'react';
 import { Input } from '@/components/ui/input';
 import { POSITIONS, EFFECTS } from '../stageTypes';
-import { ActionPositionEffectLine } from './_ui/BladesBadges';
+import { ActionSummaryCarousel } from './_ui/ActionSummaryCarousel';
 
 const POSITION_META: Record<string, { label: string; color: string; desc: string }> = {
   controlled: { label: 'Controlled', color: '#22c55e', desc: 'Безопасно, меньше рисков.' },
@@ -86,14 +86,15 @@ function SelectCard({
 }
 
 export function GmSetPositionEffectStage({
-  wf,
+  action,
   value,
   patch,
 }: {
-  wf: any;
+  action: any;
   value: any;
   patch: (p: any) => void;
 }) {
+  const wf: any = action?.workflow ?? {};
   const position = value?.position ?? POSITIONS[1];
   const effect = value?.effect ?? EFFECTS[1];
   const consequence_hint = value?.consequence_hint ?? '';
@@ -114,7 +115,7 @@ export function GmSetPositionEffectStage({
       <div className="font-medium">Мастер: position / effect</div>
 
       <div className="rounded border px-3 py-2 bg-zinc-950/30">
-        <ActionPositionEffectLine ctx={wf?.context ?? {}} />
+        <ActionSummaryCarousel action={action} />
       </div>
 
       <SelectCard

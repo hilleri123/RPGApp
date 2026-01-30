@@ -38,16 +38,17 @@ function safeNum(x: any): number {
   return Number.isFinite(n) ? n : 0;
 }
 
-export function ResistStage({ wf, value, patch }: { wf: any; value: any; patch: (p: any) => void }) {
+export function ResistStage({ action, value, patch }: { action: any; value: any; patch: (p: any) => void }) {
+  const wf: any = action?.workflow ?? {};
   const ctx = wf?.context ?? {};
   const done = !!ctx?.resist;
+  const scene = (action?.scene ?? null) as any; // NEW
 
   const attrs: AttributeId[] = (wf?.ui?.props?.attributes ?? ['insight', 'prowess', 'resolve']) as AttributeId[];
   const attr: AttributeId = (value?.attribute ?? attrs[0]) as AttributeId;
 
   // Найдём персонажа по character_id из контекста
   const character = useMemo(() => {
-    const scene = ctx?.scene;
     const characterId = ctx?.character_id || ctx?.roll?.character_id;
     if (!scene || !characterId) return null;
 

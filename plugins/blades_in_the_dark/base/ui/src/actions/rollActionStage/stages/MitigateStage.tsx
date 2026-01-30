@@ -71,7 +71,8 @@ function DiceIcon({ value, color, className }: { value: number; color: string; c
   }
 }
 
-export function MitigateStage({ wf, value, patch }: { wf: any; value: any; patch: (p: any) => void }) {
+export function MitigateStage({ action, value, patch }: { action: any; value: any; patch: (p: any) => void }) {
+  const wf: any = action?.workflow ?? {};
   const ctx = wf?.context ?? {};
   const roll = ctx.roll ?? {};
 
