@@ -2,6 +2,7 @@
 
 import React from 'react';
 import { ActionSummaryCarousel } from './_ui/ActionSummaryCarousel';
+import { TRAUMA_OPTIONS } from '../../../i18n';
 
 export function WrapUpStage({
   action,
@@ -17,6 +18,8 @@ export function WrapUpStage({
   const roll = ctx?.roll ?? {};
   const resist = ctx?.resist ?? null;
 
+  const needsTrauma = !!ctx?.needsTrauma;
+
   return (
     <div className="rounded border p-3 flex flex-col gap-3">
       <div className="font-medium">Итог (мастер)</div>
@@ -25,22 +28,40 @@ export function WrapUpStage({
         <ActionSummaryCarousel action={action} />
       </div>
 
-      {/* (опционально) компактная строка для отладки/контекста */}
       <div className="text-xs text-muted-foreground">
         {roll?.character_name ? `${roll.character_name}: ` : ''}
         {String(roll?.action ?? '—')} · outcome: {String(roll?.outcome ?? '—')}
         {resist ? ` · resist: ${String(resist?.attribute ?? '—')} (${String(resist?.stressCost ?? '—')})` : ''}
       </div>
 
-      <input
-        className="border rounded px-2 py-1 text-black bg-background"
-        placeholder="trauma (optional)"
-        value={value?.trauma ?? ''}
-        onChange={(e) => patch({ trauma: e.target.value || null })}
-      />
+      {needsTrauma ? (
+        <div className="flex flex-col gap-1">
+          <div className="text-sm text-muted-foreground">Новая травма (обязательно)</div>
+          <select
+            className="border rounded text-black px-2 py-1 bg-background"
+            value={value?.trauma ?? ''}
+            onChange={(e) => patch({ trauma: e.target.value || null })}
+          >
+            <option value="">— выбери trauma —</option>
+            {TRAUMA_OPTIONS.map((t) => (
+              <option key={t.value} value={t.value} title={t.desc}>
+                {t.label}
+              </option>
+            ))}
+          </select>
+
+          {ctx?.traumaCharacterId ? (
+            <div className="text-xs text-muted-foreground">Кому: {String(ctx.traumaCharacterId)}</div>
+          ) : null}
+        </div>
+      ) : (
+        <div className="text-xs text-muted-foreground">
+          Травма не требуется (stress не достиг максимума).
+        </div>
+      )}
 
       <textarea
-        className="border rounded px-2 py-1 text-black bg-background"
+        className="border rounded px-2 py-1 bg-background"
         placeholder="summary (optional)"
         rows={4}
         value={value?.summary ?? ''}

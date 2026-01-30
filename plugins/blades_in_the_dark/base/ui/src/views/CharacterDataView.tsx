@@ -2,7 +2,7 @@
 
 import { useMemo } from 'react';
 import type { CharacterConfig, ActionId, AttributeId, TraumaId, PlaybookId, LoadId } from '../types';
-import { ATTR_RU, ACTION_RU } from '../i18n';
+import { ATTR_RU, ACTION_RU, TRAUMA_RU } from '../i18n';
 import { ACTION_GROUPS } from '../types'; // поправь путь если ACTION_GROUPS в другом модуле
 
 type Props = {
@@ -73,7 +73,21 @@ export default function CharacterDataView({ data, config }: Props) {
   }, [config?.actions]);
 
   const traumas: TraumaId[] = Array.isArray(value.traumas) ? value.traumas : [];
-  const traumaTitles = useMemo(() => new Map((config?.traumas ?? []).map((t) => [t.id, t.title])), [config?.traumas]);
+  const traumaTitles = useMemo(
+    () => new Map((config?.traumas ?? []).map((t) => [t.id, t.title])),
+    [config?.traumas],
+  );
+
+  const traumaLabel = (id: TraumaId) => {
+    const ru = TRAUMA_RU[id];
+    return ru?.name ?? traumaTitles.get(id) ?? String(id);
+  };
+
+  const traumaDesc = (id: TraumaId) => {
+    const ru = TRAUMA_RU[id];
+    return ru?.desc ?? '';
+  };
+
 
   const harm = value.harm ?? {};
   const l1 = Array.isArray(harm.l1) ? harm.l1 : [];
@@ -296,18 +310,32 @@ export default function CharacterDataView({ data, config }: Props) {
           <span className={pillBase}>Счёт: {traumas.length}</span>
         </div>
 
-        <div className="mt-2 flex flex-wrap gap-2">
-          {traumas.length ? (
-            traumas.map((t) => (
-              <span key={t} className={`${pillBase} border-red-400/20 bg-red-500/10`}>
-                {traumaTitles.get(t) ?? t}
-              </span>
-            ))
-          ) : (
-            <span className="text-sm text-white/60">—</span>
-          )}
-        </div>
+        {traumas.length ? (
+          <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-2">
+            {traumas.map((t) => {
+              const title = traumaLabel(t);
+              const desc = traumaDesc(t);
+
+              return (
+                <div
+                  key={t}
+                  className="rounded-lg border border-red-400/20 bg-red-500/10 px-3 py-2"
+                  title={desc || undefined}
+                >
+                  <div className="flex items-baseline justify-between gap-2">
+                    <div className="text-sm font-medium">{title}</div>
+                    <span className="text-xs text-white/60">{t}</span>
+                  </div>
+                  {desc ? <div className="text-xs text-white/60 mt-1">{desc}</div> : null}
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="mt-2 text-sm text-white/60">—</div>
+        )}
       </div>
+
 
       {/* Harm */}
       <div className="rounded-lg border border-white/10 bg-white/5 p-3">

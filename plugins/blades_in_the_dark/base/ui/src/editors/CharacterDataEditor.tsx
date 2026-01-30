@@ -14,7 +14,7 @@ import {
   PlaybookId,
 } from '../types';
 
-import { ATTR_RU, ACTION_RU } from '../i18n';
+import { ATTR_RU, ACTION_RU, TRAUMA_RU } from '../i18n';
 
 type Props = {
   data: Record<string, any>;
@@ -475,35 +475,48 @@ export default function CharacterDataEditor({ data, config, issues, onChange }: 
           {err('load') ? <div className="text-xs text-red-500 mt-1">{err('load')}</div> : null}
         </div>
 
-        <div>
-          <div className="text-sm text-muted-foreground">
-            Traumas ({selectedTraumas.length}/{traumaMax})
-          </div>
-          <div className="flex flex-wrap gap-2 mt-2">
-            {(config.traumas ?? []).map((t) => {
-              const checked = selectedTraumas.includes(t.id);
-              const disabled = !checked && selectedTraumas.length >= traumaMax;
-              return (
-                <label
-                  key={t.id}
-                  className={`text-xs px-2 py-1 rounded border cursor-pointer ${checked ? 'bg-muted' : ''} ${
-                    disabled ? 'opacity-50 cursor-not-allowed' : ''
-                  }`}
-                >
+      </div>
+      <div className="rounded border p-3">
+        <div className="text-sm text-muted-foreground">
+          Traumas ({selectedTraumas.length}/{traumaMax})
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mt-3">
+          {(config.traumas ?? []).map((t) => {
+            const checked = selectedTraumas.includes(t.id);
+            const disabled = !checked && selectedTraumas.length >= traumaMax;
+
+            const ru = TRAUMA_RU[t.id as TraumaId];
+            const title = ru?.name ?? t.title;
+            const desc = ru?.desc ?? '';
+
+            return (
+              <label
+                key={t.id}
+                className={`rounded border px-2 py-2 text-sm cursor-pointer ${checked ? 'bg-muted' : ''} ${
+                  disabled ? 'opacity-50 cursor-not-allowed' : ''
+                }`}
+                title={desc || undefined}
+              >
+                <div className="flex items-center gap-2">
                   <input
                     type="checkbox"
-                    className="mr-2"
+                    className="mr-1"
                     checked={checked}
                     disabled={disabled}
                     onChange={() => toggleTrauma(t.id)}
                   />
-                  {t.title}
-                </label>
-              );
-            })}
-          </div>
-          {err('traumas') ? <div className="text-xs text-red-500 mt-1">{err('traumas')}</div> : null}
+                  <span className="font-medium">{title}</span>
+                  <span className="text-xs text-muted-foreground">({t.id})</span>
+                </div>
+
+                {desc ? <div className="text-xs text-muted-foreground mt-1">{desc}</div> : null}
+              </label>
+            );
+          })}
         </div>
+
+        {err('traumas') ? <div className="text-xs text-red-500 mt-1">{err('traumas')}</div> : null}
       </div>
 
       {/* Harm 2/2/1 */}

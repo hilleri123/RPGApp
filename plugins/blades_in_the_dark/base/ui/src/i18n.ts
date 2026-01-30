@@ -1,6 +1,79 @@
 import type { ActionId, AttributeId } from './types';
 import { ACTION_GROUPS } from './types';
 
+
+
+export type TraumaId =
+  | 'haunted'
+  | 'obsessed'
+  | 'paranoid'
+  | 'unstable'
+  | 'reckless'
+  | 'vicious'
+  | 'cold'
+  | 'soft';
+
+export const TRAUMA_RU: Record<TraumaId, { name: string; desc: string }> = {
+  haunted: {
+    name: 'Визионер',
+    desc: 'В самый неподходящий момент ты погружаешься в видения, воспоминания и галлюцинации.',
+  },
+  obsessed: {
+    name: 'Маньяк',
+    desc: 'Тебя охватывает одержимость чем‑то одним: занятием, человеком или идеологией.',
+  },
+  paranoid: {
+    name: 'Параноик',
+    desc: 'Ты везде видишь опасность и никому не доверяешь.',
+  },
+  unstable: {
+    name: 'Псих',
+    desc: 'Твоё состояние неустойчиво: вспышки ярости или отчаяния, импульсивность или ступор.',
+  },
+  reckless: {
+    name: 'Раздолбай',
+    desc: 'Тебе плевать даже на собственную безопасность и интересы.',
+  },
+  vicious: {
+    name: 'Садист',
+    desc: 'Ты ищешь возможность причинять людям вред — даже без повода или выгоды.',
+  },
+  cold: {
+    name: 'Социопат',
+    desc: 'Тебя не трогают эмоции и социальные связи; ты держишь дистанцию.',
+  },
+  soft: {
+    name: 'Тряпка',
+    desc: 'Тебе не хватает жёсткости: ты становишься сентиментальным, пассивным и мягким.',
+  },
+};
+
+export function traumaLabel(id: string): string {
+  const t = TRAUMA_RU[id as TraumaId];
+  return t ? t.name : id;
+}
+
+export function traumaTitle(id: string): string | undefined {
+  const t = TRAUMA_RU[id as TraumaId];
+  return t ? `${t.name}: ${t.desc}` : undefined;
+}
+
+
+export const TRAUMA_OPTIONS: Array<{
+  value: TraumaId;
+  short: string;  // только название
+  label: string;  // название + описание (для dropdown)
+  desc: string;
+}> = (Object.keys(TRAUMA_RU) as TraumaId[]).map((value) => {
+  const { name, desc } = TRAUMA_RU[value];
+  return {
+    value,
+    short: name,
+    desc,
+    label: `${name} — ${desc}`,
+  };
+});
+
 export const ATTR_RU: Record<AttributeId, string> = {
   insight: 'Интуиция',
   prowess: 'Проворство',
