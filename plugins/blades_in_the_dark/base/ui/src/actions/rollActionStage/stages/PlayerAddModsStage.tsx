@@ -60,25 +60,6 @@ export function PlayerAddModsStage({
   const posColor = POSITION_COLORS[posId] ?? '#a1a1aa';
   const effColor = EFFECT_COLORS[effId] ?? '#a1a1aa';
 
-  // ---- candidates for help
-  const helpCandidates = useMemo(() => {
-    const scene = action?.scene;
-    const players = scene?.players ?? {};
-    const out: Array<{ userId: string; label: string }> = [];
-
-    for (const [uid, entry] of Object.entries(players)) {
-      const user = (entry as any)?.user;
-      const label =
-        user?.full_name || user?.email || uid;
-
-      // исключаем самого инициатора (обычно сам себе не помогает)
-      if (normId(uid) === normId(user_id)) continue;
-
-      out.push({ userId: uid, label });
-    }
-    return out;
-  }, [action?.scene, user_id]);
-
   // ---- base rating from selected character
   const base = useMemo(() => {
     const scene = action?.scene;
@@ -115,6 +96,34 @@ export function PlayerAddModsStage({
   const setHelp = (v: boolean) => {
     patch({ help: v, ...(v ? null : { helper_user_id: null }) });
   };
+
+  const helpCandidates = useMemo(() => {
+    const scene = action?.scene;
+    const players = scene?.players ?? {};
+    const out: Array<{ userId: string; characterId: string | null; label: string }> = [];
+
+    for (const [uid, entry] of Object.entries(players)) {
+      if (normId(uid) === normId(user_id)) continue;
+
+      const chars = Array.isArray((entry as any)?.characters) ? (entry as any).characters : [];
+      // если у игрока несколько персонажей — бери первого; либо можно сделать несколько option (см. ниже)
+      const ch0 = chars[0] ?? null;
+
+      const chName = ch0?.name ? String(ch0.name) : null;
+      const user = (entry as any)?.user;
+      const userLabel = user?.full_name || user?.email || uid;
+
+      out.push({
+        userId: uid,
+        characterId: ch0?.id ? String(ch0.id) : null,
+        label: chName ? chName : userLabel,
+      });
+    }
+
+    // чтобы было стабильно: сортируем по label
+    out.sort((a, b) => a.label.localeCompare(b.label));
+    return out;
+  }, [action?.scene, user_id]);
 
   return (
     <div className="rounded border p-3 flex flex-col gap-3">
@@ -157,11 +166,21 @@ export function PlayerAddModsStage({
           <select
             className="border rounded px-2 py-1 text-black bg-background"
             value={value?.helper_user_id ?? ''}
-            onChange={(e) => patch({ helper_user_id: e.target.value || null })}
+            onChange={(e) => {
+              const uid = e.target.value || null;
+              const picked = helpCandidates.find((x) => x.userId === uid) ?? null;
+
+              patch({
+                helper_user_id: uid,
+                // опционально: если захочешь на беке/в workflow хранить явно
+                helper_character_id: picked?.characterId ?? null,
+              });
+            }}
           >
             <option value="" disabled>
               Выбери игрока
             </option>
+
             {helpCandidates.map((p) => (
               <option key={p.userId} value={p.userId}>
                 {p.label}

@@ -80,10 +80,10 @@ class PreRollConfirmStage(BaseStage):
             bonus += 1
         if mods.get("devils_bargain"):
             bonus += 1
-        try:
-            bonus += max(0, int(mods.get("bonus_dice") or 0))
-        except Exception:
-            pass
+        # try:
+        #     bonus += max(0, int(mods.get("bonus_dice") or 0))
+        # except Exception:
+        #     pass
 
         pool = base + bonus
         rolls = roll_d6(pool)
