@@ -1,14 +1,14 @@
 {
-  "folders": [
-    {
-      "name": "Frontend",
-      "path": "./RPGWebMainClient"
-    }
-  ],
-  "settings": {
-    "eslint.workingDirectories": [
-      "./RPGWebMainClient"
-    ]
-  }
+	"folders": [
+		{
+			"path": "."
+		},
+		{
+			"path": "RPGWebMainClient"
+		},
+		{
+			"path": "RPGdata"
+		}
+	],
+	"settings": {}
 }
-

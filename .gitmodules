@@ -1,12 +1,3 @@
-[submodule "RPGFrontendReact"]
-	path = RPGFrontendReact
-	url = git@github.com:hilleri123/RPGFrontendReact.git
-[submodule "RPGBackendFastAPI"]
-	path = RPGBackendFastAPI
-	url = git@github.com:hilleri123/RPGBackendFastAPI.git
-[submodule "RPGQtWebApp"]
-	path = RPGQtWebApp
-	url = git@github.com:hilleri123/RPGQtWebApp.git
 [submodule "RPGdata"]
 	path = RPGdata
 	url = git@github.com:hilleri123/RPGdata.git

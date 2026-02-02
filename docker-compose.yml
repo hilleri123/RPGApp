@@ -4,7 +4,7 @@ services:
   app:
     build: ./RPGdata
     ports:
-      - "8000:8000"
+      - "6601:8000"
     volumes:
       - ./RPGdata:/app
       - ./plugins:/plugins
@@ -42,7 +42,7 @@ services:
       # dockerfile: Dockerfile
     working_dir: /app/RPGWebMainClient
     ports:
-      - "3000:3000"
+      - "6602:3000"
     volumes:
       - .:/app
       - /app/.next
@@ -67,7 +67,7 @@ services:
       - POSTGRES_PASSWORD=postgres
       - POSTGRES_DB=rpg_sessions
     ports:
-      - "5432:5432"
+      - "6603:5432"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 5s
@@ -134,8 +134,8 @@ services:
     volumes:
       - minio_data:/data
     ports:
-      - "9000:9000"
-      - "9001:9001"
+      - "6604:9000"
+      - "6605:9001"
     command: server --console-address ":9001" /data
     env_file:
       - ./.env.minio
@@ -169,7 +169,7 @@ services:
     volumes:
       - redis_data:/redis_data
     ports:
-      - "6379:6379"
+      - "6606:6379"
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
@@ -190,8 +190,8 @@ services:
   rabbitmq:
     image: rabbitmq:3-management
     ports:
-      - "5672:5672"     # AMQP
-      - "15672:15672"   # Web UI
+      - "6607:5672"     # AMQP
+      - "6608:15672"   # Web UI
     environment:
       - RABBITMQ_DEFAULT_USER=guest
       - RABBITMQ_DEFAULT_PASS=guest
