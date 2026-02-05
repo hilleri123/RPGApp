@@ -4,7 +4,6 @@ services:
     ports: ["6601:8000"]
     volumes:
       - ./RPGdata:/app
-      - ./plugins:/plugins
     env_file:
       - ./.env.minio
       - ./.env.tgbot
