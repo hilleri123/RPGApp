@@ -1,0 +1,37 @@
+% Кодировка/язык — по желанию, если pdfLaTeX:
+\usepackage{iftex}
+
+\ifPDFTeX
+  \usepackage[T2A]{fontenc}
+  \usepackage[utf8]{inputenc}
+  \usepackage[russian]{babel}
+\else
+  \usepackage{fontspec}
+  \setmainfont{DejaVu Serif} % или любой шрифт с кириллицей
+  \setsansfont{DejaVu Sans}
+  \setmonofont{DejaVu Sans Mono}
+  \usepackage[russian]{babel}
+\fi
+
+\usepackage[russian]{babel}
+
+% Картинки
+\usepackage{graphicx}
+\graphicspath{{assets/images/}{assets/screenshots/}} % trailing slash обязателен [web:23]
+
+% Ссылки в PDF (кликабельные ref, toc)
+\usepackage{hyperref}
+
+% Удобные ссылки на секции/рисунки (не обязательно)
+\usepackage[nameinlink]{cleveref}
+
+% (Опционально) якоря/ссылки на конкретные места
+% \usepackage{bookmark}
+\newcounter{userstory}[chapter]
+\renewcommand{\theuserstory}{US-\arabic{userstory}}
+
+\newcommand{\userstory}[2]{%
+  \refstepcounter{userstory}%
+  \subsection{\theuserstory: #1}%
+  \label{#2}%
+}

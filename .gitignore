@@ -179,3 +179,40 @@ cython_debug/
 .env.minio
 .env.db
 .env.*
+
+
+
+# ===== LaTeX core artifacts =====
+*.aux
+*.log
+*.out
+*.toc
+*.lof
+*.lot
+*.fls
+*.fdb_latexmk
+*.synctex
+*.synctex.gz
+*.synctex.gz(busy)
+*.pdfsync
+
+# ===== Bibliography (BibTeX/Biber) =====
+*.bbl
+*.blg
+*.bcf
+*.run.xml
+*-blx.aux
+
+# ===== Index / Glossaries =====
+*.idx
+*.ilg
+*.ind
+*.glo
+*.glg
+*.gls
+*.acn
+*.acr
+*.alg
+
+# ===== Minted =====
+_minted*
