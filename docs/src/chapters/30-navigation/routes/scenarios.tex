@@ -1,0 +1,67 @@
+\route{Сценарии}{/scenarios}{url:scenarios}
+
+\paragraph{Назначение}
+Раздел управления сценариями: просмотр списка, создание нового сценария, переход к редактированию, удаление сценария.
+
+\screenshotPlaceholder{Страница \texttt{/scenarios}}
+
+\component{Header / Top bar}{cmp:scenarios:header}
+
+\paragraph{Назначение}
+Глобальная навигация по приложению и доступ к профилю пользователя.
+
+\action{Навигация: Главная}{act:scenarios:header:nav-home}
+\uilink{Пункт меню ``Главная''}{/}{ui:scenarios:nav-home}
+\paragraph{Действие}
+Переход на главную страницу.
+
+\action{Навигация: Правила}{act:scenarios:header:nav-rules}
+\uilink{Пункт меню ``Правила''}{/rules}{ui:scenarios:nav-rules}
+\paragraph{Действие}
+Переход в раздел правил.
+
+\action{Навигация: Сценарии}{act:scenarios:header:nav-scenarios}
+\uilink{Пункт меню ``Сценарии''}{/scenarios}{ui:scenarios:nav-scenarios}
+\paragraph{Действие}
+Переход в текущий раздел.
+
+\action{Навигация: Группы}{act:scenarios:header:nav-groups}
+\uilink{Пункт меню ``Группы''}{/access_groups}{ui:scenarios:nav-groups}
+\paragraph{Действие}
+Переход в раздел управления доступом.
+
+\action{Переход: Профиль}{act:scenarios:header:nav-me}
+\uilink{Профиль пользователя}{/me}{ui:scenarios:nav-me}
+\paragraph{Действие}
+Открывает страницу профиля текущего пользователя.
+
+\component{Список сценариев}{cmp:scenarios:list}
+
+\paragraph{Назначение}
+Отображает все доступные сценарии и предоставляет быстрые действия по каждому из них.
+
+\screenshotPlaceholder{Список сценариев}
+
+\action{Создать сценарий}{act:scenarios:create}
+\uibutton{Кнопка ``Создать'' (на странице сценариев)}{ui:scenarios:btn-create}
+\paragraph{Действие}
+Создаёт новый сценарий или открывает форму создания (точный целевой URL/модалка уточняется по реализации).
+
+\component{Элемент списка сценариев}{cmp:scenarios:list-item}
+
+\paragraph{Назначение}
+Одна строка/карточка сценария: название и действия управления.
+
+\action{Открыть сценарий (редактирование)}{act:scenarios:open}
+\uilink{Кнопка ``Открыть сценарий'' (иконка карандаша)}{/scenarios/<scenario_id>}{ui:scenarios:btn-open}
+\paragraph{Действие}
+Переходит на страницу сценария для просмотра/редактирования.
+
+\paragraph{Примеры URL}
+\texttt{/scenarios/52978346-3a5d-4a67-b39b-bb666fe70aed},
+\texttt{/scenarios/515d2aaa-768b-4456-a837-bb160cf473a8}.
+
+\action{Удалить сценарий}{act:scenarios:delete}
+\uibutton{Кнопка ``Удалить'' (иконка корзины)}{ui:scenarios:btn-delete}
+\paragraph{Действие}
+Удаляет выбранный сценарий (как минимум требует подтверждения; поведение после удаления: обновление списка).

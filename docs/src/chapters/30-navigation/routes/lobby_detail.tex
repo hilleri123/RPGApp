@@ -1,0 +1,98 @@
+\route{Лобби}{/lobby/<lobby_id>}{url:lobby-detail}
+
+\paragraph{Назначение}
+Страница конкретного лобби (игровой сессии): управление участниками и выбор/сброс персонажей.
+
+\paragraph{Пример URL}
+\texttt{/lobby/4846dfdb-c4b6-41dd-aef1-ef4e7f4f66c2}.
+
+\screenshotPlaceholder{Страница лобби}
+
+\component{Header / Top bar}{cmp:lobby:header}
+
+\paragraph{Назначение}
+Глобальная навигация по приложению и доступ к профилю пользователя.
+
+\action{Навигация: Главная}{act:lobby:header:nav-home}
+\uilink{Пункт меню ``Главная''}{/}{ui:lobby:nav-home}
+\paragraph{Действие}
+Переход на главную страницу.
+
+\action{Навигация: Правила}{act:lobby:header:nav-rules}
+\uilink{Пункт меню ``Правила''}{/rules}{ui:lobby:nav-rules}
+\paragraph{Действие}
+Переход в раздел правил.
+
+\action{Навигация: Сценарии}{act:lobby:header:nav-scenarios}
+\uilink{Пункт меню ``Сценарии''}{/scenarios}{ui:lobby:nav-scenarios}
+\paragraph{Действие}
+Переход в раздел сценариев.
+
+\action{Навигация: Группы}{act:lobby:header:nav-groups}
+\uilink{Пункт меню ``Группы''}{/access_groups}{ui:lobby:nav-groups}
+\paragraph{Действие}
+Переход в раздел управления доступом.
+
+\action{Переход: Профиль}{act:lobby:header:nav-me}
+\uilink{Профиль пользователя}{/me}{ui:lobby:nav-me}
+\paragraph{Действие}
+Открывает страницу профиля пользователя.
+
+\action{Открыть мобильное меню}{act:lobby:header:mobile-menu}
+\uibutton{Кнопка меню (``бургер'')}{ui:lobby:btn-mobile-menu}
+\paragraph{Действие}
+Открывает/закрывает мобильную навигацию (на малых экранах).
+
+\component{Заголовок лобби}{cmp:lobby:title}
+
+\paragraph{Назначение}
+Отображает имя текущего лобби/сессии.
+
+\paragraph{Текущее отображение}
+В примере в заголовке отображается имя \texttt{aaa}.
+
+\component{Участники лобби}{cmp:lobby:participants}
+
+\paragraph{Назначение}
+Показывает подключённых участников и их состояние (готовность, время подключения, выбранный персонаж), а также админские действия.
+
+\screenshotPlaceholder{Список участников}
+
+\component{Карточка участника}{cmp:lobby:participants:card}
+
+\paragraph{Назначение}
+Информация о конкретном участнике (ник, статус, время подключения, выбранный персонаж).
+
+\action{Кикнуть участника}{act:lobby:participants:kick}
+\uibutton{Кнопка ``Кикнуть''}{ui:lobby:participants:btn-kick}
+\paragraph{Действие}
+Удаляет участника из лобби (доступность действия зависит от прав пользователя).
+
+\action{Сбросить персонажа участника}{act:lobby:participants:reset-character}
+\uibutton{Кнопка ``Сбросить персонажа''}{ui:lobby:participants:btn-reset-character}
+\paragraph{Действие}
+Сбрасывает привязку выбранного персонажа у участника (например, делает персонажа свободным).
+
+\component{Персонажи}{cmp:lobby:characters}
+
+\paragraph{Назначение}
+Список персонажей, доступных в лобби, и их текущее состояние (свободен/занят/и т.п.).
+
+\screenshotPlaceholder{Список персонажей}
+
+\component{Счётчик свободных}{cmp:lobby:characters:free-counter}
+\paragraph{Назначение}
+Показывает количество свободных персонажей относительно общего лимита (например, \texttt{9/10 свободны}).
+
+\component{Карточка персонажа}{cmp:lobby:characters:card}
+
+\paragraph{Назначение}
+Одна карточка персонажа (имя, статус, наличие истории). Карточка выглядит кликабельной.
+
+\action{Выбрать персонажа}{act:lobby:characters:select}
+\uibutton{Клик по карточке персонажа}{ui:lobby:characters:card-click}
+\paragraph{Действие}
+Выбирает персонажа для текущего пользователя или открывает просмотр персонажа (точное поведение уточняется по реализации).
+
+\paragraph{Примеры элементов}
+В списке есть карточки вида \texttt{Эльф 4509 (Юна)}, \texttt{Эльф 3091 (Сами)} со статусом \texttt{Свободен} и меткой \texttt{Есть история}.

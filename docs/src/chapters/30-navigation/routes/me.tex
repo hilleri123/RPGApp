@@ -1,0 +1,75 @@
+\route{Профиль}{/me}{url:me}
+
+\paragraph{Назначение}
+Личный профиль пользователя: просмотр основной информации, переход к редактированию, управление своими группами, смена пароля.
+
+\screenshotPlaceholder{Страница \texttt{/me}}
+
+\component{Header / Top bar}{cmp:me:header}
+
+\paragraph{Назначение}
+Глобальная навигация по приложению, доступ к профилю и выходу из системы.
+
+\action{Навигация: Главная}{act:me:header:nav-home}
+\uilink{Пункт меню ``Главная''}{/}{ui:me:nav-home}
+\paragraph{Действие}
+Переход на главную страницу.
+
+\action{Навигация: Правила}{act:me:header:nav-rules}
+\uilink{Пункт меню ``Правила''}{/rules}{ui:me:nav-rules}
+\paragraph{Действие}
+Переход в раздел правил.
+
+\action{Навигация: Сценарии}{act:me:header:nav-scenarios}
+\uilink{Пункт меню ``Сценарии''}{/scenarios}{ui:me:nav-scenarios}
+\paragraph{Действие}
+Переход в раздел сценариев.
+
+\action{Навигация: Группы}{act:me:header:nav-groups}
+\uilink{Пункт меню ``Группы''}{/access_groups}{ui:me:nav-groups}
+\paragraph{Действие}
+Переход в раздел управления доступом.
+
+\action{Выход}{act:me:header:logout}
+\uibutton{Кнопка ``Выйти''}{ui:me:btn-logout}
+\paragraph{Действие}
+Завершает текущую сессию пользователя и переводит в состояние ``не авторизован'' (редирект зависит от реализации).
+
+\action{Открыть мобильное меню}{act:me:header:mobile-menu}
+\uibutton{Кнопка меню (``бургер'')}{ui:me:btn-mobile-menu}
+\paragraph{Действие}
+Открывает/закрывает мобильную навигацию (на малых экранах).
+
+\component{Карточка профиля}{cmp:me:profile-card}
+
+\paragraph{Назначение}
+Показывает основную информацию пользователя (аватар, имя, email).
+
+\action{Редактировать профиль}{act:me:edit-profile}
+\uibutton{Кнопка ``Редактировать''}{ui:me:btn-edit}
+\paragraph{Действие}
+Открывает форму/страницу редактирования профиля (точный URL/модалка уточняется по реализации).
+
+\component{Мои группы}{cmp:me:my-groups}
+
+\paragraph{Назначение}
+Список групп, в которых состоит пользователь, и быстрый переход к управлению.
+
+\action{Управлять группой}{act:me:group-manage}
+\uilink{Кнопка ``Управлять'' для группы}{/groups/<group_id>/settings}{ui:me:group-manage}
+\paragraph{Действие}
+Переход к настройкам/управлению выбранной группой.
+
+\paragraph{Пример}
+В профиле отображается группа \texttt{Creators} и целевой путь вида
+\texttt{/groups/6e7c1228-d5ec-483a-853e-9e4c22429046/settings}.
+
+\component{Безопасность}{cmp:me:security}
+
+\paragraph{Назначение}
+Действия безопасности аккаунта.
+
+\action{Сменить пароль}{act:me:change-password}
+\uibutton{Кнопка ``Сменить пароль''}{ui:me:btn-change-password}
+\paragraph{Действие}
+Открывает сценарий смены пароля (форма/диалог; уточнить по реализации).

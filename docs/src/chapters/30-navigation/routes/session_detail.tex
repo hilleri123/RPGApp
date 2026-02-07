@@ -1,0 +1,104 @@
+\route{Игровая сессия}{/session/<scenario_id>}{url:session-detail}
+
+\paragraph{Назначение}
+Экран проведения игровой сессии: работа с текущей локацией/сценой, навигация по story beat, управление сущностями (счётчики/заметки и др.), просмотр действий/логов/уведомлений.
+
+\paragraph{Пример URL}
+\texttt{/session/515d2aaa-768b-4456-a837-bb160cf473a8}.
+
+\screenshotPlaceholder{Экран игровой сессии}
+
+\component{Панель слева: Локация}{cmp:session:left-panel}
+
+\paragraph{Назначение}
+Контекст сессии: текущая локация/локация сцены/обсерверы и быстрый доступ к списку локаций.
+
+\action{Открыть вкладку ``Локация''}{act:session:left:tab-location}
+\uibutton{Вкладка ``Локация''}{ui:session:left:tab-location}
+\paragraph{Действие}
+Показывает информацию о текущей локации (в примере отображается ``Локация не выбрана'').
+
+\action{Открыть вкладку ``Локация сцены''}{act:session:left:tab-scene-location}
+\uibutton{Вкладка ``Локация сцены''}{ui:session:left:tab-scene-location}
+\paragraph{Действие}
+Показывает информацию о локации текущей сцены (состав уточняется по реализации).
+
+\action{Открыть вкладку ``Обсерверы''}{act:session:left:tab-observers}
+\uibutton{Вкладка ``Обсерверы''}{ui:session:left:tab-observers}
+\paragraph{Действие}
+Показывает список наблюдателей (observers) в рамках сессии (состав уточняется по реализации).
+
+\action{Открыть список локаций}{act:session:left:open-locations}
+\uibutton{Кнопка ``Локации''}{ui:session:left:btn-locations}
+\paragraph{Действие}
+Открывает список доступных локаций для выбора/перехода.
+
+\component{Навигация Story beat}{cmp:session:story-beat-nav}
+
+\paragraph{Назначение}
+Показывает текущий story beat и позволяет переключаться по цепочке.
+
+\action{Story beat: Назад}{act:session:story-beat:prev}
+\uibutton{Кнопка ``Назад''}{ui:session:story-beat:btn-prev}
+\paragraph{Действие}
+Переходит к предыдущему story beat.
+
+\action{Story beat: Дальше}{act:session:story-beat:next}
+\uibutton{Кнопка ``Дальше''}{ui:session:story-beat:btn-next}
+\paragraph{Действие}
+Переходит к следующему story beat.
+
+\component{Центр: Сцены}{cmp:session:scenes}
+
+\paragraph{Назначение}
+Работа со сценами текущей сессии: выбор сцены и навигация между ними.
+
+\action{Выбрать сцену}{act:session:scenes:select}
+\uibutton{Кнопки ``Сцена 1'', ``Сцена 2'', ...}{ui:session:scenes:btn-scene}
+\paragraph{Действие}
+Активирует выбранную сцену.
+
+\action{Перейти к предыдущей сцене}{act:session:scenes:prev}
+\uibutton{Кнопка стрелка влево (prev scene)}{ui:session:scenes:btn-prev}
+\paragraph{Действие}
+Переключает на предыдущую сцену (может быть disabled на первой сцене).
+
+\component{Правая панель: Сущности}{cmp:session:right-panel}
+
+\paragraph{Назначение}
+Контекстные инструменты сессии (вкладки сущностей). В текущем фрагменте видны вкладки ``Счётчики'' и ``Заметки''.
+
+\action{Открыть вкладку ``Счётчики''}{act:session:right:tab-counters}
+\uibutton{Вкладка ``Счётчики''}{ui:session:right:tab-counters}
+\paragraph{Действие}
+Показывает список счётчиков сессии.
+
+\action{Открыть вкладку ``Заметки''}{act:session:right:tab-notes}
+\uibutton{Вкладка ``Заметки''}{ui:session:right:tab-notes}
+\paragraph{Действие}
+Показывает заметки сессии.
+
+\action{Создать новый счётчик}{act:session:right:counters-create}
+\uibutton{Кнопка ``+ Новый счётчик''}{ui:session:right:btn-new-counter}
+\paragraph{Действие}
+Создаёт новый счётчик (или открывает форму создания). В примере при отсутствии счётчиков отображается текст ``Счётчиков пока нет''.
+
+\component{Нижний блок: Логи и уведомления}{cmp:session:logs}
+
+\paragraph{Назначение}
+Отображение событий сессии в разных представлениях: действия, логи, уведомления.
+
+\action{Открыть вкладку ``Действия''}{act:session:logs:tab-actions}
+\uibutton{Вкладка ``Действия''}{ui:session:logs:tab-actions}
+\paragraph{Действие}
+Показывает ленту действий.
+
+\action{Открыть вкладку ``Логи''}{act:session:logs:tab-logs}
+\uibutton{Вкладка ``Логи''}{ui:session:logs:tab-logs}
+\paragraph{Действие}
+Показывает технические/системные логи сессии.
+
+\action{Открыть вкладку ``Уведомления''}{act:session:logs:tab-notifications}
+\uibutton{Вкладка ``Уведомления''}{ui:session:logs:tab-notifications}
+\paragraph{Действие}
+Показывает уведомления для пользователя/мастера.
