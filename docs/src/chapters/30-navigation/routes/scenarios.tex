@@ -3,44 +3,13 @@
 \paragraph{Назначение}
 Раздел управления сценариями: просмотр списка, создание нового сценария, переход к редактированию, удаление сценария.
 
-\screenshotPlaceholder{Страница \texttt{/scenarios}}
-
-\component{Header / Top bar}{cmp:scenarios:header}
-
-\paragraph{Назначение}
-Глобальная навигация по приложению и доступ к профилю пользователя.
-
-\action{Навигация: Главная}{act:scenarios:header:nav-home}
-\uilink{Пункт меню ``Главная''}{/}{ui:scenarios:nav-home}
-\paragraph{Действие}
-Переход на главную страницу.
-
-\action{Навигация: Правила}{act:scenarios:header:nav-rules}
-\uilink{Пункт меню ``Правила''}{/rules}{ui:scenarios:nav-rules}
-\paragraph{Действие}
-Переход в раздел правил.
-
-\action{Навигация: Сценарии}{act:scenarios:header:nav-scenarios}
-\uilink{Пункт меню ``Сценарии''}{/scenarios}{ui:scenarios:nav-scenarios}
-\paragraph{Действие}
-Переход в текущий раздел.
-
-\action{Навигация: Группы}{act:scenarios:header:nav-groups}
-\uilink{Пункт меню ``Группы''}{/access_groups}{ui:scenarios:nav-groups}
-\paragraph{Действие}
-Переход в раздел управления доступом.
-
-\action{Переход: Профиль}{act:scenarios:header:nav-me}
-\uilink{Профиль пользователя}{/me}{ui:scenarios:nav-me}
-\paragraph{Действие}
-Открывает страницу профиля текущего пользователя.
 
 \component{Список сценариев}{cmp:scenarios:list}
 
 \paragraph{Назначение}
 Отображает все доступные сценарии и предоставляет быстрые действия по каждому из них.
 
-\screenshotPlaceholder{Список сценариев}
+\screenshot{components/scenarios.png}{Список сценариев}
 
 \action{Создать сценарий}{act:scenarios:create}
 \uibutton{Кнопка ``Создать'' (на странице сценариев)}{ui:scenarios:btn-create}

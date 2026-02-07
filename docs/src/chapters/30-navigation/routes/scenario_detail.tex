@@ -7,42 +7,6 @@
 \paragraph{Пример URL}
 \texttt{/scenarios/515d2aaa-768b-4456-a837-bb160cf473a8} (сценарий \texttt{Северный полюс}).
 
-\screenshotPlaceholder{Страница редактирования сценария}
-
-\component{Header / Top bar}{cmp:scenario-detail:header}
-
-\paragraph{Назначение}
-Глобальная навигация по приложению и доступ к профилю пользователя.
-
-\action{Навигация: Главная}{act:scenario-detail:header:nav-home}
-\uilink{Пункт меню ``Главная''}{/}{ui:scenario-detail:nav-home}
-\paragraph{Действие}
-Переход на главную страницу.
-
-\action{Навигация: Правила}{act:scenario-detail:header:nav-rules}
-\uilink{Пункт меню ``Правила''}{/rules}{ui:scenario-detail:nav-rules}
-\paragraph{Действие}
-Переход в раздел правил.
-
-\action{Навигация: Сценарии}{act:scenario-detail:header:nav-scenarios}
-\uilink{Пункт меню ``Сценарии''}{/scenarios}{ui:scenario-detail:nav-scenarios}
-\paragraph{Действие}
-Переход в список сценариев.
-
-\action{Навигация: Группы}{act:scenario-detail:header:nav-groups}
-\uilink{Пункт меню ``Группы''}{/access_groups}{ui:scenario-detail:nav-groups}
-\paragraph{Действие}
-Переход в раздел управления доступом.
-
-\action{Переход: Профиль}{act:scenario-detail:header:nav-me}
-\uilink{Профиль пользователя}{/me}{ui:scenario-detail:nav-me}
-\paragraph{Действие}
-Открывает страницу профиля текущего пользователя.
-
-\action{Открыть мобильное меню}{act:scenario-detail:header:mobile-menu}
-\uibutton{Кнопка меню (``бургер'')}{ui:scenario-detail:btn-mobile-menu}
-\paragraph{Действие}
-Открывает/закрывает мобильную навигацию (на малых экранах).
 
 \component{Заголовок сценария}{cmp:scenario-detail:title}
 
@@ -60,35 +24,57 @@
 \paragraph{Состав (ожидаемый)}
 Набор панелей/вкладок для управления объектами сценария (например: story beat, экспозиции сцен, локации, НПС, предметы, заметки, счётчики, эталоны).
 
-\screenshotPlaceholder{Рабочая область редактора (панели/вкладки)}
 
 \component{Панель: Story beat}{cmp:scenario-detail:story-beat}
 \paragraph{Назначение}
 Редактирование сюжетных точек (story beat): создание, порядок, тексты для мастера/игроков, связи с локациями и НПС.
 
+
+\screenshot{components/scenario_story_beat.png}{Вкладка Story beat}
+
 \component{Панель: Экспозиции}{cmp:scenario-detail:scene-exposure}
 \paragraph{Назначение}
 Создание и редактирование экспозиций сцен, привязка к story beat или локации, наполнение (НПС/предметы/препятствия).
+
 
 \component{Панель: Локации}{cmp:scenario-detail:locations}
 \paragraph{Назначение}
 Управление локациями сценария, их описаниями и иерархией.
 
+
+\screenshot{components/scenario_location.png}{Вкладка Локации}
+
 \component{Панель: НПС}{cmp:scenario-detail:npcs}
 \paragraph{Назначение}
 Управление НПС: описания, флаги видимости, привязки к сюжетным точкам и экспозициям.
+
+
+\screenshot{components/scenario_npc.png}{Вкладка НПС}
+
 
 \component{Панель: Предметы}{cmp:scenario-detail:items}
 \paragraph{Назначение}
 Управление предметами: описания, видимость, размещение (локация/НПС/персонаж), контейнеры и владение.
 
+
+\screenshot{components/scenario_item.png}{Вкладка Предметы}
+
+
 \component{Панель: Заметки}{cmp:scenario-detail:notes}
 \paragraph{Назначение}
 Заметки мастера и управление доступом (кому видно).
 
+
+\screenshot{components/scenario_note.png}{Вкладка Заметки}
+
+
 \component{Панель: Счётчики}{cmp:scenario-detail:counters}
 \paragraph{Назначение}
 Счётчики прогресса/состояния сценария (значения, границы, привязки).
+
+
+\screenshot{components/scenario_counter.png}{Вкладка Счётчики}
+
 
 \component{Панель: Эталоны (фабрики)}{cmp:scenario-detail:templates}
 \paragraph{Назначение}
