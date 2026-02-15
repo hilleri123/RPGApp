@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Переход в каждый подмодуль и коммит изменений
-for dir in RPG* ; do
+for dir in RPG*/ ; do
     echo "Коммит изменений в $dir"
     cd $dir
     git add .
