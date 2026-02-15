@@ -14,7 +14,7 @@ for dir in RPG* ; do
         branch="master"        # или main, если так у тебя
         echo "detached HEAD — пушим на $branch"
         git push origin HEAD:refs/heads/$branch
-        git push gitlab HEAD:refs/heads/$branch
+        # git push gitlab HEAD:refs/heads/$branch
     else
         git push
     fi
