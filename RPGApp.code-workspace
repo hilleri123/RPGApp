@@ -1,0 +1,14 @@
+{
+	"folders": [
+		{
+			"path": "."
+		},
+		{
+			"path": "RPGdata"
+		},
+		{
+			"path": "RPGWebMainClient"
+		}
+	],
+	"settings": {}
+}
