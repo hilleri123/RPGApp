@@ -1,6 +1,8 @@
 services:
   app:
-    build: ./RPGdata
+    build: 
+      context: ./RPGdata
+      target: dev
     ports: ["6601:8000"]
     volumes:
       - ./RPGdata:/app
@@ -8,6 +10,7 @@ services:
   web-client:
     build:
       context: ./RPGWebMainClient
+      target: dev
     working_dir: /app
     ports:
       - "6602:3000"
