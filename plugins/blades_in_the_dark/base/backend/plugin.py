@@ -43,17 +43,6 @@ class RulesFactory:
             # оставляем ok для твоего SessionActionManager.create_action
             return res.model_dump(mode="json") if hasattr(res, "model_dump") else res
 
-        if kind == "workflow.present":
-            action_key = p.get("actionKey")
-            env = self.workflow_router.present(
-                action_key,
-                scene=p.get("scene") or {},
-                actor_user_id=p.get("actorUserId") or "",
-                participants_dict=p.get("participants") or {},
-                wf_dict=p.get("workflow") or {},
-            )
-            return env.model_dump(mode="json") if hasattr(env, "model_dump") else env
-
         if kind == "workflow.submit":
             action_key = p.get("actionKey")
             res = self.workflow_router.submit(

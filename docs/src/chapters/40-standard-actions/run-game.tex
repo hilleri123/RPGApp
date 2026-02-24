@@ -1,0 +1,31 @@
+\section{Запуск и ведение игры}\label{sec:standard-actions:run-game}
+
+\paragraph{Цель}
+Запустить сессию по выбранному сценарию и управлять игровым процессом: локациями, сценами, темпом (story beat), сущностями и журналированием. 
+
+\paragraph{Переход к сессии}
+Сессия открывается по маршруту \texttt{/session/<scenario\_id>}. 
+
+\subsection{Базовая навигация в сессии}
+
+\paragraph{Выбрать или сменить локацию}
+Используй левую панель: \ref{cmp:session:left-panel}, действие \ref{act:session:left:open-locations} (кнопка \ref{ui:session:left:btn-locations}) для открытия списка локаций. 
+
+\paragraph{Переключить story beat}
+Используй компонент \ref{cmp:session:story-beat-nav}: действия \ref{act:session:story-beat:prev} и \ref{act:session:story-beat:next} (кнопки \ref{ui:session:story-beat:btn-prev} и \ref{ui:session:story-beat:btn-next}). 
+
+\paragraph{Переключить сцену}
+Используй компонент \ref{cmp:session:scenes}: выбери сцену через \ref{act:session:scenes:select} (кнопки \ref{ui:session:scenes:btn-scene}), либо перейди к предыдущей сцене через \ref{act:session:scenes:prev} (кнопка \ref{ui:session:scenes:btn-prev}). 
+
+\subsection{Работа с сущностями}
+
+\paragraph{Открыть счётчики или заметки}
+Используй правую панель \ref{cmp:session:right-panel}: вкладки \ref{act:session:right:tab-counters} и \ref{act:session:right:tab-notes} (кнопки \ref{ui:session:right:tab-counters}, \ref{ui:session:right:tab-notes}). 
+
+\paragraph{Создать счётчик}
+Во вкладке ``Счётчики'' нажми \ref{act:session:right:counters-create} (кнопка \ref{ui:session:right:btn-new-counter}). 
+
+\subsection{Логи и уведомления}
+
+\paragraph{Переключение представления событий}
+Используй нижний блок \ref{cmp:session:logs}: вкладки \ref{act:session:logs:tab-actions}, \ref{act:session:logs:tab-logs}, \ref{act:session:logs:tab-notifications} (кнопки \ref{ui:session:logs:tab-actions}, \ref{ui:session:logs:tab-logs}, \ref{ui:session:logs:tab-notifications}). 

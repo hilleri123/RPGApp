@@ -1,0 +1,83 @@
+% Кодировка/язык — по желанию, если pdfLaTeX:
+\usepackage{iftex}
+
+\ifPDFTeX
+  \usepackage[T2A]{fontenc}
+  \usepackage[utf8]{inputenc}
+  \usepackage[russian]{babel}
+\else
+  \usepackage{fontspec}
+  \setmainfont{DejaVu Serif} % или любой шрифт с кириллицей
+  \setsansfont{DejaVu Sans}
+  \setmonofont{DejaVu Sans Mono}
+  \usepackage[russian]{babel}
+\fi
+
+\usepackage[russian]{babel}
+
+% Картинки
+\usepackage{graphicx}
+\graphicspath{{assets/images/}{assets/screenshots/}} % trailing slash обязателен 
+
+% Ссылки в PDF (кликабельные ref, toc)
+\usepackage{hyperref}
+
+% Удобные ссылки на секции/рисунки (не обязательно)
+\usepackage[nameinlink]{cleveref}
+
+% (Опционально) якоря/ссылки на конкретные места
+% \usepackage{bookmark}
+\newcounter{userstory}[chapter]
+\renewcommand{\theuserstory}{US-\arabic{userstory}}
+
+\newcommand{\userstory}[2]{%
+  \refstepcounter{userstory}%
+  \subsection{\theuserstory: #1}%
+  \label{#2}%
+}
+
+
+% --- Navigation doc macros ---
+\newcommand{\route}[3]{% title, url, label
+  \section{#1}
+  \label{#3}
+  \paragraph{URL} \texttt{\detokenize{#2}}
+}
+
+\newcommand{\component}[2]{% name, label
+  \subsection{Компонент: #1}
+  \label{#2}
+}
+
+\newcommand{\action}[2]{% name, label
+  \subsubsection{Действие: #1}
+  \label{#2}
+}
+
+% Плейсхолдер для скрина (чтобы не ломать сборку, пока файлов нет)
+\newcommand{\screenshotPlaceholder}[1]{% what
+  \paragraph{Скриншот}
+  (todo) #1.
+}
+
+
+% --- UI link/action macros (for Navigation chapter) ---
+\newcommand{\uilink}[3]{% text, href, label
+  \paragraph{Ссылка: #1}
+  \label{#3}
+  \textbf{URL:} \texttt{\detokenize{#2}}
+}
+
+\newcommand{\uibutton}[2]{% text, label
+  \paragraph{Кнопка: #1}
+  \label{#2}
+}
+
+
+\newcommand{\screenshot}[2]{%
+  \begin{figure}[htbp]
+    \centering
+    \includegraphics[width=\linewidth]{#1}
+    \caption{#2}
+  \end{figure}
+}

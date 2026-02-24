@@ -4,9 +4,6 @@ services:
     ports: ["6601:8000"]
     volumes:
       - ./RPGdata:/app
-    env_file:
-      - ./.env.minio
-      - ./.env.tgbot
 
   web-client:
     build:
@@ -25,7 +22,6 @@ services:
 
   minio:
     ports: ["6604:9000", "6605:9001"]
-    env_file: ["./.env.minio"]
 
   redis:
     ports: ["6606:6379"]

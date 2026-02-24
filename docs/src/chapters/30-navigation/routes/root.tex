@@ -1,0 +1,59 @@
+\route{Главная}{/}{url:root}
+
+\paragraph{Назначение}
+Стартовая страница приложения: быстрый доступ к лобби/сессиям и к профилю пользователя.
+
+
+\component{Вкладки ``Сессии / Профиль''}{cmp:root:tabs}
+
+\paragraph{Назначение}
+Переключение между списком лобби/сессий и профилем, а также доступ к подключению к уже идущей сессии.
+
+\action{Открыть вкладку ``Сессии''}{act:root:tab-sessions}
+\uibutton{Вкладка ``Сессии''}{ui:root:tab-sessions}
+\paragraph{Действие}
+Показывает список доступных лобби/сессий и действия по ним.
+
+\action{Открыть вкладку ``Профиль''}{act:root:tab-profile}
+\uibutton{Вкладка ``Профиль''}{ui:root:tab-profile}
+\paragraph{Действие}
+Показывает профиль пользователя и действия подключения к уже запущенной сессии.
+
+\component{Список доступных лобби}{cmp:root:sessions}
+
+\paragraph{Назначение}
+Быстрый доступ к лобби: просмотр и присоединение.
+
+\screenshot{components/root_1.png}{Список лобби на главной.}
+
+\action{Создать лобби}{act:root:sessions:create}
+\uibutton{Кнопка ``+'' (создать)}{ui:root:sessions:btn-create}
+\paragraph{Действие}
+Создаёт новое лобби (сессию ожидания) или открывает сценарий создания (форма/выбор сценария; уточнить по реализации).
+
+\component{Карточка лобби}{cmp:root:sessions:card}
+
+\paragraph{Назначение}
+Отображает одно лобби (мастер, участники, статус) и быстрые действия.
+
+\action{Просмотр/детали лобби}{act:root:sessions:view}
+\uibutton{Кнопка ``Просмотр'' (иконка глаза)}{ui:root:sessions:btn-view}
+\paragraph{Действие}
+Открывает просмотр деталей выбранного лобби (\texttt{/lobby/<id>}; см. \hyperref[url:lobby-detail]{главу ``Лобби''}).
+
+\action{Присоединиться к лобби}{act:root:sessions:join}
+\uibutton{Кнопка ``Играть'' (иконка play)}{ui:root:sessions:btn-play}
+\paragraph{Действие}
+Присоединяет пользователя к выбранному лобби (\texttt{/lobby/<id>}; см. \hyperref[url:lobby-detail]{главу ``Лобби''}).
+
+\component{Профиль и подключение к идущей сессии}{cmp:root:profile}
+
+\paragraph{Назначение}
+Профиль пользователя и быстрый вход в уже запущенную игровую сессию.
+
+\screenshot{components/root_2.png}{Вкладка ``Профиль'' на главной.}
+
+\action{Подключиться к идущей сессии}{act:root:profile:join-running}
+\uibutton{Действие ``Подключиться к идущей сессии''}{ui:root:profile:join-running}
+\paragraph{Действие}
+Открывает подключение к уже запущенной сессии по её идентификатору (\texttt{/session/<id>}; см. \hyperref[url:session-detail]{главу ``Игровая сессия''}). % \ref{url:session-detail}

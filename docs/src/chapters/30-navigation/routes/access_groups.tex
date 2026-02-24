@@ -1,0 +1,50 @@
+\route{Доступ: группы и пользователи}{/access_groups}{url:access-groups}
+
+\paragraph{Назначение}
+Раздел управления доступом: группы и пользователи (назначение прав, просмотр/настройка групп, переход к настройкам конкретной группы).
+
+\screenshotPlaceholder{Страница \texttt{/access\_groups}}
+
+\component{Вкладки раздела}{cmp:access-groups:tabs}
+
+\paragraph{Назначение}
+Переключение между представлениями ``Группы'' и ``Пользователи'' внутри одного раздела.
+
+\action{Открыть вкладку ``Группы''}{act:access-groups:tab-groups}
+\uibutton{Вкладка ``Группы''}{ui:access-groups:tab-groups}
+\paragraph{Действие}
+Показывает панель управления группами доступа.
+
+\action{Открыть вкладку ``Пользователи''}{act:access-groups:tab-users}
+\uibutton{Вкладка ``Пользователи''}{ui:access-groups:tab-users}
+\paragraph{Действие}
+Показывает панель управления пользователями (в текущем HTML панель скрыта/пустая; наполнение уточнить по реализации).
+
+\component{Панель ``Группы''}{cmp:access-groups:groups-panel}
+
+\paragraph{Назначение}
+Работа со списком групп: поиск, создание, переход к настройкам конкретной группы.
+
+\action{Поиск группы}{act:access-groups:groups:search}
+\uibutton{Поле ``Поиск группы по названию...''}{ui:access-groups:groups:search}
+\paragraph{Действие}
+Фильтрует список групп по введённой строке.
+
+\action{Добавить группу}{act:access-groups:groups:add}
+\uibutton{Кнопка ``Добавить''}{ui:access-groups:groups:add}
+\paragraph{Действие}
+Открывает сценарий создания новой группы (форма/диалог; точную механику уточнить по реализации).
+
+\component{Элемент списка групп}{cmp:access-groups:groups:list-item}
+
+\paragraph{Назначение}
+Представляет одну группу в списке и даёт переход к настройкам.
+
+\action{Открыть настройки группы}{act:access-groups:groups:settings}
+\uilink{Кнопка/ссылка ``Настройки'' для группы}{/access_groups/<group_id>}{ui:access-groups:groups:settings}
+\paragraph{Действие}
+Переходит на страницу настроек выбранной группы (детальная страница группы).
+
+\paragraph{Пример}
+В текущем состоянии есть группа \texttt{Creators} и ссылка вида:
+\texttt{/access\_groups/6e7c1228-d5ec-483a-853e-9e4c22429046}.

@@ -1,0 +1,18 @@
+\route{Настройки группы}{/access_groups/<group_id>}{url:access-group-detail}
+
+\paragraph{Назначение}
+Детальная страница группы доступа: просмотр и изменение настроек конкретной группы.
+Название группы отображается в заголовке страницы.
+
+\paragraph{Пример URL}
+\texttt{/access\_groups/6e7c1228-d5ec-483a-853e-9e4c22429046} (группа \texttt{Creators}).
+
+\screenshotPlaceholder{Страница настроек группы}
+
+\component{Заголовок страницы}{cmp:access-group-detail:title}
+
+\paragraph{Назначение}
+Отображает контекст: это настройки конкретной группы.
+
+\paragraph{Текущее отображение}
+В заголовке отображается строка вида \texttt{Настройки группы: <name>} (в примере: \texttt{Creators}).
