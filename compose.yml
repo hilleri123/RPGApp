@@ -18,6 +18,8 @@ services:
         condition: service_healthy
       rabbitmq:
         condition: service_healthy
+    volumes:
+      - media_data:/app/media
 
   web-client:
     restart: unless-stopped
@@ -97,6 +99,7 @@ services:
 
 volumes:
   postgres_data:
+  media_data:
   minio_data:
   redis_data:
   rabbitmq_data:

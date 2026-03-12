@@ -5,6 +5,7 @@ services:
       target: dev
     ports: ["6601:8000"]
     environment:
+      BASE_URL: http://localhost:6602/api
       S3_ENDPOINT: http://minio:9000
       S3_BUCKET_NAME: ${S3_BUCKET_NAME}
       PG_ENDPOINT: postgresql://db:5432
