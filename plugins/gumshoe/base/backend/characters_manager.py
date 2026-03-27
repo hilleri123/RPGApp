@@ -81,7 +81,7 @@ class CharactersManager:
             kind = self.skills.skill_kind(sid)
             if kind == "investigative":
                 inv_total += val
-            elif kind == "general":
+            elif kind == "general" or kind == "both":
                 gen_total += val
             else:
                 issues.append(
