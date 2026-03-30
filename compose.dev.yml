@@ -18,6 +18,7 @@ services:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
       BOT_TOKEN: ${BOT_TOKEN}
+      ROOT_PATH: /api
     volumes:
       - ./RPGdata:/app
 
