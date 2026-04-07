@@ -14,6 +14,7 @@ services:
       SECRET_KEY: ${SECRET_KEY}
       ENV: production
       BOT_TOKEN: ${BOT_TOKEN}
+      ROOT_PATH: ""
     command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
     ports:
       - "6601:8000"
@@ -22,7 +23,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-
+    volumes:
+      - media_data:/app/media
 
   web-client:
     build:
@@ -96,4 +98,3 @@ volumes:
   postgres_data:
   media_data:
   redis_data:
-  minio_data:
