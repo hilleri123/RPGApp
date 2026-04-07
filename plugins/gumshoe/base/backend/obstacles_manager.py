@@ -49,7 +49,7 @@ class ObstaclesManager:
                 if sid not in allowed:
                     issues.append(ValidationIssue(path=f"data.investigative_skills", message=f"Unknown skill: {sid}", icon="error"))
                     continue
-                if self.skills.skill_kind(sid) != "investigative":
+                if self.skills.skill_kind(sid) != "investigative" or self.skills.skill_kind(sid) != "both":
                     issues.append(ValidationIssue(path=f"data.investigative_skills", message=f"Not an investigative skill: {sid}", icon="error"))
 
         elif ob.type == "challenge":
