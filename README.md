@@ -1,81 +1,91 @@
-# RPG Game Manager
+# RPGApp — платформа для нарративных НРИ
 
-Система для управления RPG сценариями и игровыми сессиями.
+Веб-приложение для подготовки сценариев, проведения онлайн-сессий и долгих кампаний с общим миром. Стек: **FastAPI + PostgreSQL + Redis**, фронтенд **Next.js**, авторизация через **Telegram Mini App** и браузерные magic-link.
 
 ## Компоненты
 
-- **RPGdata** - Основной бекенд (FastAPI)
-  - Управление сценариями
-  - Управление сессиями
-  - Аутентификация
-  - Работа с файлами (MinIO)
-  - PostgreSQL для сценариев
-  - MongoDB для сессий
+| Сервис | Описание | Порт (dev) |
+|--------|----------|------------|
+| **RPGdata** | API, WebSocket сессий и лобби, плагины систем | 6601 |
+| **RPGWebMainClient** | UI мастера и игрока | 6602 |
+| **telegram-bot** | Бот: `/link`, создание лобби в группе | — |
+| **PostgreSQL** | Сценарии, пользователи, кампании | 5432 |
+| **Redis** | Лобби, runtime сессий, launched-миры | 6379 |
+| **MinIO** | Файлы и медиа | 9000 |
 
-- **RPGFrontendReact** - Интерфейс для управления сценариями (React)
-  - Порт: 3001
-  - Редактирование сценариев
-  - Управление ресурсами
+## Быстрый старт
 
-- **RPGWebMainClient** - Интерфейс для игровых сессий (Next.js)
-  - Порт: 3000
-  - Управление сессиями
-  - Игровой процесс
+1. Скопируйте `.env` (см. `.env.example` при наличии) и задайте `BOT_TOKEN`, `SECRET_KEY`, пароли БД.
 
-## Запуск
-
-1. Создайте файл `.env.minio`:
-
-```env
-MINIO_ROOT_USER=minioadmin
-MINIO_ROOT_PASSWORD=minioadmin
-MINIO_ACCESS_KEY=minioadmin
-MINIO_SECRET_KEY=minioadmin
-```
-
-2. Запустите сервисы:
+2. Запуск в режиме разработки:
 
 ```bash
-docker-compose up -d
+docker compose -f compose.yml -f compose.dev.yml up
 ```
 
-3. Настройте фронтенд RPGFrontendReact:
-   - Следуйте инструкциям в `RPGFrontendReact/README.md`
+3. Откройте клиент: http://localhost:6602  
+   API: http://localhost:6601/api
 
-4. Настройте фронтенд RPGWebMainClient:
-   - Следуйте инструкциям в `RPGWebMainClient/README.md`
+## Игровой цикл
 
-## Порты
+Подробные термины — в [RPGdata/docs/PLAY_TERMS.md](RPGdata/docs/PLAY_TERMS.md).
 
-- Backend API (RPGdata): http://localhost:8000
-- RPGFrontendReact: http://localhost:3001
-- RPGWebMainClient: http://localhost:3000
-- PostgreSQL: localhost:5432
-- MongoDB: localhost:27017
-- MinIO: 
-  - API: http://localhost:9000
-  - Console: http://localhost:9001
+```
+Prep-сценарий → Запуск (launched) → Лобби → Сессия (подход) → Закрытие
+                     ↑___________________|  (мир сохраняется в Redis)
+```
+
+### Кампании
+
+- **Кампания** — цепочка эпизодов (prep-сценариев) с переносом состояния между подходами.
+- **Общий мир** — один *запущенный сценарий* на всю кампанию; NPC, предметы и изменения живут между эпизодами.
+- **Партии** — несколько групп игроков в одном мире (теги `party:*` на сущностях).
+- **Carryover** — при завершении подхода сохраняются персонажи, NPC и предметы (кроме помеченных `campaign_skip`).
+
+UI: `/campaigns` — список и управление; в лобби мастер выбирает кампанию.
+
+### Роли
+
+| Роль | Возможности |
+|------|-------------|
+| Мастер | Сценарии, кампании, лобби, сессия, обсервер |
+| Игрок | Заявки на персонажа, лобби, сессия |
+| Обсервер | Просмотр сцены без логина (стрим) |
+
+## Telegram-бот
+
+Команды (в личке или группе):
+
+| Команда | Действие |
+|---------|----------|
+| `/start` | Инструкция |
+| `/link` | Одноразовая ссылка входа в браузере (5 мин) |
+| `/создать_лобби Название @p1 @p2` | Создать лобби; игрокам в ЛС — ссылка входа + ссылка лобби |
+
+Перед созданием лобби мастер должен хотя бы раз войти в приложение (Mini App или `/link`). Игроки матчатся по `@username` → поле `User.tg`.
+
+Переменные: `BOT_TOKEN`, `WEB_CLIENT_URL`.
+
+## Плагины систем
+
+Регистрируются в `RPGdata/plugins/`. Поддерживаются, в частности: Dungeon World, GUMSHOE (Trail, Ezoterrorists), PbtA, Blades in the Dark и др. Архитектура: entity managers + workflow UI на клиенте.
 
 ## Разработка
 
-1. Бекенд (RPGdata):
-   - FastAPI для API
-   - PostgreSQL для хранения сценариев
-   - MongoDB для хранения сессий
-   - MinIO для хранения файлов
+```bash
+# Ветка перед изменениями
+git checkout -b feature/my-change
 
-2. Фронтенд для сценариев (RPGFrontendReact):
-   - React
-   - Material-UI
-   - Redux для управления состоянием
+# Миграции (в контейнере или локально)
+cd RPGdata && alembic upgrade head
 
-3. Фронтенд для сессий (RPGWebMainClient):
-   - Next.js
-   - Tailwind CSS
-   - shadcn/ui компоненты
+# Тесты
+cd RPGdata && pytest
+```
 
-## Примечания
+Правила проекта — в [CLAUDE.md](CLAUDE.md).
 
-- Все сервисы настроены для работы в Docker
-- Для разработки рекомендуется использовать Docker Compose
-- Данные PostgreSQL и MongoDB сохраняются в Docker volumes 
+## Документация
+
+- [Игровые термины](RPGdata/docs/PLAY_TERMS.md)
+- [Roll Kit (броски)](RPGdata/docs/ROLL_KIT.md)

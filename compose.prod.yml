@@ -19,6 +19,7 @@ services:
       SECRET_KEY: ${SECRET_KEY}
       ENV: production
       BOT_TOKEN: ${BOT_TOKEN}
+      WEB_CLIENT_URL: ${WEB_CLIENT_URL:-https://rpgzona.ru}
       ROOT_PATH: ""
     command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
     ports:
@@ -107,6 +108,27 @@ services:
       interval: 5s
       timeout: 5s
       retries: 10
+
+
+  telegram-bot:
+    build:
+      context: ./RPGdata
+      target: prod
+    image: rpgzona/telegram-bot:latest
+    restart: unless-stopped
+    command: ["python", "-m", "app.bot.main"]
+    environment:
+      PG_ENDPOINT: postgresql://db:5432
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: rpg_sessions
+      BOT_TOKEN: ${BOT_TOKEN}
+      WEB_CLIENT_URL: ${WEB_CLIENT_URL:-https://rpgzona.ru}
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
 
 
 volumes:
