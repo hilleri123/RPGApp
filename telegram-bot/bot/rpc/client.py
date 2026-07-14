@@ -84,7 +84,7 @@ class BotRpcClient:
                 correlation_id=correlation_id,
                 reply_to=self._callback_queue.name,
                 content_type="application/json",
-                expiration=str(int(bot_settings.rpc_timeout_seconds * 1000)),
+                expiration=int(bot_settings.rpc_timeout_seconds * 1000),
             ),
             routing_key=RPC_ROUTING_KEY,
         )

@@ -42,12 +42,20 @@ async def cmd_link(message: Message) -> None:
             )
         return
 
-    url = await login_url_for_telegram_user(
-        telegram_id=from_user.id,
-        first_name=from_user.first_name or "Игрок",
-        last_name=from_user.last_name,
-        username=from_user.username,
-    )
+    try:
+        url = await login_url_for_telegram_user(
+            telegram_id=from_user.id,
+            first_name=from_user.first_name or "Игрок",
+            last_name=from_user.last_name,
+            username=from_user.username,
+        )
+    except Exception as exc:
+        await message.answer(
+            f"Не удалось получить ссылку: {exc}\n\n"
+            "Проверьте, что бэкенд и RabbitMQ запущены."
+        )
+        return
+
     await message.answer(
         "Ссылка для входа в браузере (действует 5 минут, одноразовая):\n\n"
         f"{url}\n\n"
