@@ -179,6 +179,7 @@ cython_debug/
 .env.minio
 .env.db
 .env.*
+!.env.example
 
 
 
