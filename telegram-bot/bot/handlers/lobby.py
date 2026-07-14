@@ -85,6 +85,7 @@ async def _handle_create_lobby(message: Message) -> None:
             "create_lobby",
             {
                 "master_telegram_id": from_user.id,
+                "master_username": from_user.username,
                 "lobby_name": lobby_name,
                 "tg_usernames": usernames,
             },
