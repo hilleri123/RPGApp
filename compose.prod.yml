@@ -21,6 +21,7 @@ services:
       BOT_TOKEN: ${BOT_TOKEN}
       WEB_CLIENT_URL: ${WEB_CLIENT_URL:-https://rpgzona.ru}
       ROOT_PATH: ""
+      RABBIT_URL: ${RABBIT_URL:-amqp://rpg:rpg@rabbitmq:5672/}
     command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
     ports:
       - "6601:8000"
@@ -28,6 +29,8 @@ services:
       db:
         condition: service_healthy
       redis:
+        condition: service_healthy
+      rabbitmq:
         condition: service_healthy
     volumes:
       - media_data:/app/media
@@ -110,28 +113,49 @@ services:
       retries: 10
 
 
+  rabbitmq:
+    image: rabbitmq:3-management
+    restart: unless-stopped
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_DEFAULT_USER:-rpg}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_DEFAULT_PASS:-rpg}
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 5s
+      timeout: 10s
+      retries: 10
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+
   telegram-bot:
     build:
-      context: ./RPGdata
-      target: prod
+      context: ./telegram-bot
     image: rpgzona/telegram-bot:latest
     restart: unless-stopped
-    command: ["python", "-m", "app.bot.main"]
     environment:
-      PG_ENDPOINT: postgresql://db:5432
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      POSTGRES_DB: rpg_sessions
       BOT_TOKEN: ${BOT_TOKEN}
       WEB_CLIENT_URL: ${WEB_CLIENT_URL:-https://rpgzona.ru}
+      RABBIT_URL: ${RABBIT_URL:-amqp://rpg:rpg@rabbitmq:5672/}
     depends_on:
-      db:
+      rabbitmq:
         condition: service_healthy
-      redis:
-        condition: service_healthy
+      app:
+        condition: service_started
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
 
 volumes:
   postgres_data:
   media_data:
   redis_data:
+  rabbitmq_data:
