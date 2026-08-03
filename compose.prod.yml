@@ -44,8 +44,19 @@ services:
       BOT_TOKEN: ${BOT_TOKEN}
       WEB_CLIENT_URL: ${WEB_CLIENT_URL:-https://rpgzona.ru}
       ROOT_PATH: ""
-      RABBIT_URL: ${RABBIT_URL:-amqp://rpg:rpg@rabbitmq:5672/}
-    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+      RABBIT_URL: "${RABBIT_URL:?RABBIT_URL обязателен в проде, формат amqp://user:pass@rabbitmq:5672/}"
+    # Ровно один воркер, и это ограничение архитектуры, а не экономия: реестр
+    # менеджеров сессий и кеш сущностей внутри них живут в памяти процесса и
+    # между воркерами не разделяются (BE-07). С --workers N мастер и игрок
+    # увидят разные данные. Масштабировать можно только после переноса
+    # инвалидации кеша в Redis pub/sub.
+    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "1"]
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health')\""]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 40s
     ports:
       - "6601:8000"
     depends_on:
@@ -71,6 +82,12 @@ services:
       NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL}
       NODE_ENV: production
     command: ["pnpm", "start"]
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"require('http').get('http://127.0.0.1:3000/', r => process.exit(r.statusCode < 500 ? 0 : 1)).on('error', () => process.exit(1))\""]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 40s
     ports:
       - "6602:3000"
     logging:
@@ -79,7 +96,8 @@ services:
         max-size: "10m"
         max-file: "3"
     depends_on:
-      - app
+      app:
+        condition: service_healthy
 
 
   db:
@@ -96,8 +114,8 @@ services:
         max-file: "3"
     volumes:
       - postgres_data:/var/lib/postgresql/data
-    ports:
-      - "6603:5432"
+    expose:
+      - "5432"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 5s
@@ -129,8 +147,8 @@ services:
     restart: unless-stopped
     volumes:
       - redis_data:/redis_data
-    ports:
-      - "6606:6379"
+    expose:
+      - "6379"
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
@@ -142,8 +160,8 @@ services:
     image: rabbitmq:3-management
     restart: unless-stopped
     environment:
-      RABBITMQ_DEFAULT_USER: ${RABBITMQ_DEFAULT_USER:-rpg}
-      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_DEFAULT_PASS:-rpg}
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_DEFAULT_USER:?RABBITMQ_DEFAULT_USER обязателен в проде}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_DEFAULT_PASS:?RABBITMQ_DEFAULT_PASS обязателен в проде}
     volumes:
       - rabbitmq_data:/var/lib/rabbitmq
     healthcheck:
@@ -166,7 +184,7 @@ services:
     environment:
       BOT_TOKEN: ${BOT_TOKEN}
       WEB_CLIENT_URL: ${WEB_CLIENT_URL:-https://rpgzona.ru}
-      RABBIT_URL: ${RABBIT_URL:-amqp://rpg:rpg@rabbitmq:5672/}
+      RABBIT_URL: "${RABBIT_URL:?RABBIT_URL обязателен в проде, формат amqp://user:pass@rabbitmq:5672/}"
     depends_on:
       rabbitmq:
         condition: service_healthy

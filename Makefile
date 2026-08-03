@@ -1,25 +1,39 @@
-.PHONY: dev prod down logs clean
+.PHONY: dev prod down logs clean test migrate help
 
 # Colors for output
 GREEN := \033[0;32m
 NC := \033[0m # No Color
 
+DEV  := docker compose -f compose.dev.yml
+PROD := docker compose -f compose.prod.yml
+
+help: ## Показать список целей
+	@grep -E '^[a-z-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  $(GREEN)%-10s$(NC) %s\n", $$1, $$2}'
+
 dev: ## Запустить в режиме разработки
 	@echo "$(GREEN)Запуск в режиме разработки...$(NC)"
-	docker-compose up app frontend-dev
+	$(DEV) up app web-client
 
 prod: ## Запустить в режиме production
 	@echo "$(GREEN)Запуск в режиме продакшена...$(NC)"
-	docker-compose --profile prod up -d
+	$(PROD) up -d
 
 down: ## Остановить контейнеры
 	@echo "$(GREEN)Остановка контейнеров...$(NC)"
-	docker-compose down
+	$(DEV) down
 
 logs: ## Показать логи
 	@echo "$(GREEN)Просмотр логов...$(NC)"
-	docker-compose logs -f
+	$(DEV) logs -f
+
+test: ## Прогнать тесты бэкенда
+	@echo "$(GREEN)Тесты...$(NC)"
+	$(DEV) exec -T app python -m pytest tests/ -q
+
+migrate: ## Применить миграции
+	@echo "$(GREEN)Миграции...$(NC)"
+	$(DEV) exec -T app alembic upgrade head
 
 clean: down ## Очистка Docker
 	@echo "$(GREEN)Очистка контейнеров и образов...$(NC)"
-	docker-compose down -v --rmi local
+	$(DEV) down -v --rmi local

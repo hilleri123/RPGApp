@@ -16,6 +16,12 @@ services:
       WEB_CLIENT_URL: ${WEB_CLIENT_URL:-http://localhost:6602}
       ROOT_PATH: /api
       RABBIT_URL: ${RABBIT_URL:-amqp://rpg:rpg@rabbitmq:5672/}
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health')\""]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 40s
     ports:
       - "6601:8000"
     volumes:
