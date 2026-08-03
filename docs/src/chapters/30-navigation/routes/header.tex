@@ -1,44 +1,77 @@
-\section{Хедер}
-\label{url:root}
+\section{Шапка сайта}
+\label{url:header}
 
-\component{Header / Top bar}{cmp:root:header}
+\component{Верхняя панель}{cmp:root:header}
 
 \paragraph{Назначение}
-Обеспечивает глобальную навигацию по разделам приложения и доступ к профилю пользователя.
+Глобальная навигация по разделам и доступ к профилю. Видна на всех страницах, кроме экрана игровой сессии.
 
 \screenshot{components/header.png}{Хедер с навигацией}
+
+\paragraph{Что видно без входа}
+Неавторизованному пользователю доступны только логотип, пункт ``Главная'', раздел ``Контакты'' и кнопки ``Наблюдение'', ``Вход'', ``Регистрация''. Остальные пункты меню появляются после входа.
 
 \action{Переход по логотипу}{act:root:header:logo}
 \uilink{Логотип ``RPG Master''}{/}{ui:root:logo}
 \paragraph{Действие}
-Открывает главную страницу приложения (\texttt{/}), см. \hyperref[url:root]{главу ``Главная''}. % \ref{url:root}
+Открывает главную страницу (\texttt{/}), см. \hyperref[url:root]{главу ``Главная''}.
 
 \action{Переход: Главная}{act:root:header:nav-home}
 \uilink{Пункт меню ``Главная''}{/}{ui:root:nav-home}
 \paragraph{Действие}
-Открывает главную страницу (\texttt{/}), см. \hyperref[url:root]{главу ``Главная''}. % \ref{url:root}
-
-\action{Переход: Правила}{act:root:header:nav-rules}
-\uilink{Пункт меню ``Правила''}{/rules}{ui:root:nav-rules}
-\paragraph{Действие}
-Переходит в раздел правил (\texttt{/rules}), см. \hyperref[url:rules]{главу ``Правила''}. % \ref{url:rules}
+Открывает главную страницу (\texttt{/}), см. \hyperref[url:root]{главу ``Главная''}.
 
 \action{Переход: Сценарии}{act:root:header:nav-scenarios}
 \uilink{Пункт меню ``Сценарии''}{/scenarios}{ui:root:nav-scenarios}
 \paragraph{Действие}
-Переходит в раздел управления сценариями (\texttt{/scenarios}), см. \hyperref[url:scenarios]{главу ``Сценарии''}. % \ref{url:scenarios}
+Открывает список сценариев (\texttt{/scenarios}), см. \hyperref[url:scenarios]{главу ``Сценарии''}. Требует входа.
+
+\action{Переход: Паки}{act:root:header:nav-entity-packs}
+\uilink{Пункт меню ``Паки''}{/entity-packs}{ui:root:nav-entity-packs}
+\paragraph{Действие}
+Открывает наборы сущностей, переиспользуемые между сценариями (\texttt{/entity-packs}). Требует входа.
+
+\action{Переход: Кампании}{act:root:header:nav-campaigns}
+\uilink{Пункт меню ``Кампании''}{/campaigns}{ui:root:nav-campaigns}
+\paragraph{Действие}
+Открывает список кампаний (\texttt{/campaigns}) --- серий связанных подходов, см. раздел \ref{sec:concepts:chain}. Требует входа.
+
+\action{Переход: Запущенные}{act:root:header:nav-launched}
+\uilink{Пункт меню ``Запущенные''}{/launched-scenarios}{ui:root:nav-launched}
+\paragraph{Действие}
+Открывает список запущенных миров (\texttt{/launched-scenarios}). Требует входа.
 
 \action{Переход: Группы}{act:root:header:nav-access-groups}
 \uilink{Пункт меню ``Группы''}{/access_groups}{ui:root:nav-access-groups}
 \paragraph{Действие}
-Переходит в раздел управления доступом: группы и пользователи (\texttt{/access\_groups}), см. \hyperref[url:access-groups]{главу ``Группы''}. % \ref{url:access-groups}
+Открывает управление доступом: группы и пользователи (\texttt{/access\_groups}), см. \hyperref[url:access-groups]{главу ``Группы''}. Содержимое доступно только администратору.
+
+\action{Переход: Аудио}{act:root:header:nav-audio}
+\uilink{Пункт меню ``Аудио''}{/audio}{ui:root:nav-audio}
+\paragraph{Действие}
+Открывает библиотеку музыки и звуков (\texttt{/audio}). Требует входа.
+
+\action{Переход: Контакты}{act:root:header:nav-contacts}
+\uilink{Пункт меню ``Контакты''}{/contacts}{ui:root:nav-contacts}
+\paragraph{Действие}
+Открывает страницу связи с командой и скачивания этого руководства (\texttt{/contacts}), см.\ \hyperref[url:contacts]{главу ``Контакты''}. Доступна без входа.
 
 \action{Переход: Профиль}{act:root:header:nav-me}
-\uilink{Ссылка на профиль пользователя}{/me}{ui:root:nav-me}
+\uilink{Имя пользователя и аватар}{/me}{ui:root:nav-me}
 \paragraph{Действие}
-Открывает страницу профиля пользователя (\texttt{/me}), см. \hyperref[url:me]{главу ``Профиль''}. % \ref{url:me}
+Открывает профиль (\texttt{/me}), см. \hyperref[url:me]{главу ``Профиль''}. Корона рядом с именем означает права администратора.
+
+\action{Наблюдение}{act:root:header:observer}
+\uilink{Кнопка ``Наблюдение''}{/observer}{ui:root:btn-observer}
+\paragraph{Действие}
+Открывает вход в комнату наблюдателя по коду (\texttt{/observer}), см.\ главу \ref{ch:observer}. Показывается только неавторизованным.
+
+\action{Выйти}{act:root:header:logout}
+\uibutton{Кнопка ``Выйти''}{ui:root:btn-logout}
+\paragraph{Действие}
+Завершает сессию и возвращает на страницу входа.
 
 \action{Открыть мобильное меню}{act:root:header:mobile-menu}
 \uibutton{Кнопка меню (``бургер'')}{ui:root:btn-mobile-menu}
 \paragraph{Действие}
-Открывает/закрывает мобильное меню навигации (на малых экранах).
+Открывает боковое меню навигации на узких экранах.

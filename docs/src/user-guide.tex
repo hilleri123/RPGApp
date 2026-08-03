@@ -1,0 +1,32 @@
+% Руководство пользователя. Собирается в docs/out/user-guide.pdf
+% и публикуется на сайте в разделе «Контакты».
+% Сборка: docs/build.sh
+\documentclass[12pt,a4paper]{report}
+
+\input{preamble.tex}
+
+\title{RPG Master\\[0.5em]\large Руководство пользователя}
+\author{Платформа для проведения настольных ролевых игр}
+\date{\today}
+
+\begin{document}
+\maketitle
+\tableofcontents
+
+\include{chapters/00-intro}
+\include{chapters/user/10-getting-started}
+\include{chapters/user/20-concepts}
+\include{chapters/user/30-player}
+\include{chapters/user/40-master}
+\include{chapters/user/50-observer}
+\include{chapters/user/60-admin}
+\include{chapters/user/70-telegram}
+
+\include{chapters/10-tutorials/_index}
+\include{chapters/20-objects/_index}
+\include{chapters/30-navigation/_index}
+\include{chapters/40-standard-actions/_index}
+
+\include{chapters/user/90-troubleshooting}
+
+\end{document}

@@ -220,3 +220,5 @@ _minted*
 
 
 *.code-workspace
+# Собранная документация: PDF публикуется через RPGWebMainClient/public/
+docs/out/

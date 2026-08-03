@@ -1,0 +1,20 @@
+% Техническая документация: архитектура, плагины правил, планы.
+% Не публикуется на сайте — это внутренний документ.
+% Сборка: docs/build.sh
+\documentclass[12pt,a4paper]{report}
+
+\input{preamble.tex}
+
+\title{RPG Master\\[0.5em]\large Техническая документация}
+\author{Команда разработки}
+\date{\today}
+
+\begin{document}
+\maketitle
+\tableofcontents
+
+\include{chapters/05-roadmap/_index}
+\include{chapters/07-user-stories/_index}
+\include{chapters/35-rules-and-plugins/_index}
+
+\end{document}

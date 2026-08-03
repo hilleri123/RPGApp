@@ -22,6 +22,16 @@
 % Ссылки в PDF (кликабельные ref, toc)
 \usepackage{hyperref}
 
+% По умолчанию hyperref обводит каждую ссылку красной рамкой — в документе,
+% который читают с экрана и печатают, это мусор. Красим текст вместо рамок.
+\hypersetup{
+  colorlinks=true,
+  linkcolor=[rgb]{0.15,0.35,0.65},
+  urlcolor=[rgb]{0.15,0.35,0.65},
+  citecolor=[rgb]{0.15,0.35,0.65},
+  bookmarksnumbered=true,
+}
+
 % Удобные ссылки на секции/рисунки (не обязательно)
 \usepackage[nameinlink]{cleveref}
 
@@ -80,4 +90,12 @@
     \includegraphics[width=\linewidth]{#1}
     \caption{#2}
   \end{figure}
+}
+
+% Скриншот, которого может ещё не быть в assets/: сборка не должна из-за
+% этого падать, поэтому недостающий файл заменяется пометкой в тексте.
+\newcommand{\screenshotOptional}[2]{%
+  \IfFileExists{assets/screenshots/#1}%
+    {\screenshot{#1}{#2}}%
+    {\begin{quote}\small\itshape Здесь будет скриншот: #2\end{quote}}%
 }
