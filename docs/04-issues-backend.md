@@ -66,6 +66,8 @@ allowed = {row.id: row for row in rows.scalars()}
 
 Идентификаторы, которых нет в `allowed`, логировать как попытку нарушения.
 
+**Исправлено** (`52855f8`). `_persist_entity_list_to_db` собирает `by_id` из payload, затем берёт сущности одним `select` с фильтром `model.scenario_id == scenario_id`, где `scenario_id` — из рантайма сессии. Идентификаторы, не попавшие в выборку, логируются как `rejected ... foreign entity ids` и не пишутся. Тесты: `test_persist_filters_by_scenario_id`, `test_persist_ignores_entities_of_another_scenario`.
+
 ---
 
 ### BE-02
@@ -85,6 +87,8 @@ async def get_session(session_id: str, current_user = Depends(get_current_user))
 **Проблема.** У `CurrentSessionManager` нет метода `get_session` — поиск `def get_session` по `app/managers/` не даёт ни одного совпадения. Для существующей сессии эндпоинт гарантированно отдаёт `AttributeError` и 500. Он либо нигде не используется, либо давно сломан у пользователей.
 
 **Решение.** Заменить на существующий `get_inner()` с ролевой фильтрацией полей, либо удалить эндпоинт, если он не нужен — а заодно добавить тест, который дёргает все зарегистрированные роуты (smoke-тест поймал бы это).
+
+**Исправлено** (`52855f8`) — эндпоинт **удалён**, а не реализован. Причина: `response_model=scheme.GameSession` отдаёт сессию целиком, без ролевой фильтрации полей, которую делают `build_master_init` / `build_player_init`. Реализация «как задумано» создала бы новую утечку master-полей игрокам. Клиент его и не вызывал: [session.ts](../RPGWebMainClient/app/services/api/session.ts) использует только `GET /session` (список), `POST /session/{id}/finish` и WebSocket. На пути `/session/{session_id}` остался только `DELETE`. Тест: `test_get_session_by_id_route_is_gone`.
 
 ---
 
@@ -107,6 +111,8 @@ async def delete_session(session_id: str, current_user = Depends(get_current_use
 
 **Решение.** Добавить ту же проверку `is_master`, что и в `finish_session`.
 
+**Исправлено** (`52855f8`). Роут получает менеджер через `ensure_manager` (см. `BE-06`) и отвечает 403 `only master can delete session`, если вызывающий не мастер. Тесты: `test_delete_session_rejects_non_master`, `test_delete_session_allows_master`.
+
 ---
 
 ### BE-04
@@ -125,6 +131,8 @@ def reload_rulesystems():
 **Проблема.** Ни одного `Depends` — эндпоинт открыт анониму. `registry.reload()` пересканирует и переимпортирует плагины; в цикле это дешёвый DoS, а во время активной сессии перезагрузка фабрик правил может уронить обработку действий.
 
 **Решение.** Закрыть зависимостью `require_admin`, а лучше вынести под dev-профиль и не регистрировать в проде.
+
+**Исправлено** (`52855f8`). Добавлено `dependencies=[Depends(require_admin)]`; аноним получает 401, публичный `GET /rulesystems` остался открытым. Тест: `test_rulesystems_reload_requires_admin`.
 
 ---
 
@@ -146,6 +154,8 @@ async def list_sessions(self, user: models.User = None) -> List[scheme.GameSessi
 Строка выглядит как забытая отладка.
 
 **Решение.** Удалить `user = None` и восстановить фильтр: пользователь должен видеть сессии, где он мастер или игрок.
+
+**Исправлено** (`52855f8`). Строка удалена, фильтр по `master_id` / `players.any(...)` ниже заработал. Вызов без пользователя оставлен намеренно — на него опираются обсервер-комнаты (`find_observer_session_id`, `list_observer_rooms`), и это зафиксировано комментарием в коде и тестом `test_list_sessions_without_user_stays_unfiltered`. Тест на фильтрацию: `test_list_sessions_filters_by_user`.
 
 ---
 
@@ -318,6 +328,10 @@ secret_key: str = os.getenv('SECRET_KEY', 'your-secret-key-change-in-production'
 
 **Решение.** Один источник ключа — `settings`. При старте падать с понятной ошибкой, если `SECRET_KEY` не задан или равен дефолту, и не поднимать приложение вовсе.
 
+**Исправлено** (`52855f8`). Мёртвые константы из `auth_service.py` удалены — единственный источник теперь `settings`. Добавлена `validate_secret_key(secret_key, env)`, которая вызывается при импорте настроек: при `ENV=production` бросает `RuntimeError`, иначе пишет предупреждение в лог. Падение только в проде — сознательное решение, чтобы не ломать локальный запуск без `.env`.
+
+Отдельно закрыт неочевидный случай: `compose.prod.yml` подставляет `${SECRET_KEY}`, и без переменной в окружении получается **пустая строка**, а не значение по умолчанию. Проверка «только на равенство дефолту» такой ключ пропустила бы, поэтому пустое значение в проде тоже отвергается. Тесты: `test_default_secret_key_rejected_in_production`, `test_empty_secret_key_rejected_in_production`, `test_default_secret_key_allowed_in_development`.
+
 ---
 
 ## Medium
@@ -326,7 +340,7 @@ secret_key: str = os.getenv('SECRET_KEY', 'your-secret-key-change-in-production'
 
 **`set_field` молча теряет запись для половины сущностей**
 
-**Где:** [data_manager.py:117-127](../RPGdata/app/managers/session/data_manager.py)
+**Где:** [data_manager.py:118-128](../RPGdata/app/managers/session/data_manager.py) (в снимке — 117-127, сдвинулось после правки `BE-01`)
 
 ```python
 if field in ("npcs", "items", "characters", "locations", "notes", "counters",
@@ -375,6 +389,8 @@ except Exception:
 **Проблема.** Ловится всё подряд, включая обрыв соединения с БД и таймауты, без логирования. Сущность просто не сохраняется, наружу это никак не проявляется. Отладка потери данных в такой конфигурации крайне трудна.
 
 **Решение.** Ловить конкретно `ValueError` от `UUID(...)` — это единственная ожидаемая здесь ошибка, — а остальное логировать и пробрасывать.
+
+**Исправлено** (`52855f8`) — попутно с `BE-01`. Разбор идентификаторов вынесен из блока работы с БД, ловится только `ValueError` с записью в лог (`malformed entity id`). Ошибки БД больше не глушатся. Тест: `test_persist_skips_malformed_ids_without_touching_db`.
 
 ---
 

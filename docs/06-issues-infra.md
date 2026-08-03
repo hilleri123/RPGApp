@@ -14,6 +14,7 @@ Compose, nginx, скрипты, конфигурация, тесты. Снимо
 | [INF-06](#inf-06) | medium | Тесты: только unit, нет `conftest.py` и интеграционных |
 | [INF-07](#inf-07) | low | Мёртвая инфраструктура: MongoDB и Kafka |
 | [INF-08](#inf-08) | low | Дублирующиеся имена миграций |
+| [INF-09](#inf-09) | medium | Два теста падают только при полном прогоне: общее состояние между тестами |
 
 ---
 
@@ -124,7 +125,7 @@ RABBITMQ_DEFAULT_PASS: ${RABBITMQ_DEFAULT_PASS:-rpg}
 
 **Где:** [RPGdata/tests/](../RPGdata/tests)
 
-**Проблема.** 10 тестовых файлов, все — изолированные unit-тесты вокруг плагинов и вспомогательных функций: `test_action_cancel_permissions`, `test_dw_perform_move_helpers`, `test_entity_data_rule`, `test_entity_seen`, `test_move_overrides`, `test_permissions`, `test_plugin_schema`, `test_roll_kit`, `test_scenario_archive`, `test_scenario_cloner`.
+**Проблема.** На момент снимка — 10 тестовых файлов, все изолированные unit-тесты вокруг плагинов и вспомогательных функций: `test_action_cancel_permissions`, `test_dw_perform_move_helpers`, `test_entity_data_rule`, `test_entity_seen`, `test_move_overrides`, `test_permissions`, `test_plugin_schema`, `test_roll_kit`, `test_scenario_archive`, `test_scenario_cloner`. Волна 1 добавила одиннадцатый — `test_wave1_security`.
 
 `conftest.py` отсутствует, то есть общих фикстур (тестовая БД, Redis, клиент FastAPI) нет в принципе. Из этого следует, что **не покрыто ничего** из следующего:
 
@@ -136,7 +137,9 @@ RABBITMQ_DEFAULT_PASS: ${RABBITMQ_DEFAULT_PASS:-rpg}
 
 У фронтенда тестов нет вообще.
 
-**Решение.** По убыванию отдачи: `conftest.py` с транзакционной тестовой БД и `httpx.AsyncClient`; smoke-тест, обходящий все зарегистрированные роуты; матрица прав доступа по ролям; тест миграций `upgrade head` на чистой БД; интеграционные тесты WebSocket-сценария.
+Отдельно: `httpx` не установлен в образе, поэтому `fastapi.testclient.TestClient` недоступен даже там, где он был бы уместен. Тесты волны 1 из-за этого проверяют роуты интроспекцией `app.routes` и вызовом функций-обработчиков напрямую, а не по HTTP.
+
+**Решение.** По убыванию отдачи: добавить `httpx` в зависимости; `conftest.py` с транзакционной тестовой БД и `httpx.AsyncClient`; smoke-тест, обходящий все зарегистрированные роуты; матрица прав доступа по ролям; тест миграций `upgrade head` на чистой БД; интеграционные тесты WebSocket-сценария. Изоляция состояния между тестами — отдельный дефект `INF-09`, и её стоит сделать до наращивания набора.
 
 ---
 
@@ -144,7 +147,7 @@ RABBITMQ_DEFAULT_PASS: ${RABBITMQ_DEFAULT_PASS:-rpg}
 
 **Мёртвая инфраструктура: MongoDB и Kafka**
 
-**Где:** [settings.py:5](../RPGdata/app/infrastructure/settings.py), [mongo.py](../RPGdata/app/infrastructure/mongo.py), [main.py:48-52](../RPGdata/app/main.py), [redis_matvei.py:8, 202](../RPGdata/app/infrastructure/redis_matvei.py), [requirements.txt:30, 43](../RPGdata/requirements.txt)
+**Где:** [settings.py:11](../RPGdata/app/infrastructure/settings.py) (в снимке — 5, сдвинулось после правки `BE-14`), [mongo.py](../RPGdata/app/infrastructure/mongo.py), [main.py:48-52](../RPGdata/app/main.py), [redis_matvei.py:8, 202](../RPGdata/app/infrastructure/redis_matvei.py), [requirements.txt:30, 43](../RPGdata/requirements.txt)
 
 ```python
 # app.add_event_handler("startup", connect_to_mongo)
@@ -172,6 +175,39 @@ RABBITMQ_DEFAULT_PASS: ${RABBITMQ_DEFAULT_PASS:-rpg}
 На работу это не влияет — цепочка линейна, голова одна (`l1m2n3o4p5q6_roll_record`), 25 ревизий. Но при разборе инцидента с БД одинаковые имена заставляют сверять хеши, чтобы понять, о какой миграции речь.
 
 **Решение.** Переименовывать не стоит — идентификаторы уже в таблице `alembic_version` на проде. Достаточно договориться про осмысленные уникальные `-m` для новых миграций.
+
+---
+
+### INF-09
+
+**Два теста падают только при полном прогоне: общее состояние между тестами**
+
+**Где:** [tests/test_dw_perform_move_helpers.py](../RPGdata/tests/test_dw_perform_move_helpers.py) и [tests/test_plugin_schema.py](../RPGdata/tests/test_plugin_schema.py)
+
+**Проблема.** Полный прогон стабильно даёт два падения, которых нет при запуске файла в одиночку:
+
+```
+FAILED test_dw_perform_move_helpers.py::test_collect_participating_factories_move_and_codex_fo_only
+FAILED test_dw_perform_move_helpers.py::test_bard_arcane_art_builds_forward_draft_on_10_plus
+```
+
+Оба падают на утверждениях про фабрики хода `bard_arcane_art` — например `assert any(f.get("source") == "move" and f.get("spec_id") == "forward" ...)` возвращает `False`.
+
+Источник установлен бисекцией — это `test_plugin_schema.py`, причём **важен порядок**:
+
+| Команда | Результат |
+|---------|-----------|
+| `pytest tests/test_dw_perform_move_helpers.py` | 30 passed |
+| `pytest tests/test_plugin_schema.py tests/test_dw_perform_move_helpers.py` | 37 passed |
+| `pytest tests/test_dw_perform_move_helpers.py tests/test_plugin_schema.py` | **2 failed**, 35 passed |
+
+То есть тесты Dungeon World падают, когда выполняются **раньше** `test_plugin_schema.py`, который в фикстуре создаёт `CharactersManager(full_codex=FullCodex())`. Значит, состояние, от которого зависит результат, разделяется между тестами через codex, а не пересоздаётся на каждый тест.
+
+Корневая причина внутри codex **не локализована**: модульных кешей и `lru_cache` в `plugins/pbta/**/codex` нет, явной мутации объектов ходов в `CharactersManager` тоже не видно. Так что вина не обязательно на `test_plugin_schema.py` — не исключено, что падающие тесты сами полагаются на состояние, которое кто-то инициализирует раньше.
+
+Практический вред двойной. Во-первых, «2 failed» в базовом прогоне обесценивает весь набор: невозможно отличить свою регрессию от фонового шума. Во-вторых, любой новый тест, затрагивающий тот же codex, меняет результат чужих тестов. Это подтвердилось на практике: первая версия [test_wave1_security.py](../RPGdata/tests/test_wave1_security.py) импортировала `app.main` на уровне модуля (что загружает все плагины правил) и **сама** вызывала те же два падения; пришлось сделать импорты ленивыми, внутри тестов.
+
+**Решение.** По порядку: (1) найти разделяемое состояние — прогнать `pytest --forked` или сравнить объект `FullCodex()` до и после создания `CharactersManager`; (2) пересоздавать codex на каждый тест через фикстуру, а не полагаться на порядок; (3) до устранения — зафиксировать в `conftest.py` (`INF-06`) изоляцию плагинного реестра, чтобы загрузка `app.main` не влияла на другие тесты.
 
 ---
 
