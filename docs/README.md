@@ -18,12 +18,12 @@
 
 Волна 1 из [07-remediation.md](07-remediation.md) выполнена: `BE-01`, `BE-02`, `BE-03`, `BE-04`, `BE-05`, `BE-14`, `FE-01`. Попутно закрыт `BE-17` — переписанный персист сущностей больше не глушит ошибки БД.
 
-Осталось открытыми 35 дефектов, плюс один новый — `INF-09`, найденный при прогоне тестов уже после снимка.
+Осталось открытыми 37 дефектов. Три из них найдены уже после снимка: `INF-09` — при прогоне тестов, `FE-15` и `FE-16` — при съёмке скриншотов на живом стенде.
 
 | Файл | Открыто | Исправлено |
 |------|---------|-----------|
 | [04-issues-backend.md](04-issues-backend.md) | 14 | 7 |
-| [05-issues-frontend.md](05-issues-frontend.md) | 13 | 1 |
+| [05-issues-frontend.md](05-issues-frontend.md) | 15 | 1 |
 | [06-issues-infra.md](06-issues-infra.md) | 9 | 0 |
 
 Регрессионные тесты на волну 1: [RPGdata/tests/test_wave1_security.py](../RPGdata/tests/test_wave1_security.py).
@@ -88,7 +88,11 @@ Severity расшифровывается так:
 
 ### Скриншоты
 
-Лежат в `src/assets/screenshots/`. Снимки авторизованных экранов (`user/lobby.png`, `user/session-player.png`, `user/session-master.png`, `user/scenarios.png`, `user/scenario-detail.png`, `user/access-groups.png`) пока не сделаны — нужен доступ к стенду. Их отсутствие сборку не ломает: макрос `\screenshotOptional` подставляет вместо картинки пометку в тексте.
+Лежат в `src/assets/screenshots/`. Сняты с dev-стенда через CDP: куки входа `httpOnly`, поэтому в браузер они подставляются вызовом `Network.setCookie`, а не из JS.
+
+Ещё не сделаны три: `user/lobby.png` и `user/session-player.png` (нужен второй аккаунт-игрок и живое лобби) и `user/access-groups.png` (страница показывает ошибку и разъехавшуюся шапку — см. `FE-15`, `FE-16`; снимок имеет смысл делать после исправления). Их отсутствие сборку не ломает: макрос `\screenshotOptional` подставляет вместо картинки пометку в тексте.
+
+С готовых снимков убран индикатор dev-режима Next.js — в продакшене его нет.
 
 ## Что не входило в анализ
 

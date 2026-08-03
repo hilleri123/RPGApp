@@ -222,3 +222,5 @@ _minted*
 *.code-workspace
 # Собранная документация: PDF публикуется через RPGWebMainClient/public/
 docs/out/
+# LaTeX-расширение редактора собирает рядом с исходником, а не в docs/out
+docs/src/out/
