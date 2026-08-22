@@ -1,0 +1,6 @@
+-r requirements.txt
+pytest==8.3.4
+pytest-asyncio==0.24.0
+# Транспорт для fastapi.testclient и httpx.ASGITransport: без него тесты
+# ходят в обработчики напрямую, минуя роутинг и валидацию запроса.
+httpx==0.27.2

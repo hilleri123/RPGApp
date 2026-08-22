@@ -224,3 +224,9 @@ _minted*
 docs/out/
 # LaTeX-расширение редактора собирает рядом с исходником, а не в docs/out
 docs/src/out/
+
+# Nested app deps / build (former submodules)
+node_modules/
+.next/
+out/
+*.tsbuildinfo

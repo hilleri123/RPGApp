@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Pull master (root + submodules) and deploy production with Alembic migrations.
+# Pull master and deploy production with Alembic migrations.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -23,8 +23,8 @@ Usage: $(basename "$0") [--skip-pull]
 
   --skip-pull   Skip git pull (redeploy current checkout only)
 
-Pulls origin/master, updates submodules, builds images, runs Alembic
-via the migrate service, then recreates app / web-client / telegram-bot.
+Pulls origin/master, builds images, runs Alembic via the migrate service,
+then recreates app / web-client / telegram-bot.
 EOF
 }
 
@@ -69,17 +69,13 @@ pull_master() {
   git fetch origin master
 
   if [[ -n "$(git status --porcelain)" ]]; then
-    warn "Working tree has uncommitted changes — pull may fail or leave dirty submodules"
+    warn "Working tree has uncommitted changes — pull may fail"
   fi
 
   git checkout master
-  git pull origin master
-
-  log "Updating submodules to commits pinned in master"
-  git submodule update --init --recursive
+  git pull origin master --ff-only
 
   log "Current revision: $(git log -1 --oneline)"
-  git submodule status
 }
 
 build_and_deploy() {

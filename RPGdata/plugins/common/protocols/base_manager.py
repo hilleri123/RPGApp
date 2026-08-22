@@ -1,0 +1,16 @@
+from __future__ import annotations
+from typing import Any, Protocol, TypedDict, Literal, Optional, runtime_checkable
+from pydantic import BaseModel, Field, NonNegativeInt
+from ..types import EntityKind, ValidateResult, PluginPayload
+
+
+
+
+@runtime_checkable
+class EntityManager(Protocol):
+    kind: EntityKind
+    def schema(self, context: dict[str, Any] | None = None) -> dict[str, Any]: ...
+    def options(self, context: dict[str, Any] | None = None) -> dict[str, Any]: ...
+    def config(self, context: dict[str, Any] | None = None) -> dict[str, Any]: ...
+    def init(self, context: dict[str, Any] | None = None) -> dict[str, Any]: ...
+    def validate_and_enrich(self, payload: PluginPayload, context: dict[str, Any] | None = None) -> ValidateResult: ...

@@ -1,0 +1,422 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>{{ scenario.name }}</title>
+    <style>
+        @page {
+            size: A4;
+            margin: 2cm;
+            @bottom-center {
+                content: "Страница " counter(page) " из " counter(pages);
+                font-size: 10pt;
+            }
+        }
+
+        body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; font-size: 11pt; }
+
+        h1 { page-break-after: avoid; border-bottom: 3px solid #333; padding-bottom: 8px; font-size: 20pt; }
+        h2 { page-break-after: avoid; margin-top: 20px; border-bottom: 2px solid #666; font-size: 15pt; }
+        h3 { page-break-after: avoid; margin-top: 15px; font-size: 13pt; }
+        h4 { margin-top: 10px; font-size: 11pt; color: #444; }
+
+        .title-page {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            min-height: 80vh;
+            text-align: center;
+            page-break-after: always;
+        }
+        .title-page h1 { border: none; font-size: 36pt; }
+        .title-page p { font-size: 14pt; margin: 6px 0; }
+
+        .toc { page-break-after: always; }
+        .toc-item { margin: 4px 0 4px 2em; text-indent: -2em; }
+        .toc-sub  { margin: 3px 0 3px 4em; text-indent: -2em; font-size: 10pt; color: #555; }
+
+        .page-break { page-break-before: always; }
+
+        /* локации */
+        .location-block {
+            margin: 16px 0;
+            padding: 10px 10px 10px 14px;
+            border-left: 4px solid #0066cc;
+        }
+        .location-number { font-weight: bold; color: #0066cc; }
+
+        /* описания */
+        .desc-players {
+            margin: 8px 0;
+            padding: 8px;
+            background: #f5f5f5;
+            border-radius: 3px;
+        }
+        .desc-master {
+            margin: 8px 0;
+            padding: 8px;
+            background: #fff3cd;
+            border-left: 3px solid #e6a817;
+        }
+        .desc-master-label { font-weight: bold; color: #b07a00; }
+
+        /* экспозиция */
+        .exposure-block {
+            margin: 10px 0;
+            padding: 8px;
+            border: 1px solid #ccd;
+            border-radius: 4px;
+            background: #fafaff;
+        }
+        .exposure-title { font-weight: bold; color: #333; font-size: 10pt; }
+        .exposure-tags { font-size: 9pt; color: #888; }
+
+        /* entity */
+        .entity-block {
+            margin: 12px 0;
+            padding: 8px 10px;
+            border: 1px solid #ddd;
+            page-break-inside: avoid;
+        }
+        .entity-name { font-weight: bold; }
+        .entity-tags { font-size: 9pt; color: #777; }
+
+        /* rule data от плагина */
+        .rule-data {
+            margin: 8px 0;
+            padding: 6px 10px;
+            background: #f0f4ff;
+            border-left: 3px solid #668;
+            font-size: 10pt;
+        }
+
+        /* story beat */
+        .beat-block {
+            margin: 14px 0;
+            padding: 10px;
+            border-left: 4px solid #9b59b6;
+        }
+        .beat-number { color: #9b59b6; font-weight: bold; }
+
+        table { width: 100%; border-collapse: collapse; margin: 8px 0; font-size: 10pt; }
+        th, td { border: 1px solid #ddd; padding: 6px 8px; text-align: left; }
+        th { background: #f0f0f0; font-weight: bold; }
+
+        .tag {
+            display: inline-block;
+            background: #e8e8e8;
+            border-radius: 3px;
+            padding: 1px 5px;
+            font-size: 9pt;
+            margin: 1px;
+        }
+        .no-data { color: #aaa; font-style: italic; font-size: 10pt; }
+    </style>
+</head>
+<body>
+
+{# ────────────────── МАКРОСЫ ────────────────── #}
+
+{# теги в виде бейджиков #}
+{% macro render_tags(tags) %}
+    {% if tags %}
+        <div>{% for t in tags %}<span class="tag">{{ t }}</span>{% endfor %}</div>
+    {% endif %}
+{% endmacro %}
+
+{# data_html от плагина #}
+{% macro render_data_html(data_html) %}
+    {% if data_html %}
+        <div class="rule-data">{{ data_html | safe }}</div>
+    {% endif %}
+{% endmacro %}
+
+{# один NPC #}
+{% macro render_npc(ctx) %}
+    <div class="entity-block">
+        <div class="entity-name">{{ ctx.npc.name }}</div>
+        {% if ctx.is_template %}
+            <span style="font-size:8pt;color:#888;font-weight:normal"> [шаблон]</span>
+        {% endif %}
+        {{ render_tags(ctx.npc.tags) }}
+        {% if include_master_only and ctx.npc.description_for_master %}
+            <div class="desc-master">
+                <span class="desc-master-label">Мастеру:</span>
+                {{ ctx.npc.description_for_master }}
+            </div>
+        {% endif %}
+        {% if ctx.npc.description_for_players %}
+            <div class="desc-players">{{ ctx.npc.description_for_players }}</div>
+        {% endif %}
+        {{ render_data_html(ctx.data_html) }}
+    </div>
+{% endmacro %}
+
+{# один предмет #}
+{% macro render_item(ctx) %}
+    <div class="entity-block">
+        <div class="entity-name">{{ ctx.item.name }}</div>
+        {% if ctx.is_template %}
+            <span style="font-size:8pt;color:#888;font-weight:normal"> [шаблон]</span>
+        {% endif %}
+        {{ render_tags(ctx.item.tags) }}
+        {% if include_master_only and ctx.item.description_for_master %}
+            <div class="desc-master">
+                <span class="desc-master-label">Мастеру:</span>
+                {{ ctx.item.description_for_master }}
+            </div>
+        {% endif %}
+        {% if ctx.item.description_for_players %}
+            <div class="desc-players">{{ ctx.item.description_for_players }}</div>
+        {% endif %}
+        {{ render_data_html(ctx.data_html) }}
+    </div>
+{% endmacro %}
+
+{# экспозиции локации #}
+{% macro render_exposures(exposures) %}
+    {% for exp in exposures %}
+        <div class="exposure-block">
+            <div class="exposure-title">📋 {{ exp.exposure.name }}</div>
+            {% if exp.exposure.tags %}
+                <div class="exposure-tags">{{ exp.exposure.tags | join(', ') }}</div>
+            {% endif %}
+            {% if exp.exp_npcs %}
+                <div style="margin-top:6px"><strong>NPC:</strong></div>
+                {% for n in exp.exp_npcs %}{{ render_npc(n) }}{% endfor %}
+            {% endif %}
+            {% if exp.exp_items %}
+                <div style="margin-top:6px"><strong>Предметы:</strong></div>
+                {% for i in exp.exp_items %}{{ render_item(i) }}{% endfor %}
+            {% endif %}
+            {% if exp.exp_obstacles %}
+                <div style="margin-top:6px"><strong>Препятствия:</strong></div>
+                {% for o in exp.exp_obstacles %}
+                    <div class="entity-block">
+                        <div class="entity-name">{{ o.obstacle.name }}</div>
+                        {{ render_tags(o.obstacle.tags) }}
+                        {% if include_master_only and o.obstacle.description_for_master %}
+                            <div class="desc-master">
+                                <span class="desc-master-label">Мастеру:</span>
+                                {{ o.obstacle.description_for_master }}
+                            </div>
+                        {% endif %}
+                        {% if o.obstacle.description_for_players %}
+                            <div class="desc-players">{{ o.obstacle.description_for_players }}</div>
+                        {% endif %}
+                        {{ render_data_html(o.data_html) }}
+                    </div>
+                {% endfor %}
+            {% endif %}
+        </div>
+    {% endfor %}
+{% endmacro %}
+
+
+{# рекурсивный рендер дерева локаций #}
+{% macro render_location_tree(items) %}
+    {% for item in items %}
+        <div class="location-block">
+            <h3>
+                <span class="location-number">{{ item.number }}.</span>
+                {{ item.location.name }}
+            </h3>
+            {{ render_tags(item.location.tags) }}
+
+            {% if include_master_only and item.location.description_for_master %}
+                <div class="desc-master">
+                    <span class="desc-master-label">Мастеру:</span>
+                    {{ item.location.description_for_master }}
+                </div>
+            {% endif %}
+
+            {% if item.location.description_for_players %}
+                <div class="desc-players">
+                    <strong>Игрокам:</strong> {{ item.location.description_for_players }}
+                </div>
+            {% endif %}
+
+            {% if item.exposures %}
+                <div style="margin-top:10px"><strong>Экспозиции:</strong></div>
+                {{ render_exposures(item.exposures) }}
+            {% endif %}
+
+            {% if item.children %}
+                {{ render_location_tree(item.children) }}
+            {% endif %}
+        </div>
+    {% endfor %}
+{% endmacro %}
+
+{# ────────────────── ТИТУЛ ────────────────── #}
+<div class="title-page">
+    <h1>{{ scenario.name }}</h1>
+    {% if scenario.user %}
+        <p><strong>Автор:</strong> {{ scenario.user.full_name or scenario.user.email or '—' }}</p>
+    {% endif %}
+    {% if scenario.created %}
+        <p><strong>Создан:</strong> {{ scenario.created.strftime('%d.%m.%Y') }}</p>
+    {% endif %}
+    {% if scenario.rule_id_str %}
+        <p><strong>Правила:</strong> {{ scenario.rule_id_str }}</p>
+    {% endif %}
+    <p style="font-size:10pt; color:#888; margin-top:30px">Сгенерировано: {{ generated_at }}</p>
+</div>
+
+{# ────────────────── ОГЛАВЛЕНИЕ ────────────────── #}
+<div class="toc">
+    <h1>Оглавление</h1>
+    <div class="toc-item">1. Локации</div>
+    <div class="toc-item">2. Story Beats</div>
+    <div class="toc-item">3. NPC</div>
+    <div class="toc-item">4. Предметы</div>
+    <div class="toc-item">5. Персонажи</div>
+    {% if scenario.notes %}
+    <div class="toc-item">6. Заметки</div>
+    {% endif %}
+    {% if scenario.counters %}
+    <div class="toc-item">7. Счётчики</div>
+    {% endif %}
+</div>
+
+{# ────────────────── 1. ЛОКАЦИИ ────────────────── #}
+<h1 class="page-break">1. Локации</h1>
+{% if locations_tree %}
+    {{ render_location_tree(locations_tree) }}
+{% else %}
+    <p class="no-data">Локаций нет</p>
+{% endif %}
+
+{# ────────────────── 2. STORY BEATS ────────────────── #}
+<h1 class="page-break">2. Story Beats</h1>
+{% if story_beats %}
+    {% for ctx in story_beats %}
+        <div class="beat-block">
+            <h3>
+                <span class="beat-number">#{{ loop.index }}</span>
+                {{ ctx.beat.name }}
+            </h3>
+            {{ render_tags(ctx.beat.tags) }}
+
+            {% if ctx.beat.text_for_players %}
+                <div class="desc-players">{{ ctx.beat.text_for_players }}</div>
+            {% endif %}
+            {% if include_master_only and ctx.beat.text_for_master %}
+                <div class="desc-master">
+                    <span class="desc-master-label">Мастеру:</span>
+                    {{ ctx.beat.text_for_master }}
+                </div>
+            {% endif %}
+
+            {% if ctx.beat_npcs %}
+                <div style="margin-top:8px"><strong>NPC бита:</strong></div>
+                {% for n in ctx.beat_npcs %}{{ render_npc(n) }}{% endfor %}
+            {% endif %}
+
+            {% if ctx.exposures %}
+                <div style="margin-top:8px"><strong>Экспозиции:</strong></div>
+                {{ render_exposures(ctx.exposures) }}
+            {% endif %}
+        </div>
+    {% endfor %}
+{% else %}
+    <p class="no-data">Story beats отсутствуют</p>
+{% endif %}
+
+{# ────────────────── 3. NPC ────────────────── #}
+<h1 class="page-break">3. NPC</h1>
+{% if npcs %}
+    {% for ctx in npcs %}{{ render_npc(ctx) }}{% endfor %}
+{% else %}
+    <p class="no-data">NPC нет</p>
+{% endif %}
+
+{# ────────────────── 4. ПРЕДМЕТЫ ────────────────── #}
+<h1 class="page-break">4. Предметы</h1>
+{% if items %}
+    {% for ctx in items %}{{ render_item(ctx) }}{% endfor %}
+{% else %}
+    <p class="no-data">Предметов нет</p>
+{% endif %}
+
+{# ────────────────── 5. ПЕРСОНАЖИ ────────────────── #}
+<h1 class="page-break">5. Персонажи</h1>
+{% if characters %}
+    {% for ctx in characters %}
+        <div class="entity-block">
+            <h3>{{ ctx.character.name }}</h3>
+            {{ render_tags(ctx.character.tags) }}
+
+            {% if ctx.character.short_desc %}
+                <p>{{ ctx.character.short_desc }}</p>
+            {% endif %}
+            {% if ctx.character.story %}
+                <div class="desc-players">{{ ctx.character.story }}</div>
+            {% endif %}
+            {{ render_data_html(ctx.data_html) }}
+
+            {% if ctx.character.owned_items %}
+                <div style="margin-top:8px"><strong>Предметы:</strong></div>
+                <table>
+                    <tr><th>Название</th><th>Описание игрокам</th></tr>
+                    {% for item in ctx.character.owned_items %}
+                        <tr>
+                            <td>{{ item.name }}</td>
+                            <td>{{ item.description_for_players or '—' }}</td>
+                        </tr>
+                    {% endfor %}
+                </table>
+            {% endif %}
+        </div>
+    {% endfor %}
+{% else %}
+    <p class="no-data">Персонажей нет</p>
+{% endif %}
+
+{# ────────────────── 6. ЗАМЕТКИ ────────────────── #}
+{% if scenario.notes %}
+<h1 class="page-break">6. Заметки</h1>
+{% for note in scenario.notes %}
+    <div class="entity-block">
+        <div class="entity-name">{{ note.name }}</div>
+        {{ render_tags(note.tags) }}
+        {% if note.text %}
+            <div class="desc-players">{{ note.text }}</div>
+        {% endif %}
+        {% if note.allowed_character_shown_json %}
+            <p style="font-size:9pt; color:#666">
+                Видно персонажам: {{ note.allowed_character_shown_json }}
+            </p>
+        {% endif %}
+    </div>
+{% endfor %}
+{% endif %}
+
+{# ────────────────── 7. СЧЁТЧИКИ ────────────────── #}
+{% if scenario.counters %}
+<h1 class="page-break">7. Счётчики</h1>
+<table>
+    <tr>
+        <th>Название</th>
+        <th>Значение</th>
+        <th>Мин</th>
+        <th>Макс</th>
+        <th>Персонаж</th>
+        <th>Описание</th>
+    </tr>
+    {% for c in scenario.counters %}
+        <tr>
+            <td>{{ c.name }}</td>
+            <td>{{ c.value }}</td>
+            <td>{{ c.min_value if c.min_value is not none else '—' }}</td>
+            <td>{{ c.max_value if c.max_value is not none else '—' }}</td>
+            <td>{{ c.character.name if c.character else '—' }}</td>
+            <td>{{ c.description or '—' }}</td>
+        </tr>
+    {% endfor %}
+</table>
+{% endif %}
+
+</body>
+</html>

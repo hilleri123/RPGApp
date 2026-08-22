@@ -1,0 +1,8 @@
+{
+  "entry": [
+    "app/**/*.{ts,tsx}",
+    "components/**/*.{ts,tsx}",
+    "middleware.ts",
+    "next.config.mjs"
+  ]
+}
