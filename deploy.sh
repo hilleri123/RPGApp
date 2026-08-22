@@ -163,7 +163,6 @@ main() {
     pull_master
   else
     log "Skipping git pull (--skip-pull)"
-    git submodule update --init --recursive
   fi
 
   build_and_deploy
