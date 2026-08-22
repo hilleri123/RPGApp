@@ -17,7 +17,8 @@ dist/
 downloads/
 eggs/
 .eggs/
-lib/
+# Only ignore a root-level Python packaging lib/, not app source trees like RPGWebMainClient/lib
+/lib/
 lib64/
 parts/
 sdist/
