@@ -1,18 +1,8 @@
 'use client';
 
-import { useMemo } from 'react';
-import { Input } from '@/components/ui/input';
-import { PackageIcon } from 'lucide-react';
-
-import HtmlEditor from '@/app/components/common/HtmlEditor';
-import ImagePicker from '../../common/MapGallery';
-import { InventoryEditor } from './common/InventoryEditor';
-import ValidationIssues from '../../rules/ValidationIssues';
-
-import { useGameItemDialog } from '@/app/services/hooks/scenario/dialogs/useGameItemDialog';
+import { useGameItemDialog, type GameItemTemplateSeed } from '@/app/services/hooks/scenario/dialogs/useGameItemDialog';
 import { useScenario } from '../ScenarioContext';
 import { EntityEditDialogShell, EntityEditDealogProps } from './common/EntityEditDialogShell';
-import { useDialogMode } from './common/DialogModeContext';
 import { GameItemItemsTab, GameItemMainTab, GameItemRulesTab } from './tabs/item';
 import { EntityMasterNoteBacklinksTab } from '@/app/components/masterNotes/EntityMasterNoteBacklinksTab';
 import { openMasterWikiNote } from '@/app/services/stores/masterUi';
@@ -25,13 +15,15 @@ export function GameItemEditDialog({
   onSave,
   onEntitySaved,
   readOnly = false,
-}: EntityEditDealogProps) {
+  seedFromTemplate = null,
+}: EntityEditDealogProps & { seedFromTemplate?: GameItemTemplateSeed | null }) {
   const { scenarioId, pluginUI } = useScenario();
 
   const dlg = useGameItemDialog({
     open,
     scenarioId,
     itemId: editingId,
+    seedFromTemplate: editingId ? null : seedFromTemplate,
     onSaved: async (id) => {
       await onEntitySaved?.(id);
       onSave?.();
@@ -49,12 +41,18 @@ export function GameItemEditDialog({
     readOnly,
   });
 
+  const title = editingId
+    ? 'Предмет: редактирование'
+    : seedFromTemplate
+      ? 'Предмет: создание из шаблона'
+      : 'Предмет: создание';
+
   return (
     <>
     <EntityEditDialogShell
       open={open}
       onClose={onClose}
-      title={editingId ? 'Предмет: редактирование' : 'Предмет: создание'}
+      title={title}
       loading={loading}
       readOnly={readOnly}
       disableSave={readOnly || !dlg.form?.name?.trim()}

@@ -1,8 +1,9 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { Loader2, PersonStanding } from 'lucide-react';
+import { Loader2, PersonStanding, Plus, CopyPlus } from 'lucide-react';
 import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
 
 import HtmlEditor from '@/app/components/common/HtmlEditor';
 import { InventoryEditor } from '../common/InventoryEditor';
@@ -14,6 +15,9 @@ import { getNameGeneratorEntries } from '../common/nameGenerators';
 import { ScenarioTagPicker } from '../common/ScenarioTagPicker';
 import { useScenario } from '@/app/components/scenarios/ScenarioContext';
 import { ScenarioScopedApiService } from '@/app/services/api/scenario_scoped';
+import { GameItemEditDialog } from '../GameItemEditDialog';
+import { CreateItemFromTemplatePickerDialog } from '../CreateItemFromTemplatePickerDialog';
+import type { GameItemTemplateSeed } from '@/app/services/hooks/scenario/dialogs/useGameItemDialog';
 
 const FALLBACK_AVATAR = 'https://rpgzona.ru/static/img/npc-avatar-default.png';
 const FALLBACK_ICON = 'https://rpgzona.ru/static/img/icon-default.png';
@@ -193,12 +197,68 @@ export function NpcMainTab({ dlg }: any) {
 
 export function NpcItemsTab({ dlg }: any) {
   const { readOnly } = useDialogMode();
+  const { scenarioId, scenario } = useScenario();
+  const [createItemOpen, setCreateItemOpen] = useState(false);
+  const [templatePickerOpen, setTemplatePickerOpen] = useState(false);
+  const [seedFromTemplate, setSeedFromTemplate] = useState<GameItemTemplateSeed | null>(null);
+  const api = useMemo(() => new ScenarioScopedApiService(scenarioId), [scenarioId]);
 
   // ВАЖНО: передаём полный объект с owner, а не {id,name}
   const itemsWithOwner = useMemo(() => dlg.lookups.items ?? [], [dlg.lookups.items]);
 
+  const handleItemCreated = async (itemId: string) => {
+    try {
+      const full = await api.getItem(itemId);
+      const out = {
+        id: full.id,
+        name: full.name,
+        description_for_master: full.description_for_master ?? null,
+        description_for_players: full.description_for_players ?? null,
+        icon_url: full.icon_url ?? null,
+        img_url: full.img_url ?? null,
+        owned_items: full.owned_items ?? [],
+      };
+      dlg.setForm((p: any) => {
+        const prev = p.owned_items ?? [];
+        if (prev.some((x: any) => String(x.id) === String(itemId))) return p;
+        return { ...p, owned_items: [...prev, out] };
+      });
+      await dlg.reloadLookups?.();
+    } catch {
+      await dlg.reloadLookups?.();
+    }
+  };
+
   return (
     <div className="space-y-3">
+      {!readOnly ? (
+        <div className="flex justify-end gap-2">
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className="gap-1"
+            onClick={() => setTemplatePickerOpen(true)}
+          >
+            <CopyPlus className="w-4 h-4" />
+            Создать из шаблона
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            variant="secondary"
+            className="gap-1"
+            onClick={() => {
+              setSeedFromTemplate(null);
+              setCreateItemOpen(true);
+            }}
+          >
+            <Plus className="w-4 h-4" />
+            Создать предмет
+          </Button>
+        </div>
+      ) : null}
+
       <InventoryEditor
         title="Предметы NPC"
         currentOwner={{ type: 'npc', id: dlg.form.id! }}
@@ -223,8 +283,30 @@ export function NpcItemsTab({ dlg }: any) {
       />
 
       <div className="text-xs text-gray-500">
-        Тут сохраняются связи владения (owned_items). Сами предметы создаются в редакторе предметов.
+        Связи владения сохраняются вместе с NPC. Новый предмет можно создать кнопками выше или выбрать из списка.
       </div>
+
+      <CreateItemFromTemplatePickerDialog
+        open={templatePickerOpen}
+        onClose={() => setTemplatePickerOpen(false)}
+        scenarioId={scenarioId}
+        defaultPackId={scenario?.template_set_id}
+        onPick={(pick) => {
+          setSeedFromTemplate({ templateId: pick.templateId, packId: pick.packId });
+          setCreateItemOpen(true);
+        }}
+      />
+
+      <GameItemEditDialog
+        open={createItemOpen}
+        onClose={() => {
+          setCreateItemOpen(false);
+          setSeedFromTemplate(null);
+        }}
+        editingId={null}
+        seedFromTemplate={seedFromTemplate}
+        onEntitySaved={(id) => void handleItemCreated(id)}
+      />
     </div>
   );
 }

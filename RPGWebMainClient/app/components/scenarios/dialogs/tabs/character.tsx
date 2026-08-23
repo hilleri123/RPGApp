@@ -3,7 +3,7 @@
 import { useCallback, useMemo, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { UserIcon, Plus } from 'lucide-react';
+import { UserIcon, Plus, CopyPlus } from 'lucide-react';
 
 import HtmlEditor from '@/app/components/common/HtmlEditor';
 import ImagePicker from '../../../common/MapGallery';
@@ -13,8 +13,10 @@ import { useDialogMode } from '../common/DialogModeContext';
 import { RandomNamePicker } from '@/app/components/common/RandomNamePicker';
 import { getNameGeneratorEntries } from '../common/nameGenerators';
 import { GameItemEditDialog } from '../GameItemEditDialog';
+import { CreateItemFromTemplatePickerDialog } from '../CreateItemFromTemplatePickerDialog';
 import { useScenario } from '../../ScenarioContext';
 import { ScenarioScopedApiService } from '@/app/services/api/scenario_scoped';
+import type { GameItemTemplateSeed } from '@/app/services/hooks/scenario/dialogs/useGameItemDialog';
 import type { GameItemOut } from '@/app/services/types2';
 
 const FALLBACK_AVATAR = 'https://rpgzona.ru/static/img/character-avatar-default.png';
@@ -200,8 +202,10 @@ export function CharacterItemsTab({
   showTakeFromOtherOwner?: boolean;
 }) {
   const { readOnly } = useDialogMode();
-  const { scenarioId } = useScenario();
+  const { scenarioId, scenario } = useScenario();
   const [createItemOpen, setCreateItemOpen] = useState(false);
+  const [templatePickerOpen, setTemplatePickerOpen] = useState(false);
+  const [seedFromTemplate, setSeedFromTemplate] = useState<GameItemTemplateSeed | null>(null);
   const api = useMemo(() => new ScenarioScopedApiService(scenarioId), [scenarioId]);
 
   const ownerId = dlg.form?.id ? String(dlg.form.id) : null;
@@ -232,11 +236,26 @@ export function CharacterItemsTab({
     [api, dlg],
   );
 
+  const openBlankCreate = () => {
+    setSeedFromTemplate(null);
+    setCreateItemOpen(true);
+  };
+
   return (
     <div className="space-y-3">
       {!readOnly ? (
-        <div className="flex justify-end">
-          <Button type="button" size="sm" variant="secondary" className="gap-1" onClick={() => setCreateItemOpen(true)}>
+        <div className="flex justify-end gap-2">
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className="gap-1"
+            onClick={() => setTemplatePickerOpen(true)}
+          >
+            <CopyPlus className="w-4 h-4" />
+            Создать из шаблона
+          </Button>
+          <Button type="button" size="sm" variant="secondary" className="gap-1" onClick={openBlankCreate}>
             <Plus className="w-4 h-4" />
             Создать предмет
           </Button>
@@ -277,13 +296,28 @@ export function CharacterItemsTab({
         readOnly={readOnly}
       />
       <div className="text-xs text-gray-500">
-        Связи владения сохраняются вместе с персонажем. Новый предмет можно создать кнопкой выше или выбрать из списка.
+        Связи владения сохраняются вместе с персонажем. Новый предмет можно создать кнопками выше или выбрать из списка.
       </div>
+
+      <CreateItemFromTemplatePickerDialog
+        open={templatePickerOpen}
+        onClose={() => setTemplatePickerOpen(false)}
+        scenarioId={scenarioId}
+        defaultPackId={scenario?.template_set_id}
+        onPick={(pick) => {
+          setSeedFromTemplate({ templateId: pick.templateId, packId: pick.packId });
+          setCreateItemOpen(true);
+        }}
+      />
 
       <GameItemEditDialog
         open={createItemOpen}
-        onClose={() => setCreateItemOpen(false)}
+        onClose={() => {
+          setCreateItemOpen(false);
+          setSeedFromTemplate(null);
+        }}
         editingId={null}
+        seedFromTemplate={seedFromTemplate}
         onEntitySaved={(id) => void handleItemCreated(id)}
       />
     </div>

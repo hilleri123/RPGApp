@@ -3,7 +3,7 @@
 
 import React, { useCallback, useMemo, useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { Loader2, Plus } from 'lucide-react';
+import { Loader2, Plus, CopyPlus } from 'lucide-react';
 import { ConfirmAlertDialog } from '@/app/components/common/ConfirmAlertDialog';
 import { Switch } from '@/components/ui/switch';
 import { Input } from '@/components/ui/input';
@@ -56,6 +56,8 @@ export type ScenarioEntityListShellProps<T extends { id: string }> = {
   readOnly?: boolean;
   onImportExisting?: () => void;
   importExistingLabel?: string;
+  onCreateFromTemplate?: () => void;
+  createFromTemplateLabel?: string;
   getTemplatePackId?: (item: T) => string | null | undefined;
   /** Extract tags for list filtering. Default: item.tags */
   getItemTags?: (item: T) => string[] | null | undefined;
@@ -80,6 +82,8 @@ export function ScenarioEntityListShell<T extends { id: string }>(props: Scenari
     readOnly = false,
     onImportExisting,
     importExistingLabel = 'Добавить существующий',
+    onCreateFromTemplate,
+    createFromTemplateLabel = 'Создать из шаблона',
     getTemplatePackId,
     getItemTags,
     availableTags,
@@ -200,6 +204,11 @@ export function ScenarioEntityListShell<T extends { id: string }>(props: Scenari
             {onImportExisting ? (
               <Button type="button" variant="secondary" onClick={onImportExisting}>
                 {importExistingLabel}
+              </Button>
+            ) : null}
+            {onCreateFromTemplate ? (
+              <Button type="button" variant="secondary" onClick={onCreateFromTemplate}>
+                <CopyPlus className="mr-2 h-4 w-4" /> {createFromTemplateLabel}
               </Button>
             ) : null}
             <Button onClick={() => openDialog({ item: null, mode: 'edit' })}>

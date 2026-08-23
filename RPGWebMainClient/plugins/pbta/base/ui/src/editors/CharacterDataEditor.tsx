@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import type { CharacterConfig, PbtaSkill, Move } from '../types';
@@ -472,15 +472,11 @@ export default function CharacterDataEditor<TData extends CharacterData = Charac
                 </div>
 
                 <div className="flex items-center gap-2">
-                  <Input
-                    type="number"
+                  <ClampedNumberInput
                     value={score}
                     min={statMin}
                     max={statMax}
-                    onChange={(e) => {
-                      const v = Number(e.target.value || statMin);
-                      setStat(s.id, Math.max(statMin, Math.min(statMax, v)));
-                    }}
+                    onCommit={(v) => setStat(s.id, v)}
                     className={['w-20 text-center', isErr ? 'border-red-500 focus-visible:ring-red-500/30' : ''].join(' ')}
                     style={!isErr ? { borderColor: statBorder ?? undefined } : undefined}
                   />
@@ -746,23 +742,69 @@ function StatChip({ label, value, hint }: { label: string; value: string | numbe
   );
 }
 
+/** Number input that allows empty/out-of-range drafts while typing; clamps on blur. */
+function ClampedNumberInput({
+  value,
+  min,
+  max,
+  onCommit,
+  className,
+  style,
+}: {
+  value: number;
+  min: number;
+  max: number;
+  onCommit: (v: number) => void;
+  className?: string;
+  style?: CSSProperties;
+}) {
+  const [draft, setDraft] = useState<string | null>(null);
+  const display = draft ?? String(value);
+
+  const clamp = (raw: string, fallback: number) => {
+    const n = Number(raw);
+    const base = Number.isFinite(n) ? n : fallback;
+    return Math.max(min, Math.min(max, base));
+  };
+
+  return (
+    <Input
+      type="number"
+      value={display}
+      min={min}
+      max={max}
+      onFocus={() => setDraft(String(value))}
+      onChange={(e) => {
+        const raw = e.target.value;
+        setDraft(raw);
+        if (raw === '' || raw === '-' || raw === '.') return;
+        const n = Number(raw);
+        if (!Number.isFinite(n)) return;
+        // Live update without clamping so multi-digit entry (e.g. 1→12) works.
+        onCommit(n);
+      }}
+      onBlur={() => {
+        const next = clamp(draft ?? String(value), value);
+        setDraft(null);
+        onCommit(next);
+      }}
+      className={className}
+      style={style}
+    />
+  );
+}
+
 function LabeledNumberInput({
   label, value, min, max, onChange,
 }: { label: string; value: number; min?: number; max?: number; onChange: (v: number) => void }) {
   return (
     <div className="space-y-1">
       <div className="text-[10px] uppercase text-gray-500">{label}</div>
-      <Input
-        type="number"
+      <ClampedNumberInput
         value={value}
-        min={min}
-        max={max}
-        onChange={(e) => {
-          let v = Number(e.target.value ?? min ?? 0);
-          if (min != null) v = Math.max(min, v);
-          if (max != null) v = Math.min(max, v);
-          onChange(v);
-        }}
+        min={min ?? Number.NEGATIVE_INFINITY}
+        max={max ?? Number.POSITIVE_INFINITY}
+        onCommit={onChange}
         className="w-20 text-center text-sm"
       />
     </div>

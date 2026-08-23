@@ -68,6 +68,10 @@ export function useScenarioObjectDialog<
 
   loadFull: (api: ScenarioScopedApiService, id: string) => Promise<TOut>;
   loadLookups: (api: ScenarioScopedApiService) => Promise<TLookups>;
+  /** When creating (no objectId), optionally load a seed entity (e.g. template clone). */
+  loadSeed?: (api: ScenarioScopedApiService) => Promise<TOut | null>;
+  /** Extra reload key when seed source changes (e.g. template id). */
+  seedKey?: string | null;
 
   init: (full: TOut | null, lookups: TLookups) => { form: TForm; assets: TAssets };
 
@@ -91,6 +95,8 @@ export function useScenarioObjectDialog<
     empty,
     loadFull,
     loadLookups,
+    loadSeed,
+    seedKey,
     init,
     buildPayload,
     create,
@@ -155,7 +161,11 @@ export function useScenarioObjectDialog<
       const lk = await loadLookups(api);
       setLookups(lk);
 
-      const f = objectId ? await loadFull(api, objectId) : null;
+      const f = objectId
+        ? await loadFull(api, objectId)
+        : loadSeed
+          ? await loadSeed(api)
+          : null;
       setFull(f);
 
       const initRes = init(f, lk);
@@ -169,7 +179,7 @@ export function useScenarioObjectDialog<
       setLoading(false);
       setInitialLoading(false);
     }
-  }, [open, api, objectId, loadLookups, loadFull, init]);
+  }, [open, api, objectId, loadLookups, loadFull, loadSeed, init]);
 
   const reloadLookups = useCallback(async () => {
     if (!open) return;
@@ -184,7 +194,7 @@ export function useScenarioObjectDialog<
   useEffect(() => {
     if (!open) return;
     void reload();
-  }, [open, scenarioId, objectId]);
+  }, [open, scenarioId, objectId, seedKey]);
 
   useEffect(() => {
     if (!open) {
