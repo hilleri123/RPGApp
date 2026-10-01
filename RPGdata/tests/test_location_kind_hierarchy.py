@@ -55,13 +55,17 @@ def test_hierarchy_goes_down_and_is_reachable_from_world():
         assert "region" not in children or parent == "world"
 
 
-def test_allowed_kinds_include_grandchildren_and_deeper():
-    # город: район, здание, подземелье + внуки/правнуки (комната)
-    assert set(allowed_child_kinds("city")) == {"district", "building", "dungeon", "room"}
-    assert set(allowed_child_kinds("world")) == set(LOCATION_KIND_IDS) - {"world"}
-    assert set(allowed_child_kinds("region")) == {"city", "wilds", "dungeon", "district", "building", "room"}
-    assert set(allowed_child_kinds("district")) == {"building", "dungeon", "room"}
-    assert allowed_child_kinds("room") == ()
+def test_allowed_kinds_include_same_kind_and_descendants():
+    # тот же вид, что у родителя, плюс потомки любой глубины
+    assert set(allowed_child_kinds("city")) == {"city", "district", "building", "dungeon", "room"}
+    assert set(allowed_child_kinds("world")) == set(LOCATION_KIND_IDS)
+    assert set(allowed_child_kinds("region")) == {
+        "region", "city", "wilds", "dungeon", "district", "building", "room",
+    }
+    assert set(allowed_child_kinds("district")) == {"district", "building", "dungeon", "room"}
+    assert allowed_child_kinds("room") == ("room",)
+    # порядок — как в иерархии: родитель раньше потомков
+    assert allowed_child_kinds("region")[0] == "region"
 
 
 def test_descendants_are_ordered_by_hierarchy_and_transitive():
@@ -113,6 +117,7 @@ def test_check_accepts_allowed_kinds_each_with_own_kind():
         scheme.SubLocationRef(name="Дом 5", kind="building"),
         scheme.SubLocationRef(name="Катакомбы", kind="dungeon"),
         scheme.SubLocationRef(name="Кладовая", kind="room"),  # внук: город -> здание -> комната
+        scheme.SubLocationRef(name="Нижний город", kind="city"),  # тот же вид, что у родителя
         scheme.SubLocationRef(name="Без вида"),
     ]
     _check(["loc:city"], subs)
@@ -124,8 +129,11 @@ def test_check_rejects_kind_not_allowed_under_parent():
     assert e.value.status_code == 400
     with pytest.raises(HTTPException):
         _check(["loc:city"], [scheme.SubLocationRef(name="Мир", kind="world")])
-    with pytest.raises(HTTPException):
-        _check(["loc:room"], [scheme.SubLocationRef(name="Комната", kind="room")])
+
+
+def test_check_accepts_same_kind_as_parent():
+    _check(["loc:region"], [scheme.SubLocationRef(name="Юг", kind="region")])
+    _check(["loc:room"], [scheme.SubLocationRef(name="Кладовка", kind="room")])
 
 
 def test_check_rejects_unknown_kind():

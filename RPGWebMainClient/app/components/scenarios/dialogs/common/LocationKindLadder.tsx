@@ -4,7 +4,6 @@ import { useMemo } from 'react';
 import {
   LOCATION_KINDS,
   allowedChildKinds,
-  descendantKindIds,
   kindById,
   kindOfTags,
 } from '@/app/lib/locationKinds';
@@ -84,7 +83,12 @@ export function LocationKindLadder({
   const allowedIds = useMemo(() => new Set(allowedChildKinds(parentKindId).map((k) => k.id)), [parentKindId]);
   const parent = kindById(parentKindId);
   const currentKind = kindById(value);
-  const childIds = descendantKindIds(currentKind?.id);
+  // «Можно внутри» — тот же вид и все потомки. Без выбранного вида подписи нет,
+  // иначе allowedChildKinds(null) подписал бы все строки.
+  const insideCurrent = useMemo(
+    () => new Set(currentKind ? allowedChildKinds(currentKind.id).map((k) => k.id) : []),
+    [currentKind],
+  );
 
   return (
     <div className="rounded-lg border border-white/10 bg-black/20 p-2">
@@ -93,7 +97,7 @@ export function LocationKindLadder({
           const active = currentKind?.id === k.id;
           const allowed = allowedIds.has(k.id);
           const disabled = readOnly || (!allowed && !active);
-          const isChildOfCurrent = childIds.has(k.id);
+          const isChildOfCurrent = insideCurrent.has(k.id);
           return (
             <div key={k.id} style={{ marginLeft: k.level * INDENT_PX }} className="flex items-center gap-1">
               <span className="text-gray-600 text-xs select-none">{k.level > 0 ? '└' : ''}</span>
@@ -120,7 +124,7 @@ export function LocationKindLadder({
               >
                 {k.emoji} {k.label}
               </button>
-              {isChildOfCurrent && !active ? (
+              {isChildOfCurrent ? (
                 <span className="text-[10px] text-indigo-300/80">можно внутри</span>
               ) : null}
             </div>

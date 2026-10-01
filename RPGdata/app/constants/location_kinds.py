@@ -125,12 +125,16 @@ def kind_of(tags: Iterable[object] | None) -> str | None:
 
 
 def allowed_child_kinds(parent_kind: str | None) -> tuple[str, ...]:
-    """Kinds allowed inside a location of ``parent_kind``: children, grandchildren, ...
-    Without a parent kind — any."""
+    """Kinds allowed inside a location of ``parent_kind``.
+
+    That is the same kind (a region may contain a region) plus every descendant
+    (children, grandchildren, ...). Without a parent kind — any.
+    """
     parent = canonical_kind(parent_kind)
     if parent is None:
         return tuple(k for k, _ in LOCATION_KINDS)
-    return LOCATION_KIND_DESCENDANTS[parent]
+    descendants = set(LOCATION_KIND_DESCENDANTS[parent])
+    return tuple(k for k, _ in LOCATION_KINDS if k == parent or k in descendants)
 
 
 def with_kind(tags: Iterable[object] | None, kind_id: str | None) -> list[str]:

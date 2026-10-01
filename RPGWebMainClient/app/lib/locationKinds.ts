@@ -119,11 +119,15 @@ export function descendantKindIds(kindId: string | null | undefined, seen: Set<s
   return out;
 }
 
-/** Виды, допустимые внутри локации с указанным видом — на любой глубине (null — любые). */
+/**
+ * Виды, допустимые внутри локации с указанным видом: тот же вид
+ * (регион внутри региона) и все потомки на любой глубине. null — любые.
+ */
 export function allowedChildKinds(parentKindId: string | null | undefined): LocationKind[] {
   const parent = canonicalKindId(parentKindId);
   if (!parent) return LOCATION_KINDS;
   const set = descendantKindIds(parent);
+  set.add(parent);
   return LOCATION_KINDS.filter((k) => set.has(k.id));
 }
 
