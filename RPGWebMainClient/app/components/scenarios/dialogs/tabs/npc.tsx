@@ -201,6 +201,7 @@ export function NpcItemsTab({ dlg }: any) {
   const [createItemOpen, setCreateItemOpen] = useState(false);
   const [templatePickerOpen, setTemplatePickerOpen] = useState(false);
   const [seedFromTemplate, setSeedFromTemplate] = useState<GameItemTemplateSeed | null>(null);
+  const [editItem, setEditItem] = useState<{ id: string; viewOnly: boolean } | null>(null);
   const api = useMemo(() => new ScenarioScopedApiService(scenarioId), [scenarioId]);
 
   // ВАЖНО: передаём полный объект с owner, а не {id,name}
@@ -220,7 +221,10 @@ export function NpcItemsTab({ dlg }: any) {
       };
       dlg.setForm((p: any) => {
         const prev = p.owned_items ?? [];
-        if (prev.some((x: any) => String(x.id) === String(itemId))) return p;
+        // уже в инвентаре (после правки предмета) — обновляем карточку на месте
+        if (prev.some((x: any) => String(x.id) === String(itemId))) {
+          return { ...p, owned_items: prev.map((x: any) => (String(x.id) === String(itemId) ? out : x)) };
+        }
         return { ...p, owned_items: [...prev, out] };
       });
       await dlg.reloadLookups?.();
@@ -279,6 +283,7 @@ export function NpcItemsTab({ dlg }: any) {
             ),
           }))
         }
+        onEditItem={(id, viewOnly) => setEditItem({ id, viewOnly })}
         readOnly={readOnly}
       />
 
@@ -305,6 +310,14 @@ export function NpcItemsTab({ dlg }: any) {
         }}
         editingId={null}
         seedFromTemplate={seedFromTemplate}
+        onEntitySaved={(id) => void handleItemCreated(id)}
+      />
+
+      <GameItemEditDialog
+        open={editItem !== null}
+        onClose={() => setEditItem(null)}
+        editingId={editItem?.id ?? null}
+        readOnly={editItem?.viewOnly ?? false}
         onEntitySaved={(id) => void handleItemCreated(id)}
       />
     </div>

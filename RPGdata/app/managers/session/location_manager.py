@@ -12,6 +12,7 @@ from sqlalchemy import select
 
 from app.logger import logger
 from app import models, scheme
+from app.constants.location_kinds import with_kind
 from .todo_manager import SessionTODOManager
 from app.infrastructure.database import get_async_session as get_db
 from app.routes.locations import create_location, update_location
@@ -142,10 +143,14 @@ class SessionLocationManager(SessionTODOManager):
                 result.append(loc.model_copy(update={"parent_location_id": None}))
             elif loc_id_str in payload_ids_str:
                 sub = next((s for s in sublocations if str(s.id) == loc_id_str), None)
+                changes: dict = {}
                 if sub and sub.name != loc.name:
-                    result.append(loc.model_copy(update={"name": sub.name}))
-                else:
-                    result.append(loc)
+                    changes["name"] = sub.name
+                if sub and "kind" in sub.model_fields_set:
+                    new_tags = with_kind(loc.tags, sub.kind)
+                    if new_tags != list(loc.tags or []):
+                        changes["tags"] = new_tags
+                result.append(loc.model_copy(update=changes) if changes else loc)
             else:
                 result.append(loc)
 
@@ -160,7 +165,7 @@ class SessionLocationManager(SessionTODOManager):
                     description_for_master="",
                     description_for_players="",
                     parent_location_id=parent_id,
-                    tags=[],
+                    tags=with_kind([], sub.kind),
                 )
                 result.append(new_loc)
                 created.append(scheme.SubLocationRef(id=sub.id, name=sub.name))
@@ -173,7 +178,7 @@ class SessionLocationManager(SessionTODOManager):
                     description_for_master="",
                     description_for_players="",
                     parent_location_id=parent_id,
-                    tags=[],
+                    tags=with_kind([], sub.kind),
                 )
                 result.append(new_loc)
                 created.append(scheme.SubLocationRef(id=new_id, name=sub.name))

@@ -17,10 +17,11 @@ def _loc(name, parent=None):
 def test_kind_roundtrip():
     assert kind_tag("city") == "loc:city"
     assert is_kind_tag("loc:city") and not is_kind_tag("city")
-    assert kind_of(["x", "loc:apartment"]) == "apartment"
+    assert kind_of(["x", "loc:room"]) == "room"
+    assert kind_of(["x", "loc:apartment"]) == "room"  # старый вид -> новый
     assert kind_of(["loc:unknown"]) is None
     assert kind_of(None) is None
-    assert {"island", "continent", "country", "city", "building", "apartment"} <= LOCATION_KIND_IDS
+    assert {"world", "region", "city", "wilds", "dungeon", "district", "building", "room"} == LOCATION_KIND_IDS
 
 
 def test_descendants_root_first_breadth_first():

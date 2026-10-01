@@ -210,6 +210,7 @@ export function CharacterItemsTab({
   const [createItemOpen, setCreateItemOpen] = useState(false);
   const [templatePickerOpen, setTemplatePickerOpen] = useState(false);
   const [seedFromTemplate, setSeedFromTemplate] = useState<GameItemTemplateSeed | null>(null);
+  const [editItem, setEditItem] = useState<{ id: string; viewOnly: boolean } | null>(null);
   const api = useMemo(() => new ScenarioScopedApiService(scenarioId), [scenarioId]);
 
   const ownerId = dlg.form?.id ? String(dlg.form.id) : null;
@@ -229,7 +230,10 @@ export function CharacterItemsTab({
         };
         dlg.setForm?.((p: any) => {
           const prev = p.owned_items ?? [];
-          if (prev.some((x: any) => String(x.id) === String(itemId))) return p;
+          // уже в инвентаре (после правки предмета) — обновляем карточку на месте
+          if (prev.some((x: any) => String(x.id) === String(itemId))) {
+            return { ...p, owned_items: prev.map((x: any) => (String(x.id) === String(itemId) ? out : x)) };
+          }
           return { ...p, owned_items: [...prev, out] };
         });
         await dlg.reloadLookups?.();
@@ -297,6 +301,7 @@ export function CharacterItemsTab({
                 }))
             : undefined
         }
+        onEditItem={(id, viewOnly) => setEditItem({ id, viewOnly })}
         readOnly={readOnly}
       />
       <div className="text-xs text-gray-500">
@@ -322,6 +327,14 @@ export function CharacterItemsTab({
         }}
         editingId={null}
         seedFromTemplate={seedFromTemplate}
+        onEntitySaved={(id) => void handleItemCreated(id)}
+      />
+
+      <GameItemEditDialog
+        open={editItem !== null}
+        onClose={() => setEditItem(null)}
+        editingId={editItem?.id ?? null}
+        readOnly={editItem?.viewOnly ?? false}
         onEntitySaved={(id) => void handleItemCreated(id)}
       />
     </div>

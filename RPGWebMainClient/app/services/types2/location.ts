@@ -51,7 +51,9 @@ export interface LocationList extends LocationBase, WithLineage {
 
 export type SubLocationRef = {
   id?: string | null;   // null/undefined = новая, иначе существующая
-  name: string;  
+  name: string;
+  /** id вида местности (см. lib/locationKinds.ts); undefined — не менять, null — снять. */
+  kind?: string | null;
   _deleted?: boolean;   // мягкое удаление — показываем серым, из payload фильтруем
   _new?: boolean; 
 };

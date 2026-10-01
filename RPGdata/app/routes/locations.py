@@ -15,6 +15,12 @@ from app import models, scheme
 from app.plugins.contracts import EntityPayload
 from app.scheme.common import dump_entity_fields
 from app.scheme.location import LocationUpsertPayload, LocationUpsertResult
+from app.constants.location_kinds import (
+    allowed_child_kinds,
+    canonical_kind,
+    kind_of,
+    with_kind,
+)
 from ._helpers import get_scenario_or_404, get_scenario_edit, validate_entity_data, sync_scene_exposures, notify_active_sessions_for_scenario
 
 
@@ -155,6 +161,55 @@ def _make_entity_payload(payload: LocationUpsertPayload) -> EntityPayload:
     )
 
 
+async def _check_sublocation_kinds(
+    db: AsyncSession,
+    scenario_id: UUID,
+    parent_location_id: UUID | None,
+    parent_tags: list[str] | None,
+    sublocations: list[scheme.SubLocationRef],
+) -> None:
+    """400, если подлокации назначен неизвестный вид или вид, не допустимый под родителем.
+
+    Проверяются только новые/изменённые виды: старые подлокации, чей вид стал
+    недопустимым после смены вида родителя, сохранение не блокируют.
+    """
+    explicit = [s for s in sublocations if "kind" in s.model_fields_set and s.kind]
+    if not explicit:
+        return
+
+    unknown = [s for s in explicit if canonical_kind(s.kind) is None]
+    if unknown:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Неизвестный вид местности у подлокации «{unknown[0].name}»: {unknown[0].kind}",
+        )
+
+    allowed = set(allowed_child_kinds(kind_of(parent_tags)))
+    current_kind: dict[UUID, str | None] = {}
+    if parent_location_id is not None:
+        rows = (await db.execute(
+            select(models.Location).where(
+                models.Location.parent_location_id == parent_location_id,
+                models.Location.scenario_id == scenario_id,
+            )
+        )).scalars().all()
+        current_kind = {loc.id: kind_of(loc.tags) for loc in rows}
+
+    for s in explicit:
+        kind = canonical_kind(s.kind)
+        if s.id and current_kind.get(s.id) == kind:
+            continue
+        if kind not in allowed:
+            parent_kind = kind_of(parent_tags)
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    f"Подлокации «{s.name}» нельзя назначить вид «{kind}» "
+                    f"внутри локации вида «{parent_kind}»"
+                ),
+            )
+
+
 async def _sync_sublocations(
     db: AsyncSession,
     scenario_id: UUID,
@@ -176,11 +231,16 @@ async def _sync_sublocations(
 
     existing_by_id = {loc.id: loc for loc in existing}
 
+    def new_tags(s: scheme.SubLocationRef) -> list[str]:
+        return with_kind([], s.kind)
+
     for s in sublocations:
         if s.id:
             loc = existing_by_id.get(s.id)
             if loc:
                 loc.name = s.name
+                if "kind" in s.model_fields_set:
+                    loc.tags = with_kind(loc.tags, s.kind)
             else:
                 # есть id из Redis, но в БД ещё нет — создаём с этим id
                 new_loc = models.Location(
@@ -190,7 +250,7 @@ async def _sync_sublocations(
                     description_for_players="",
                     parent_location_id=parent_location_id,
                     scenario_id=scenario_id,
-                    tags=[],
+                    tags=new_tags(s),
                 )
                 db.add(new_loc)
         else:
@@ -202,7 +262,7 @@ async def _sync_sublocations(
                 description_for_players="",
                 parent_location_id=parent_location_id,
                 scenario_id=scenario_id,
-                tags=[],
+                tags=new_tags(s),
             )
             db.add(new_loc)
 
@@ -330,6 +390,9 @@ async def create_location(
 
     if payload.parent_location_id:
         await _check_parent_location(db, payload.parent_location_id, scenario.id)
+    await _check_sublocation_kinds(
+        db, scenario.id, None, result.result.tags or payload.tags, payload.sublocations
+    )
 
     plugin_data = result.result.model_dump(mode="json")
     entity_data = dump_entity_fields(
@@ -400,6 +463,9 @@ async def update_location(
 
     if payload.parent_location_id:
         await _check_parent_location(db, payload.parent_location_id, scenario.id)
+    await _check_sublocation_kinds(
+        db, scenario.id, obj.id, result.result.tags or payload.tags, payload.sublocations
+    )
 
     update_fields = dump_entity_fields(
         payload,

@@ -134,6 +134,9 @@ class LocationList(LocationBase, ORMWithTagsModel):
 class SubLocationRef(BaseModel):
     id: Optional[UUID] = None
     name: str
+    # id вида местности (см. constants/location_kinds.py). Не передан — вид не трогаем,
+    # null — вид снимается.
+    kind: Optional[str] = None
 # IN POST/PUT
 class LocationUpsertPayload(LocationBase, UpsertPayload):
     map_objects: List[MapObjectPolygonCreate] = Field(default_factory=list)

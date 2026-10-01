@@ -7,7 +7,8 @@ import HtmlEditor from '@/app/components/common/HtmlEditor';
 import ImagePicker from '../../../../common/MapGallery';
 import { EntityComboBox } from '../../common/EntityComboBox';
 import { useDialogMode } from '../../common/DialogModeContext';
-import { LOCATION_KINDS, kindOfTags, withKind } from '@/app/lib/locationKinds';
+import { kindOfTags, withKind } from '@/app/lib/locationKinds';
+import { LocationAncestry, LocationKindLadder } from '../../common/LocationKindLadder';
 import type { LocationTabCommonProps } from './types';
 
 export default function LocationMainTab({ dlg, editingId }: LocationTabCommonProps) {
@@ -30,6 +31,16 @@ export default function LocationMainTab({ dlg, editingId }: LocationTabCommonPro
     : dlg.form?.icon_url || null;
 
   const tags: string[] = dlg.form.tags ?? [];
+
+  // Вид родительской локации ограничивает, какой вид можно дать этой локации.
+  const parentKind = useMemo(() => {
+    const pid = dlg.form.parent_location_id;
+    if (!pid) return null;
+    const parent = (dlg.lookups.locations ?? []).find((l: any) => String(l.id) === String(pid));
+    return kindOfTags(parent?.tags)?.id ?? null;
+  }, [dlg.form.parent_location_id, dlg.lookups.locations]);
+
+  const currentKindId = kindOfTags(tags)?.id ?? null;
 
   const toggleTag = (code: string) => {
     dlg.setForm((p: any) => {
@@ -122,30 +133,32 @@ export default function LocationMainTab({ dlg, editingId }: LocationTabCommonPro
         />
 
         <div>
-          <div className="text-xs text-gray-400 mb-1">Вид местности</div>
-          <div className="flex flex-wrap gap-1.5">
-            {LOCATION_KINDS.map((k) => {
-              const active = kindOfTags(tags)?.id === k.id;
-              return (
-                <button
-                  key={k.id}
-                  type="button"
-                  disabled={readOnly}
-                  onClick={() =>
-                    dlg.setForm((p: any) => ({ ...p, tags: withKind(p.tags, active ? null : k.id) }))
-                  }
-                  className={[
-                    'rounded-full border px-2 py-0.5 text-xs transition-colors disabled:opacity-60',
-                    active
-                      ? 'border-indigo-400/60 bg-indigo-500/20 text-indigo-100'
-                      : 'border-white/15 bg-white/5 text-white/60 hover:bg-white/10 hover:text-white/80',
-                  ].join(' ')}
-                >
-                  {k.emoji} {k.label}
-                </button>
-              );
-            })}
-          </div>
+          <div className="text-xs text-gray-400 mb-1">Родительская локация</div>
+          <EntityComboBox
+            value={(dlg.form.parent_location_id ?? null) as any}
+            items={parentOptions}
+            placeholder="—"
+            readOnly={readOnly}
+            onChange={(id) =>
+              dlg.setForm((p: any) => ({ ...p, parent_location_id: id }))
+            }
+          />
+        </div>
+
+        <div className="space-y-2">
+          <div className="text-xs text-gray-400">Вид и место в иерархии</div>
+          <LocationAncestry
+            locations={dlg.lookups.locations ?? []}
+            parentId={dlg.form.parent_location_id}
+            currentName={dlg.form.name ?? ''}
+            currentKindId={currentKindId}
+          />
+          <LocationKindLadder
+            value={currentKindId}
+            parentKindId={parentKind}
+            readOnly={readOnly}
+            onChange={(kindId) => dlg.setForm((p: any) => ({ ...p, tags: withKind(p.tags, kindId) }))}
+          />
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
@@ -200,19 +213,6 @@ export default function LocationMainTab({ dlg, editingId }: LocationTabCommonPro
                 ...p,
                 description_for_players: html,
               }))
-            }
-          />
-        </div>
-
-        <div>
-          <div className="text-xs text-gray-400 mb-1">Родительская локация</div>
-          <EntityComboBox
-            value={(dlg.form.parent_location_id ?? null) as any}
-            items={parentOptions}
-            placeholder="—"
-            readOnly={readOnly}
-            onChange={(id) =>
-              dlg.setForm((p: any) => ({ ...p, parent_location_id: id }))
             }
           />
         </div>

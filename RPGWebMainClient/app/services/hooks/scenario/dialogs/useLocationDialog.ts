@@ -22,6 +22,7 @@ import {
   buildExposuresPayload,
 } from './sceneExposure';
 import { audioApiService } from '@/app/services/api/audio';
+import { kindOfTags } from '@/app/lib/locationKinds';
 import {
   DEFAULT_MAP_HEIGHT,
   DEFAULT_MAP_WIDTH,
@@ -109,7 +110,7 @@ export function useLocationDialog(opts: {
           map_objects: normalized.map_objects as MapObjectPolygonCreate[],
           sublocations: (lookups?.locations ?? [])
             .filter((l: LocationList) => String(l.parent_location_id) === String(full?.id ?? ''))
-            .map((l: LocationList) => ({ id: l.id, name: l.name })),
+            .map((l: LocationList) => ({ id: l.id, name: l.name, kind: kindOfTags(l.tags)?.id ?? null })),
           scene_exposures: ((full as any)?.scene_exposures ?? []).map(
             normalizeExposureFromFull,
           ) as SceneExposureOut[],

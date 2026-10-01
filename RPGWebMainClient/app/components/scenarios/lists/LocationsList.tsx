@@ -9,7 +9,7 @@ import { ScenarioLocationCard } from '../cards/LocationCard';
 import { LocationEditDialog } from '../dialogs/LocationEditDialog';
 import { useTabCountEffect } from './common/useTabCountEffect';
 import { isLineageProtectedEntity } from '@/app/lib/launchedLineage';
-import { LOCATION_KINDS, kindOfTags } from '@/app/lib/locationKinds';
+import { LOCATION_KINDS, isKindTag, kindOfTags } from '@/app/lib/locationKinds';
 import type { LocationList } from '@/app/services/types2';
 
 export default function ScenarioLocationsList() {
@@ -17,7 +17,7 @@ export default function ScenarioLocationsList() {
   const { loading, error, items, refetch, removeById } = useLocationsList(scenarioId);
 
   const [parentFilter, setParentFilter] = useState<string>(''); // '' = все, '__none__' = без родителя
-  const [kindFilter, setKindFilter] = useState<string>(''); // '' = все виды
+  const [kindFilter, setKindFilter] = useState<string[]>([]); // пусто = все виды; несколько = «или»
   const [libraryOpen, setLibraryOpen] = useState(false);
 
   useTabCountEffect('locations', items.length, setTabCount);
@@ -42,7 +42,10 @@ export default function ScenarioLocationsList() {
 
   const filteredByParent = useMemo(() => {
     let list = items;
-    if (kindFilter) list = list.filter((loc) => kindOfTags(loc.tags)?.id === kindFilter);
+    if (kindFilter.length > 0) {
+      const wanted = new Set(kindFilter);
+      list = list.filter((loc) => wanted.has(kindOfTags(loc.tags)?.id ?? ''));
+    }
     if (!parentFilter) return list;
     if (parentFilter === '__none__') {
       return list.filter((loc) => !loc.parent_location_id);
@@ -50,26 +53,53 @@ export default function ScenarioLocationsList() {
     return list.filter((loc) => String(loc.parent_location_id ?? '') === parentFilter);
   }, [items, parentFilter, kindFilter]);
 
+  // Только реально используемые виды, в порядке «от крупного к мелкому», с количеством локаций.
   const usedKinds = useMemo(() => {
-    const ids = new Set(items.map((l) => kindOfTags(l.tags)?.id).filter(Boolean) as string[]);
-    return LOCATION_KINDS.filter((k) => ids.has(k.id));
+    const counts = new Map<string, number>();
+    for (const l of items) {
+      const id = kindOfTags(l.tags)?.id;
+      if (id) counts.set(id, (counts.get(id) ?? 0) + 1);
+    }
+    return LOCATION_KINDS.filter((k) => counts.has(k.id)).map((k) => ({ ...k, count: counts.get(k.id) ?? 0 }));
   }, [items]);
+
+  const toggleKind = (id: string) =>
+    setKindFilter((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
 
   const customFilters = (
     <>
       {usedKinds.length > 0 && (
-        <select
-          value={kindFilter}
-          onChange={(e) => setKindFilter(e.target.value)}
-          className="rounded-md border border-gray-700 bg-black/40 text-gray-100 text-sm px-2 py-1.5"
-        >
-          <option value="">Любой вид местности</option>
-          {usedKinds.map((k) => (
-            <option key={k.id} value={k.id}>
-              {k.emoji} {k.label}
-            </option>
-          ))}
-        </select>
+        <div className="flex flex-wrap items-center gap-1.5 w-full">
+          <span className="text-xs text-gray-400 mr-1">Вид:</span>
+          {usedKinds.map((k) => {
+            const active = kindFilter.includes(k.id);
+            return (
+              <button
+                key={k.id}
+                type="button"
+                onClick={() => toggleKind(k.id)}
+                title="Можно выбрать несколько видов сразу"
+                className={[
+                  'rounded-full border px-2 py-0.5 text-xs transition-colors',
+                  active
+                    ? 'border-indigo-400/60 bg-indigo-500/20 text-indigo-100'
+                    : 'border-white/15 bg-white/5 text-white/60 hover:bg-white/10 hover:text-white/80',
+                ].join(' ')}
+              >
+                {k.emoji} {k.label} <span className="opacity-60">{k.count}</span>
+              </button>
+            );
+          })}
+          {kindFilter.length > 0 && (
+            <button
+              type="button"
+              onClick={() => setKindFilter([])}
+              className="rounded-full border border-white/10 px-2 py-0.5 text-xs text-white/40 hover:text-white/70"
+            >
+              Сброс
+            </button>
+          )}
+        </div>
       )}
       <select
         value={parentFilter}
@@ -107,6 +137,8 @@ export default function ScenarioLocationsList() {
       onDelete={(x: any) => removeById(String(x.id))}
       canDelete={(x) => !isLineageProtectedEntity(scenario, x)}
       customFilters={customFilters}
+      // виды местности фильтруются отдельным рядом (с выбором нескольких); в обычных тегах их не дублируем
+      getItemTags={(x: any) => (x.tags ?? []).filter((t: string) => !isKindTag(t))}
       onImportExisting={() => setLibraryOpen(true)}
       importExistingLabel="Из библиотеки"
       renderCard={({ item, onOpen, onDelete, readOnly }) => (

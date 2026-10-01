@@ -9,6 +9,7 @@ import type { LocationSublocTabProps } from './types';
 import { MapCanvas } from '@/app/components/common/map/MapCanvas';
 import { useMapBackground } from '@/app/components/common/map/useMapBackground';
 import { useExcalidrawPreview } from '@/app/components/common/map/useExcalidrawPreview';
+import { allowedChildKinds, isKindAllowedUnder, kindById, kindOfTags } from '@/app/lib/locationKinds';
 import {
   DEFAULT_MAP_HEIGHT,
   DEFAULT_MAP_WIDTH,
@@ -65,7 +66,51 @@ function buildInitialSublocations(
   if (!editingId) return [];
   return lookupLocations
     .filter((l) => String(l.parent_location_id) === String(editingId))
-    .map((l) => ({ id: String(l.id), name: l.name }));
+    .map((l) => ({ id: String(l.id), name: l.name, kind: kindOfTags(l.tags)?.id ?? null }));
+}
+
+// ─── выбор вида подлокации ────────────────────────────────────────────────────
+
+function SublocationKindSelect({
+  value,
+  parentKindId,
+  allowedKinds,
+  onChange,
+}: {
+  value: string | null;
+  parentKindId: string | null;
+  allowedKinds: ReturnType<typeof allowedChildKinds>;
+  onChange: (kind: string | null) => void;
+}) {
+  const current = kindById(value);
+  // отступ показывает уровень вида относительно самого крупного из допустимых
+  const baseLevel = allowedKinds.length ? Math.min(...allowedKinds.map((k) => k.level)) : 0;
+  // Вид, который стал недопустимым после смены вида родителя, оставляем в списке с пометкой.
+  const invalid = Boolean(value && current && !isKindAllowedUnder(parentKindId, value));
+  return (
+    <select
+      value={value ?? ''}
+      onChange={(e) => onChange(e.target.value || null)}
+      className={`w-full rounded border bg-black/40 text-[11px] px-1 py-0.5 ${
+        invalid ? 'border-red-500/60 text-red-300' : 'border-white/10 text-gray-300'
+      }`}
+      title={invalid ? 'Этот вид не допустим внутри вида родительской локации' : 'Вид местности'}
+    >
+      <option value="">— вид не задан —</option>
+      {invalid && current ? (
+        <option value={current.id}>
+          ⚠ {current.emoji} {current.label}
+        </option>
+      ) : null}
+      {allowedKinds.map((k) => (
+        <option key={k.id} value={k.id}>
+          {'\u00A0\u00A0'.repeat(Math.max(0, k.level - baseLevel))}
+          {k.level > baseLevel ? '└ ' : ''}
+          {k.emoji} {k.label}
+        </option>
+      ))}
+    </select>
+  );
 }
 
 // ─── компонент ────────────────────────────────────────────────────────────────
@@ -100,6 +145,18 @@ export default function SublocationsTab({ dlg, editingId }: LocationSublocTabPro
       dlg.setForm((p: any) => ({ ...p, sublocations: updater(p.sublocations ?? []) }));
     },
     [dlg],
+  );
+
+  // Вид текущей (родительской) локации — от него зависит, какие виды можно дать подлокациям.
+  const parentKindId = kindOfTags((dlg.form as any).tags)?.id ?? null;
+  const parentKind = kindById(parentKindId);
+  const allowedKinds = useMemo(() => allowedChildKinds(parentKindId), [parentKindId]);
+
+  const setSublocationKind = useCallback(
+    (idx: number, kind: string | null) => {
+      patchSublocations((prev) => prev.map((s, i) => (i === idx ? { ...s, kind } : s)));
+    },
+    [patchSublocations],
   );
 
   const renameSublocation = useCallback(
@@ -342,6 +399,23 @@ export default function SublocationsTab({ dlg, editingId }: LocationSublocTabPro
               </button>
             </div>
 
+            {parentKind && (
+              <div className="flex flex-wrap items-center gap-1 text-[10px] text-gray-500">
+                <span>
+                  Внутри {parentKind.emoji} {parentKind.label}:
+                </span>
+                {allowedKinds.length === 0 ? (
+                  <span>ничего (конечный уровень)</span>
+                ) : (
+                  allowedKinds.map((k) => (
+                    <span key={k.id} className="rounded-full border border-white/10 bg-white/5 px-1.5 py-0.5 text-gray-300">
+                      {k.emoji} {k.label}
+                    </span>
+                  ))
+                )}
+              </div>
+            )}
+
             {sublocations.length === 0 && (
               <div className="text-xs text-gray-600 py-1">Нет подлокаций</div>
             )}
@@ -351,28 +425,36 @@ export default function SublocationsTab({ dlg, editingId }: LocationSublocTabPro
               return (
                 <div
                   key={loc.id ?? `new-${idx}`}
-                  className="flex items-center gap-1.5 rounded-md border border-white/10 px-2 py-1 bg-white/5"
+                  className="flex flex-col gap-1 rounded-md border border-white/10 px-2 py-1 bg-white/5"
                 >
-                  <MapPin className="w-3 h-3 text-indigo-400 shrink-0" />
-                  <input
-                    type="text"
-                    value={loc.name}
-                    onChange={(e) => renameSublocation(globalIdx, e.target.value)}
-                    className="flex-1 min-w-0 bg-transparent text-xs text-gray-200 border-b border-transparent focus:border-white/20 focus:outline-none py-0.5"
+                  <div className="flex items-center gap-1.5">
+                    <MapPin className="w-3 h-3 text-indigo-400 shrink-0" />
+                    <input
+                      type="text"
+                      value={loc.name}
+                      onChange={(e) => renameSublocation(globalIdx, e.target.value)}
+                      className="flex-1 min-w-0 bg-transparent text-xs text-gray-200 border-b border-transparent focus:border-white/20 focus:outline-none py-0.5"
+                    />
+                    {loc._new && (
+                      <span className="text-[9px] px-1 rounded bg-green-500/20 text-green-400 shrink-0">
+                        новая
+                      </span>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => softDeleteSublocation(globalIdx)}
+                      className="text-gray-600 hover:text-red-400 shrink-0"
+                      title="Удалить"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  </div>
+                  <SublocationKindSelect
+                    value={loc.kind ?? null}
+                    parentKindId={parentKindId}
+                    allowedKinds={allowedKinds}
+                    onChange={(k) => setSublocationKind(globalIdx, k)}
                   />
-                  {loc._new && (
-                    <span className="text-[9px] px-1 rounded bg-green-500/20 text-green-400 shrink-0">
-                      новая
-                    </span>
-                  )}
-                  <button
-                    type="button"
-                    onClick={() => softDeleteSublocation(globalIdx)}
-                    className="text-gray-600 hover:text-red-400 shrink-0"
-                    title="Удалить"
-                  >
-                    <X className="w-3 h-3" />
-                  </button>
                 </div>
               );
             })}

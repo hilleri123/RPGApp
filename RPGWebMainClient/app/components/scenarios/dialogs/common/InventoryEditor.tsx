@@ -21,6 +21,7 @@ export function InventoryEditor({
   // важно: сюда пробрасываешь setForm, чтобы ставить флаг take_from_other_owner
   onMarkTakeFromOtherOwner,
   onUnmarkTakeFromOtherOwner,
+  onEditItem,
 }: {
   title?: string;
   items: GameItemWithOwnerShort[];
@@ -31,6 +32,8 @@ export function InventoryEditor({
 
   onMarkTakeFromOtherOwner?: (itemId: UUID) => void;
   onUnmarkTakeFromOtherOwner?: (itemId: UUID) => void;
+  /** Открыть диалог предмета (редактирование или просмотр); без обработчика кнопок на карточке нет. */
+  onEditItem?: (itemId: string, viewOnly: boolean) => void;
 }) {
   const [picker, setPicker] = useState<string | null>(null);
 
@@ -174,7 +177,16 @@ export function InventoryEditor({
                 key={String(it.id)}
                 className={cn('border border-gray-700 rounded-md p-2', danger ? 'bg-red-500/10' : 'bg-gray-950')}
               >
-                <ScenarioItemCard item={it} onDelete={readOnly ? undefined : () => removeItem(String(it.id))} />
+                <ScenarioItemCard
+                  item={it}
+                  readOnly={readOnly}
+                  onEdit={
+                    onEditItem
+                      ? (item, viewOnly) => onEditItem(String(item.id), viewOnly || readOnly)
+                      : undefined
+                  }
+                  onDelete={readOnly ? undefined : () => removeItem(String(it.id))}
+                />
               </div>
             );
           })}

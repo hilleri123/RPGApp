@@ -20,7 +20,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app import models
-from app.constants.location_kinds import is_kind_tag, kind_of, kind_tag
+from app.constants.location_kinds import canonical_kind, is_kind_tag, kind_of
 from app.constants.templates import TEMPLATE_TAG
 from app.services.entity_data_rule import stamp_entity_data
 from app.services.scenario_cloner import IdMap, _copy_scalar_columns
@@ -128,7 +128,7 @@ async def search_library(
     # не миллионы), так запрос остаётся переносимым между JSON/JSONB.
     rows = (await db.execute(stmt.order_by(models.Location.name).limit(2000))).all()
 
-    wanted_kinds = {kind_tag(k) for k in (kinds or []) if k}
+    wanted_kinds = {c for c in (canonical_kind(k) for k in (kinds or []) if k) if c}
     wanted_tags = {t for t in (tags or []) if t}
 
     hits: list[LibraryHit] = []
@@ -138,7 +138,7 @@ async def search_library(
         is_template = TEMPLATE_TAG in loc_tags
         if templates_only and not is_template:
             continue
-        if wanted_kinds and not wanted_kinds.intersection(loc_tags):
+        if wanted_kinds and kind_of(loc_tags) not in wanted_kinds:
             continue
         if wanted_tags and not wanted_tags.issubset(loc_tags):
             continue

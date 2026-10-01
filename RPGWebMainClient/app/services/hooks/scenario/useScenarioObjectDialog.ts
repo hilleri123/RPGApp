@@ -369,6 +369,7 @@ export function useScenarioObjectDialog<
         const id =
           res?.id ??
           res?.item?.id ??
+          res?.character?.id ??
           res?.npc?.id ??
           res?.location?.id ??
           res?.counter?.id ??
