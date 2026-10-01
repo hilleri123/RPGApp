@@ -26,9 +26,9 @@ class DwSkillsCodex(PbtaSkillsCodexBase):
         return [
             Skill(id="str", title="Сила",         color="#ef4444"),
             Skill(id="dex", title="Ловкость",      color="#22c55e"),
-            Skill(id="con", title="Выносливость",  color="#eab308"),
+            Skill(id="con", title="Телосложение",  color="#eab308"),
             Skill(id="int", title="Интеллект",     color="#0400ff"),
-            Skill(id="wis", title="Чуйка",         color="#00d7fd"),
+            Skill(id="wis", title="Мудрость",      color="#00d7fd"),
             Skill(id="cha", title="Харизма",       color="#f408fc"),
         ]
 

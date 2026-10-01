@@ -26,13 +26,15 @@ class CharacterDataBase(CharacterProfileFields):
 # PlayerCharacterBase теперь просто наследует:
 class PlayerCharacterBase(CharacterProfileFields):
     location_id: Optional[UUID] = None
-    application_id: Optional[UUID] = None
     bound_user_id: Optional[UUID] = None
 
 
 # RES GET_BY_ID
 class PlayerCharacterOut(PlayerCharacterBase, ORMWithTagsModel):
     id: UUID
+    # Только для вывода: у таблицы player_character такой колонки нет (она у заявки),
+    # поэтому в Upsert-payload поле быть не должно — иначе оно уходит в конструктор модели.
+    application_id: Optional[UUID] = None
     source_entity_id: Optional[UUID] = None
     copied_from: Optional[UUID] = None
     bound_user_id: Optional[UUID] = None
@@ -49,6 +51,7 @@ class PlayerCharacter(PlayerCharacterOut):
 # RES GET ALL
 class PlayerCharacterList(PlayerCharacterBase, ORMWithTagsModel):
     id: UUID
+    application_id: Optional[UUID] = None
 
     class Config:
         from_attributes = True
