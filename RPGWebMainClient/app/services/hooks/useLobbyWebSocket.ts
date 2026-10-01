@@ -165,6 +165,27 @@ export function useLobbyWebSocket(lobbyId: string) {
     [sendAction]
   );
 
+  const masterSetLobbyOpen = useCallback(
+    (isOpen: boolean) => {
+      sendAction({ user_role: 'master', msg_type: 'set_lobby_open', is_open: isOpen });
+    },
+    [sendAction]
+  );
+
+  const masterInviteUser = useCallback(
+    (userId: string) => {
+      sendAction({ user_role: 'master', msg_type: 'invite_user', invite_user_id: userId });
+    },
+    [sendAction]
+  );
+
+  const masterUninviteUser = useCallback(
+    (userId: string) => {
+      sendAction({ user_role: 'master', msg_type: 'uninvite_user', invite_user_id: userId });
+    },
+    [sendAction]
+  );
+
   const masterStartSession = useCallback(() => {
     sendAction({ user_role: 'master', msg_type: 'start_session' });
   }, [sendAction]);
@@ -222,6 +243,9 @@ export function useLobbyWebSocket(lobbyId: string) {
   const isPlayer = !!selfPlayer;
   const isUser = !!(lobby?.users?.find((u: any) => u.id === user?.id));
 
+  const onlineIds = useMemo(() => new Set((lobby?.online_user_ids || []).map(String)), [lobby?.online_user_ids]);
+  const isUserOnline = useCallback((userId?: string | null) => !!userId && onlineIds.has(String(userId)), [onlineIds]);
+
   return {
     lobby,
     connected,
@@ -231,6 +255,7 @@ export function useLobbyWebSocket(lobbyId: string) {
     isMaster,
     isPlayer,
     isUser,
+    isUserOnline,
 
     selectedScenario,
     scenarioId,
@@ -250,6 +275,9 @@ export function useLobbyWebSocket(lobbyId: string) {
     masterSelectParty,
     masterKickPlayer,
     masterPlayerDeselectCharacter,
+    masterSetLobbyOpen,
+    masterInviteUser,
+    masterUninviteUser,
     masterStartSession,
     masterCloseLobby,
 

@@ -26,6 +26,15 @@ export class AccessGroupsApiService extends BaseApiClient {
     return this.post<void>(`${this.endpoint}/add_user`, data);
   }
 
+  /** user_id -> уровень участника в группе (потолок прав на сценарии группы). */
+  async getMemberLevels(groupId: string): Promise<Record<string, string>> {
+    return this.get<Record<string, string>>(`${this.endpoint}/${groupId}/member_levels`);
+  }
+
+  async setUserPermission(data: MasterGroupAddUser): Promise<void> {
+    return this.post<void>(`${this.endpoint}/set_user_permission`, data);
+  }
+
   async updateGroup(id: string, data: { name: string }): Promise<any> {
     return this.patch(`${this.endpoint}/${id}`, data);
   }

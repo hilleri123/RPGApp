@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { PlayLifecycleGuide } from '@/app/components/common/PlayLifecycleGuide';
 import Header from '@/app/components/layout/Header';
 import { launchedScenariosApi } from '@/app/services/api/launchedScenarios';
 import { LaunchedScenario } from '@/app/services/types/launchedScenario';
@@ -45,6 +46,7 @@ export default function LaunchedScenariosPage() {
         <p className="text-sm text-gray-400">
           Живые копии сценариев между подходами и партиями. Исходный сценарий (prep) можно редактировать параллельно.
         </p>
+        <PlayLifecycleGuide />
         <div className="flex flex-wrap gap-2 items-center justify-between">
           <Input
             value={search}

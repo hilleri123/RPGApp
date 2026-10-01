@@ -17,7 +17,7 @@ export default function SceneRulesPanel({ scene }: Props) {
   const params = useParams<{ id: string }>();
   const sessionId = params.id;
 
-  const { scenes, pluginUI, sendRequest } = useSessionWebSocket(sessionId);
+  const { scenes, pluginUI, sendRequest, session } = useSessionWebSocket(sessionId);
   
 
   const SceneDataView = pluginUI?.SceneDataView;
@@ -80,7 +80,7 @@ export default function SceneRulesPanel({ scene }: Props) {
       }
     >
       {canRenderView ? (
-        <SceneDataView scene={scene} data={sceneData ?? {}} />
+        <SceneDataView scene={scene} players={session?.players ?? []} data={sceneData ?? {}} />
       ) : (
         <div className="text-xs text-white/50">SceneDataView не подключен в pluginUI.</div>
       )}

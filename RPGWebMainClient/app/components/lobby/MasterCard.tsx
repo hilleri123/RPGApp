@@ -15,7 +15,8 @@ interface MasterCardProps {
 export const MasterCard: React.FC<MasterCardProps> = ({ lobbyId }) => {
 
   const {
-    lobby
+    lobby,
+    isUserOnline,
   } = useLobbyWebSocket(lobbyId);
   const gameMaster = lobby.master;
   // const joinedAt = new Date(gameMaster.joined_at);
@@ -31,7 +32,7 @@ export const MasterCard: React.FC<MasterCardProps> = ({ lobbyId }) => {
       </CardHeader>
       <CardContent>
         <div className="flex items-center gap-4 mb-4">
-          <UserCard user={gameMaster}/>
+          <UserCard user={gameMaster} online={isUserOnline(gameMaster.id)} />
           {/* <div>
             <h3 className="font-bold text-white">{gameMaster.full_name}</h3>
             <p className="text-sm text-gray-400">{gameMaster.title}</p>

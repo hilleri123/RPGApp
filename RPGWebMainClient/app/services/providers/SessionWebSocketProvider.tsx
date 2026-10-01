@@ -129,24 +129,44 @@ export const SessionWebSocketProvider = ({
     } catch {}
   }, []);
 
-  // Действия, которые не удалось отправить: раньше они молча исчезали, и для
-  // игрока это выглядело как проигнорированное нажатие. В очередь попадает
-  // только то, что в сокет вообще не уходило, поэтому переотправка не может
-  // создать дубликат уже принятого действия.
+  // Действия, которые не удалось отправить, ждут в очереди — раньше они молча
+  // исчезали, и для игрока это выглядело как проигнорированное нажатие.
+  //
+  // Кроме того, мы помним отправленные, но ещё не подтверждённые (`action_ack`)
+  // действия: если связь оборвалась, неизвестно, дошли ли они. После переподключения
+  // шлём их повторно — сервер по `client_msg_id` отбросит дубликат (FE-03).
   const outboxRef = useRef<SessionActionBase[]>([]);
+  const inflightRef = useRef<Map<string, { action: SessionActionBase; sentAt: number }>>(new Map());
   const OUTBOX_LIMIT = 50;
+  const INFLIGHT_MAX_AGE_MS = 10 * 60 * 1000;
+
+  const newMsgId = () =>
+    typeof crypto !== 'undefined' && 'randomUUID' in crypto
+      ? crypto.randomUUID()
+      : `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
 
   const flushOutbox = useCallback(() => {
     const ws = socketRef.current;
     if (!ws || ws.readyState !== WebSocket.OPEN) return;
 
+    const now = Date.now();
     const pending = outboxRef.current;
     outboxRef.current = [];
-    for (const action of pending) {
+
+    // Неподтверждённые ушли в прошлый сокет — повторяем (дубликаты отсекает сервер).
+    const resend: SessionActionBase[] = [];
+    inflightRef.current.forEach((entry, id) => {
+      if (now - entry.sentAt > INFLIGHT_MAX_AGE_MS) inflightRef.current.delete(id);
+      else resend.push(entry.action);
+    });
+
+    for (const action of [...resend, ...pending]) {
       try {
         ws.send(JSON.stringify(action));
+        const id = (action as { client_msg_id?: string }).client_msg_id;
+        if (id) inflightRef.current.set(id, { action, sentAt: now });
       } catch {
-        outboxRef.current.push(action);
+        if (!resend.includes(action)) outboxRef.current.push(action);
       }
     }
     if (pending.length && !outboxRef.current.length) {
@@ -155,17 +175,24 @@ export const SessionWebSocketProvider = ({
   }, []);
 
   const sendAction = useCallback(
-    (action: SessionActionBase): boolean => {
+    (rawAction: SessionActionBase): boolean => {
       if (commandReadOnly) {
         toast.message('Режим «глаза игрока»: команды не отправляются', {
           id: 'player-mirror-readonly',
         });
         return false;
       }
+      const action = {
+        ...rawAction,
+        client_msg_id: (rawAction as { client_msg_id?: string }).client_msg_id ?? newMsgId(),
+      } as SessionActionBase;
+      const msgId = (action as { client_msg_id?: string }).client_msg_id as string;
+
       const ws = socketRef.current;
       if (ws && connected && ws.readyState === WebSocket.OPEN) {
         try {
           ws.send(JSON.stringify(action));
+          inflightRef.current.set(msgId, { action, sentAt: Date.now() });
           return true;
         } catch {
           // Провалимся в ветку с очередью ниже.
@@ -267,6 +294,12 @@ export const SessionWebSocketProvider = ({
         try {
           const data = JSON.parse(event.data) as SessionWsMessage;
           if (!data || !('msg_type' in data)) return;
+
+          if ((data as { msg_type: string }).msg_type === 'action_ack') {
+            const id = (data as unknown as { client_msg_id?: string }).client_msg_id;
+            if (id) inflightRef.current.delete(id);
+            return;
+          }
 
           if (data.msg_type === 'rpc_result') {
             const msg = data as RpcResult;

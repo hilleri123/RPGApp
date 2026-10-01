@@ -25,6 +25,15 @@ type Props = {
 function EffectBadge({ effect }: { effect: EffectRecord }) {
   const p = effect.payload;
 
+  if (effect.kind === "gm_directive" && p?.["complication"]) {
+    return (
+      <div className="rounded border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-amber-100">
+        <span className="text-xs uppercase tracking-wide text-amber-300/80 mr-2">Косяк:</span>
+        {String(p?.["text"] ?? effect.text)}
+      </div>
+    );
+  }
+
   if (effect.kind === "gm_directive") {
     return (
       <div className="rounded border border-indigo-500/20 bg-indigo-500/10 px-3 py-2 text-sm text-indigo-200">

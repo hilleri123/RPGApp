@@ -237,6 +237,18 @@ def _apply_damage_mod(ctx, effect: EffectRecord, move: Any, entry=None) -> dict[
     return _apply_damage(ctx, dmg_effect)
 
 
+def _npc_current_hp(data: Any, max_hp: int) -> int:
+    """Текущее HP NPC. Ноль — это ноль (мёртвый NPC), а не «поле не задано».
+
+    Полным HP считаем только NPC, у которого `hp_current` вообще не сохранён.
+    """
+    fields_set = getattr(data, "model_fields_set", None)
+    raw = getattr(data, "hp_current", None)
+    if raw is None or (fields_set is not None and "hp_current" not in fields_set):
+        return max(0, int(max_hp or 0))
+    return max(0, int(raw))
+
+
 def _apply_damage(ctx, effect: EffectRecord) -> dict[str, list[dict]]:
     payload = effect.payload or {}
     target_kind = payload.get("target_kind")
@@ -266,7 +278,7 @@ def _apply_damage(ctx, effect: EffectRecord) -> dict[str, list[dict]]:
 
         data = NpcData.model_validate(npc.data)
         max_hp = int(getattr(data, "hp", 0) or 0)
-        current_hp = int(getattr(data, "hp_current", None) or max_hp or 0)
+        current_hp = _npc_current_hp(data, max_hp)
         data.hp_current = max(0, current_hp - final_damage)
         data.hp = max_hp if max_hp > 0 else data.hp_current
 
@@ -650,7 +662,7 @@ def _apply_fixed_heal(ctx, target_kind: str, target_id: str, heal_amount: int) -
             return {}
         data = NpcData.model_validate(npc.data)
         max_hp = int(getattr(data, "hp", 0) or 0)
-        current = int(getattr(data, "hp_current", None) or max_hp or 0)
+        current = _npc_current_hp(data, max_hp)
         data.hp_current = min(max_hp, current + amount) if max_hp > 0 else current + amount
         data.hp = max_hp or data.hp_current
         patch: dict[str, Any] = {"id": str(npc.id), "dataPatch": data.model_dump(mode="json")}
@@ -685,7 +697,7 @@ def _apply_fixed_damage(ctx, effect) -> dict[str, list[dict]]:
             return {}
         data = NpcData.model_validate(npc.data)
         max_hp = int(getattr(data, "hp", 0) or 0)
-        current_hp = int(getattr(data, "hp_current", None) or max_hp or 0)
+        current_hp = _npc_current_hp(data, max_hp)
         data.hp_current = max(0, current_hp - final_damage)
         # Keep max HP intact — only current HP changes.
         data.hp = max_hp if max_hp > 0 else data.hp_current

@@ -147,7 +147,7 @@ export default function PlayerSceneTab({ sessionId }: PlayerSceneTabProps) {
 
         {canRenderView ? (
           <div className="space-y-4 mt-4">
-            <SceneDataView scene={scene} data={scene.data ?? {}} />
+            <SceneDataView scene={scene} players={players} data={scene.data ?? {}} />
           </div>
         ) : (
           <div className="text-xs text-white/50 mt-4">SceneDataView не подключен в pluginUI.</div>

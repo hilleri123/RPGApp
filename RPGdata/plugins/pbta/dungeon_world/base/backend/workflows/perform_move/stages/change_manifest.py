@@ -23,7 +23,20 @@ from ..types import PerformMoveContext
 from ..types_change_manifest import ChangeManifestState
 
 
+COMPLICATION_MAX_LEN = 500
+PARTIAL_OUTCOME = "hit_7_9"
+
+
+def is_gm(ctx: StageCtx) -> bool:
+    return str(ctx.actor_user_id) == str(ctx.participants.gmUserId)
+
+
+def clean_complication(text: Any) -> str:
+    return " ".join(str(text or "").split())[:COMPLICATION_MAX_LEN]
+
+
 class ManifestPatchInput(BaseModel):
+    gm_complication: str | None = None
     mode: str | None = None
     lines: list[dict[str, Any]] | None = None
     editing_line_id: str | None = None
@@ -32,6 +45,7 @@ class ManifestPatchInput(BaseModel):
 
 
 class ManifestSubmitInput(BaseModel):
+    gm_complication: str | None = None
     action: str = "continue"  # continue | apply
     lines: list[dict[str, Any]] | None = None
     mode: str | None = None
@@ -51,22 +65,52 @@ class PerformMoveChangeManifestStage(DwStage):
             return StageOutcome(ok=False, issues=parsed.issues)
 
         cur = read_manifest(wf).model_dump(mode="json")
+        gm = is_gm(ctx)
+        if cur.get("mode") == "review" and not gm:
+            return StageOutcome.fail("", "На проверке заявку правит только мастер")
+        if parsed.gm_complication is not None:
+            problem = self._complication_problem(wf, ctx)
+            if problem:
+                return StageOutcome.fail("gm_complication", problem)
         if parsed.mode is not None:
             cur["mode"] = parsed.mode
         if parsed.lines is not None:
             cur["lines"] = list(parsed.lines)
+            if not gm:
+                cur["sent_to_gm"] = False  # игрок поправил заявку — мастеру нужно отправить заново
         if parsed.editing_line_id is not None:
             cur["editing_line_id"] = parsed.editing_line_id or None
         if parsed.editing_step is not None:
             cur["editing_step"] = parsed.editing_step or None
         if parsed.unprepare_cast_spell is not None:
             cur["unprepare_cast_spell"] = bool(parsed.unprepare_cast_spell)
+        if parsed.gm_complication is not None:
+            cur["gm_complication"] = clean_complication(parsed.gm_complication)
         return StageOutcome.ok_data(cur)
+
+    def _complication_problem(self, wf: Workflow, ctx: StageCtx) -> str | None:
+        """Косяк пишет только мастер и только на 7–9."""
+        if not is_gm(ctx):
+            return "Косяк вписывает только мастер"
+        try:
+            outcome = self._context(wf).entry.roll.outcome
+        except Exception:
+            return "Контекст хода повреждён"
+        if outcome != PARTIAL_OUTCOME:
+            return "Косяк бывает только на результате 7–9"
+        return None
 
     def apply_patch(self, wf: Workflow, ctx: StageCtx, data: dict[str, Any]) -> None:
         # Drop fields that belong on entry, not ChangeManifestState
-        manifest_data = {k: v for k, v in data.items() if k != "unprepare_cast_spell"}
+        manifest_data = {k: v for k, v in data.items() if k not in ("unprepare_cast_spell", "gm_complication")}
         write_manifest(wf, ChangeManifestState.model_validate(manifest_data))
+        if data.get("gm_complication") is not None:
+            try:
+                c = self._context(wf)
+                c.entry.gm_complication = clean_complication(data["gm_complication"])
+                wf.context = c.model_dump(mode="json")
+            except Exception:
+                pass
         if data.get("unprepare_cast_spell") is not None:
             try:
                 c = self._context(wf)
@@ -80,6 +124,8 @@ class PerformMoveChangeManifestStage(DwStage):
         if isinstance(parsed, SubmitResult):
             return StageOutcome(ok=False, issues=parsed.issues)
         data = {"action": parsed.action, "mode": parsed.mode}
+        if parsed.gm_complication is not None:
+            data["gm_complication"] = parsed.gm_complication
         if parsed.lines is not None:
             data["lines"] = list(parsed.lines)
         if parsed.unprepare_cast_spell is not None:
@@ -112,6 +158,22 @@ class PerformMoveChangeManifestStage(DwStage):
             )
 
         payload = validation.data
+        gm = is_gm(ctx)
+        action = str(payload.get("action") or "continue")
+        stored_mode = read_manifest(wf).mode
+        mode = str(payload.get("mode") or stored_mode or "edit")
+
+        # Финальное принятие — только мастер (и проверка заявки тоже его).
+        if not gm and (action == "apply" or stored_mode == "review" or mode == "review"):
+            return err("", "Принять изменения может только мастер")
+
+        if payload.get("gm_complication") is not None:
+            problem = self._complication_problem(wf, ctx)
+            if problem:
+                return err("gm_complication", problem)
+            c.entry.gm_complication = clean_complication(payload["gm_complication"])
+            wf.context = c.model_dump(mode="json")
+
         if payload.get("unprepare_cast_spell") is not None:
             c.entry.unprepare_cast_spell = bool(payload["unprepare_cast_spell"])
             wf.context = c.model_dump(mode="json")
@@ -128,8 +190,26 @@ class PerformMoveChangeManifestStage(DwStage):
 
         prefill_manifest_from_entry(wf, c)
         c = PerformMoveContext.model_validate(wf.context or {})
-        mode = str(payload.get("mode") or read_manifest(wf).mode or "edit")
-        action = str(payload.get("action") or "continue")
+
+        # Заявку на урон/ресурсы игрока подтверждает мастер: игрок лишь отправляет её.
+        if not gm:
+            state = read_manifest(wf)
+            state.mode = "edit"
+            state.sent_to_gm = True
+            write_manifest(wf, state)
+            wf.stageData = {**(wf.stageData or {}), "manifestAction": action, "manifestMode": "edit", "manifestNext": "stay"}
+            return ctx.rb.result(
+                ok=True,
+                wf=wf,
+                participants=ctx.participants,
+                participants_dict_fallback=ctx.participants_dict,
+                issues=[],
+            )
+
+        state = read_manifest(wf)
+        if state.sent_to_gm:
+            state.sent_to_gm = False  # мастер принял заявку
+            write_manifest(wf, state)
 
         sync_manifest_lines_to_entry(wf, c, ctx.scene, mode=mode)
         c = PerformMoveContext.model_validate(wf.context or {})
@@ -139,7 +219,7 @@ class PerformMoveChangeManifestStage(DwStage):
 
         wf.stageData = {
             **(wf.stageData or {}),
-            "damageQuickOptions": damage_quick_options(ctx.scene),
+            "damageQuickOptions": damage_quick_options(ctx.scene, self.full_codex),
             "manifestAction": action,
             "manifestMode": mode,
         }

@@ -1,12 +1,13 @@
 // app/components/scenarios/lists/common/ScenarioEntityListShell.tsx
 'use client';
 
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Loader2, Plus, CopyPlus } from 'lucide-react';
 import { ConfirmAlertDialog } from '@/app/components/common/ConfirmAlertDialog';
 import { Switch } from '@/components/ui/switch';
 import { Input } from '@/components/ui/input';
+import { useScenarioFocusStore } from '@/app/services/stores/scenarioFocus';
 import {
   EntityTagFilterChips,
   collectTagKeysFromItems,
@@ -62,6 +63,8 @@ export type ScenarioEntityListShellProps<T extends { id: string }> = {
   /** Extract tags for list filtering. Default: item.tags */
   getItemTags?: (item: T) => string[] | null | undefined;
   availableTags?: string[];
+  /** Доп. диалоги списка (например, библиотека локаций). */
+  extraDialogs?: React.ReactNode;
 };
 
 export function ScenarioEntityListShell<T extends { id: string }>(props: ScenarioEntityListShellProps<T>) {
@@ -87,6 +90,7 @@ export function ScenarioEntityListShell<T extends { id: string }>(props: Scenari
     getTemplatePackId,
     getItemTags,
     availableTags,
+    extraDialogs,
   } = props;
 
   const [dlgOpen, setDlgOpen] = useState(false);
@@ -119,6 +123,17 @@ export function ScenarioEntityListShell<T extends { id: string }>(props: Scenari
     setDlgReadOnly(p.mode === 'view');
     setDlgOpen(true);
   }, [getTemplatePackId]);
+
+  // Переход из поиска по сценарию: открыть нужную сущность, как только она загрузится.
+  const focusTarget = useScenarioFocusStore((st) => st.target);
+  const setFocusTarget = useScenarioFocusStore((st) => st.setTarget);
+  useEffect(() => {
+    if (!focusTarget || loading) return;
+    const item = items.find((it) => String(it.id) === focusTarget.id);
+    if (!item) return; // цель относится к другой вкладке
+    setFocusTarget(null);
+    openDialog({ item, mode: readOnly || focusTarget.readOnly ? 'view' : 'edit' });
+  }, [focusTarget, loading, items, readOnly, openDialog, setFocusTarget]);
 
   const closeDialog = useCallback(() => {
     setDlgOpen(false);
@@ -247,6 +262,8 @@ export function ScenarioEntityListShell<T extends { id: string }>(props: Scenari
       {error ? <div className="text-red-500 text-sm">{error}</div> : null}
 
       {grid}
+
+      {extraDialogs}
 
       {renderDialog({
         open: dlgOpen,

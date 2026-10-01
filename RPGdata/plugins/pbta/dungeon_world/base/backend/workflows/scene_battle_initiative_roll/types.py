@@ -1,56 +1,38 @@
 from __future__ import annotations
 
-from typing import Literal, Optional, List
-from uuid import UUID
+from typing import Literal, Optional
 
-from pydantic import BaseModel, Field, NonNegativeInt, field_validator
+from pydantic import BaseModel, Field
 
-
-class InitiativeRollInput(BaseModel):
-    result: int
-
-    @field_validator("result")
-    @classmethod
-    def _rng(cls, v: int) -> int:
-        if v < 1 or v > 20:
-            raise ValueError("result must be in 1..20")
-        return v
+EntryKind = Literal["character", "npc"]
 
 
 class InitEntry(BaseModel):
-    entityId: UUID
+    entity_id: str
+    kind: EntryKind = "character"
     name: str = ""
-    ownerUserId: Optional[UUID] = None
+    owner_user_id: Optional[str] = None
 
-    # новое
-    available_tokens: NonNegativeInt = 0
-    spend_tokens: Optional[NonNegativeInt] = None    # ставка жетонов (>=0)
-    tieRolled: bool = False             # кидали ли d20 для тай-брейка
-    tieResult: Optional[NonNegativeInt] = None     # результат d20 (1..20) или None
-    canvas_seed: Optional[str] = None
+    # False, пока участник ещё не бросил кубы (стадия бросков)
+    rolled: bool = True
+
+    # 2d6 + modifier
+    modifier: int = 0
+    dice: list[int] = Field(default_factory=list)
+    roll_seed: str = ""  # хэш жеста, от которого брошены кубы
+    seed_image_ref: Optional[str] = None  # rolls/<hash>.png — рисунок жеста (как в журнале бросков)
+    total: int = 0
+
+    # итог поправлен мастером вручную (кубы остаются для истории)
+    manual: bool = False
 
 
-class Roller(BaseModel):
-    userId: UUID
-    entityId: UUID   # персонаж (или npc)
-    name: str = ""
+class InitiativeContext(BaseModel):
+    scene_id: str
+    entries: list[InitEntry] = Field(default_factory=list)
 
-class InitiativeWorkflowContext(BaseModel):
-    sceneId: UUID
-    order: List[InitEntry] = Field(default_factory=list)
-    currentIndex: int = 0
-    rollers: List[Roller] = Field(default_factory=list)
+    # мастер расставил порядок руками: перебросы и правки значений его не сбивают
+    custom_order: bool = False
 
-    # новое: кто участвует в тай-брейке
-    tieEntityIds: List[UUID] = Field(default_factory=list)
-
-    def seek_next_unrolled(self) -> None:
-        i = self.currentIndex
-        while i < len(self.order):
-            e = self.order[i]
-            # пропускаем тех, кто не в tie и/или уже кинул
-            if (e.entityId in set(self.tieEntityIds)) and (not e.tieRolled):
-                break
-            i += 1
-        self.currentIndex = i
-
+    # хэш жеста, от которого мастер бросил за всех NPC (сам рисунок в контексте не храним)
+    npc_seed: str = ""

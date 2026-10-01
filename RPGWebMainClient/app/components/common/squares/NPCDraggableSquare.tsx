@@ -48,7 +48,6 @@ export function NPCDraggableSquare({
         src={npc.img_url}
         alt={npc.name}
         className="w-12 h-12 object-cover rounded-lg shadow"
-        style={{ background: "#24273d" }}
       />
     );
   } else if (npc.icon_url) {
@@ -57,7 +56,6 @@ export function NPCDraggableSquare({
         src={npc.icon_url}
         alt={npc.name}
         className="w-8 h-8 object-contain rounded"
-        style={{ background: "#24273d" }}
       />
     );
   } else {

@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, Pencil, Trash2, Plus, FileText, Copy, Eye, Archive, Upload } from "lucide-react";
+import { PlayLifecycleGuide } from '@/app/components/common/PlayLifecycleGuide';
 import Header from "../components/layout/Header";
 import { scenariosApiService } from "../services/api/scenario";
 import { Scenario } from "../services/types2";
@@ -151,6 +152,9 @@ export default function ScenariosListPage() {
     <div className="min-h-screen flex flex-col bg-gray-900">
       <Header section="Сценарии" />
       <div className="max-w-4xl mx-auto p-6">
+        <div className="mb-4">
+          <PlayLifecycleGuide />
+        </div>
         <div className="flex items-center gap-4 mb-6">
           <Link href="/">
             <Button

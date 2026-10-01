@@ -25,6 +25,16 @@ def _uniq(xs):
     return out
 
 
+PREPARE_ONLY_IN_CAMP = "Подготовить заклинания можно только в лагере"
+
+
+def prepare_allowed(scene_data: dict | None) -> bool:
+    """Заучивание заклинаний — ход лагеря; в пути и в действии недоступно."""
+    from ...scene_context import normalize_scene_mode
+
+    return normalize_scene_mode((scene_data or {}).get("mode")) == "camp"
+
+
 def can_prepare_spells(data: dict | None) -> bool:
     """True if character has at least one owned spell entry with an id."""
     d = data if isinstance(data, dict) else {}
@@ -55,6 +65,8 @@ class PrepareSpellsWorkflow:
 
     def actions_for(self, scene, role: ActionRole) -> list[ActionInfo]:
         if role not in ("player", "gm"):
+            return []
+        if not prepare_allowed(getattr(scene, "data", None)):
             return []
         any_ready = any(
             can_prepare_spells(_character_data(ch))
@@ -94,6 +106,13 @@ class PrepareSpellsWorkflow:
         gm_id = action_context.participants.gmUserId
         links = action_context.links
         params = action_context.input if isinstance(action_context.input, dict) else {}
+
+        if not prepare_allowed(getattr(scene, "data", None)):
+            return self._rb.result(
+                ok=False, wf=None, participants=participants,
+                participants_dict_fallback=participants_dict,
+                issues=[issue("scene", PREPARE_ONLY_IN_CAMP)],
+            )
 
         character = None
         if actor_id == gm_id and params.get("character_id"):

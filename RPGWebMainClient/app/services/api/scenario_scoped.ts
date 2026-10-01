@@ -58,6 +58,23 @@ function buildMultipart(data: unknown, files?: Record<string, File | null | unde
   return form;
 }
 
+export type ScenarioSearchHit = {
+  type:
+    | 'story_beat'
+    | 'location'
+    | 'npc'
+    | 'game_item'
+    | 'player_character'
+    | 'note'
+    | 'counter'
+    | 'front';
+  id: string;
+  name: string;
+  snippet: string;
+  tags: string[];
+  kind: string | null;
+};
+
 export class ScenarioScopedApiService extends BaseApiClient {
   constructor(private readonly scenarioId: string) {
     super();
@@ -115,6 +132,21 @@ export class ScenarioScopedApiService extends BaseApiClient {
 
   async getLocation(id: string): Promise<LocationOut> {
     return this.get<LocationOut>(this.p(`/locations/${id}`));
+  }
+
+  async searchEntities(params: {
+    q?: string;
+    types?: string[];
+    tags?: string[];
+    limit?: number;
+  }): Promise<ScenarioSearchHit[]> {
+    const qs = new URLSearchParams();
+    if (params.q?.trim()) qs.set('q', params.q.trim());
+    if (params.types?.length) qs.set('types', params.types.join(','));
+    if (params.tags?.length) qs.set('tags', params.tags.join(','));
+    if (params.limit) qs.set('limit', String(params.limit));
+    const suffix = qs.toString();
+    return this.get<ScenarioSearchHit[]>(this.p(`/search${suffix ? `?${suffix}` : ''}`));
   }
 
   async createLocation(

@@ -39,15 +39,13 @@ def test_normalize_permission_enum_and_unknown():
     assert normalize_permission("bogus") == PERM_NONE
 
 
-def _mock_db(group_ids, permissions):
+def _mock_db(rows):
+    """``rows``: (group_grant, member_level) pairs as returned by the join query."""
     db = AsyncMock()
 
     async def execute(stmt):
         result = MagicMock()
-        if "user_master_group" in str(stmt):
-            result.scalars.return_value.all.return_value = group_ids
-        else:
-            result.scalars.return_value.all.return_value = permissions
+        result.all.return_value = rows
         return result
 
     db.execute.side_effect = execute
@@ -58,7 +56,7 @@ def _mock_db(group_ids, permissions):
 async def test_creator_gets_all_without_groups():
     user = MagicMock(is_admin=False, id=uuid.uuid4())
     scenario = MagicMock(user_id=user.id, id=uuid.uuid4())
-    db = _mock_db([], [])
+    db = _mock_db([])
 
     perm = await get_scenario_permission(db, user, scenario)
     assert perm == PERM_ALL
@@ -68,7 +66,7 @@ async def test_creator_gets_all_without_groups():
 async def test_group_read_permission_applied():
     user = MagicMock(is_admin=False, id=uuid.uuid4())
     scenario = MagicMock(user_id=uuid.uuid4(), id=uuid.uuid4())
-    db = _mock_db([uuid.uuid4()], ["read"])
+    db = _mock_db([("read", "all")])
 
     perm = await get_scenario_permission(db, user, scenario)
     assert perm == PERM_READ
@@ -84,3 +82,31 @@ async def test_admin_always_all():
 
     perm = await get_scenario_permission(db, user, scenario)
     assert perm == PERM_ALL
+
+
+@pytest.mark.asyncio
+async def test_member_level_caps_group_grant():
+    user = MagicMock(is_admin=False, id=uuid.uuid4())
+    scenario = MagicMock(user_id=uuid.uuid4(), id=uuid.uuid4())
+
+    perm = await get_scenario_permission(_mock_db([("edit_full", "read")]), user, scenario)
+    assert perm == PERM_READ
+
+
+@pytest.mark.asyncio
+async def test_best_group_wins_after_capping():
+    user = MagicMock(is_admin=False, id=uuid.uuid4())
+    scenario = MagicMock(user_id=uuid.uuid4(), id=uuid.uuid4())
+
+    perm = await get_scenario_permission(
+        _mock_db([("all", "read"), ("edit_full", "edit_full")]), user, scenario
+    )
+    assert perm == "edit_full"
+
+
+def test_min_permission():
+    from app.auth.permissions import min_permission
+
+    assert min_permission("edit_full", "read") == "read"
+    assert min_permission("read", "all") == "read"
+    assert min_permission("bogus", "all") == PERM_NONE

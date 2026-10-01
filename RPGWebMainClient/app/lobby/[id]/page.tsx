@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { Loader2 } from "lucide-react";
 import Header from '@/app/components/layout/Header';
 import { MasterCard } from '@/app/components/lobby/MasterCard';
+import { LobbyAccessCard } from '@/app/components/lobby/LobbyAccessCard';
 import { ScenarioInfo } from '@/app/components/lobby/ScenarioInfo';
 import { Players } from "@/app/components/lobby/Players";
 import { Characters } from "@/app/components/lobby/Characters";
@@ -95,7 +96,10 @@ function LobbyMasterView({ lobbyId }: { lobbyId: string }) {
       <div className="flex-1 min-h-0 overflow-y-auto">
         <div className="max-w-7xl mx-auto p-4 md:p-6 pb-4">
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 md:gap-6 mb-6">
-            <div className="lg:col-span-1"><MasterCard lobbyId={lobbyId} /></div>
+            <div className="lg:col-span-1 space-y-4 md:space-y-6">
+              <MasterCard lobbyId={lobbyId} />
+              <LobbyAccessCard lobbyId={lobbyId} />
+            </div>
             <div className="lg:col-span-2"><ScenarioInfo lobbyId={lobbyId} /></div>
           </div>
 

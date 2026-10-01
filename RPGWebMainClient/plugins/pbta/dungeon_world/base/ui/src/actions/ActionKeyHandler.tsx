@@ -3,6 +3,7 @@
 import type { ActionHandlerProps } from '@/app/plugins/pluginTypes';
 import { JSX } from 'react';
 import RollInitiativeStage from './scene_battle_initiative_roll/RollInitiativeStage';
+import InitiativeTurnStage from './scene_battle_initiative_roll/InitiativeTurnStage';
 import PerformActionStage from './perform_move/PerformMoveStage';
 import PrepareSpellsStage from './prepare_spells/PrepareSpellsStage';
 import LevelUpStage from './level_up/LevelUpStage';
@@ -11,6 +12,7 @@ type Handler = (props: ActionHandlerProps) => JSX.Element;
 
 const HANDLERS: Record<string, Handler> = {
   roll_initiative: RollInitiativeStage,
+  initiative_turn: InitiativeTurnStage,
   perform_move: PerformActionStage,
   prepare_spells: PrepareSpellsStage,
   level_up: LevelUpStage,

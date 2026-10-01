@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Map, LayoutGrid, ScrollText } from 'lucide-react';
+import { Map, LayoutGrid, ScrollText, Library } from 'lucide-react';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 
@@ -15,6 +15,8 @@ import { useUrlTab } from '@/app/services/hooks/useUrlTab';
 import type { Location } from '@/app/services/types2';
 import { LocationExposuresPanel } from './LocationExposuresPanel';
 import LocationSessionEditDialog from './control/dialogs/LocationSessionEditDialog';
+import { LocationLibraryDialog } from '@/app/components/scenarios/dialogs/LocationLibraryDialog';
+import { useSessionScenarioApi } from '@/app/services/hooks/session/useSessionScenarioApi';
 import { MasterContentPanel } from './MasterControlTabsView';
 import { TimelineTabPanel } from './TimelineTabPanel';
 
@@ -32,6 +34,8 @@ export function MasterLeftColumn({ sessionId }: { sessionId: string }) {
     timeline,
     setLocationCheck,
     setSceneLocation,
+    addScene,
+    reloadSessionFields,
     toggleLocationHidden,
     applySceneExposure,
   } = useSessionWebSocket(sessionId);
@@ -54,6 +58,8 @@ export function MasterLeftColumn({ sessionId }: { sessionId: string }) {
   const sceneLocationId = useMasterUiStore((s) => s.sceneLocationId);
   const setSceneLocationId = useMasterUiStore((s) => s.setSceneLocationId);
 
+  const { scenarioId: sessionScenarioId } = useSessionScenarioApi();
+  const [libraryOpen, setLibraryOpen] = useState(false);
   const [locationDialogOpen, setLocationDialogOpen] = useState(false);
   const [editingLocation, setEditingLocation] = useState<Location | null>(null);
 
@@ -184,6 +190,16 @@ export function MasterLeftColumn({ sessionId }: { sessionId: string }) {
               >
                 Таймлайн
               </Button>
+              {isMaster && sessionScenarioId ? (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  title="Быстро добавить локацию из библиотеки (например, «квартира» для внезапного боя)"
+                  onClick={() => setLibraryOpen(true)}
+                >
+                  <Library className="mr-1 h-3.5 w-3.5" /> Библиотека
+                </Button>
+              ) : null}
               <div className="ml-auto text-xs text-gray-400 truncate max-w-[140px]">
                 {mapTabLabel}
               </div>
@@ -231,6 +247,23 @@ export function MasterLeftColumn({ sessionId }: { sessionId: string }) {
           </div>
         )}
       </div>
+
+      {isMaster && sessionScenarioId ? (
+        <LocationLibraryDialog
+          open={libraryOpen}
+          onClose={() => setLibraryOpen(false)}
+          targetScenarioId={sessionScenarioId}
+          ruleIdStr={(session as any)?.rule_id_str ?? null}
+          onImported={(res) => {
+            reloadSessionFields(['locations', 'scenes']);
+            setCurrentLocationId(res.location_id);
+          }}
+          extraAction={{
+            label: 'Начать сцену',
+            run: (res) => addScene(res.location_id),
+          }}
+        />
+      ) : null}
 
       <LocationSessionEditDialog
         open={locationDialogOpen}

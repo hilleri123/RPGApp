@@ -1,5 +1,5 @@
 import { BaseApiClient } from './base';
-import { Lobby, LobbyCreate, LobbyPreview } from '../types/lobby';
+import { Lobby, LobbyCreate, LobbyPreview, LobbyUserHit } from '../types/lobby';
 
 export class LobbyApiService extends BaseApiClient {
   private readonly endpoint = '/lobby';
@@ -22,6 +22,11 @@ export class LobbyApiService extends BaseApiClient {
 
   async deleteLobby(id: string): Promise<{ status: string }> {
     return this.delete<{ status: string }>(`${this.endpoint}/${id}`);
+  }
+
+  /** Поиск игроков для приглашения (только мастер лобби). */
+  async searchUsersToInvite(lobbyId: string, q: string): Promise<LobbyUserHit[]> {
+    return this.get<LobbyUserHit[]>(`${this.endpoint}/${lobbyId}/user_search`, { q });
   }
 
   openWebSocket(lobbyId: string): WebSocket {

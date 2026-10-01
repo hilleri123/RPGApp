@@ -131,8 +131,10 @@ export default function LobbyList({ section, sessions, onRefreshSessions }: Lobb
         <Card className="bg-gray-800 border-gray-700">
           <CardContent className="py-8 text-center text-gray-400">
             <Users className="w-8 h-8 mx-auto mb-2 opacity-60" />
-            <p className="text-white">Открытых лобби нет</p>
-            <p className="text-sm mt-1">Создайте своё — игроки увидят его в этом списке.</p>
+            <p className="text-white">Доступных лобби нет</p>
+            <p className="text-sm mt-1">
+              Новое лобби создаётся закрытым: откройте его для всех или пригласите игроков поимённо.
+            </p>
           </CardContent>
         </Card>
       )}
@@ -146,6 +148,11 @@ export default function LobbyList({ section, sessions, onRefreshSessions }: Lobb
             <CardHeader>
               <div className="flex items-start justify-between">
                 <CardTitle className="text-lg">{lobby.name}</CardTitle>
+                {lobby.is_open ? null : (
+                  <Badge variant="secondary" className="shrink-0">
+                    {lobby.is_invited ? 'Вас пригласили' : 'Закрыто'}
+                  </Badge>
+                )}
               </div>
               <p className="text-sm text-gray-400">{lobby.scenario_name || "Без описания"}</p>
             </CardHeader>

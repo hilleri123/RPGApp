@@ -26,24 +26,56 @@ export default function HtmlEditor({
   readOnly = false,
   previewMaxLen = 0,
 }: HtmlEditorProps) {
-  // readOnly: используем makeTextPreview и не создаём TipTap
-  if (readOnly) {
+  // readOnly с ограничением длины: обычный текст без HTML — ничего не исполняется
+  if (readOnly && previewMaxLen > 0) {
     const text = makeTextPreview(value, {
       treatAsHtml: true,
-      maxLen: previewMaxLen || undefined,
+      maxLen: previewMaxLen,
       wordBoundary: true,
       ellipsis: '…',
     })
 
     return (
-      <div
-        className="border border-gray-600 rounded bg-gray-800 px-3 py-2 min-h-[40px] text-sm text-gray-100 prose prose-sm prose-invert max-w-none"
-        dangerouslySetInnerHTML={{ __html: value || '' }}
-      />
+      <div className="border border-gray-600 rounded bg-gray-800 px-3 py-2 min-h-[40px] text-sm text-gray-100 whitespace-pre-wrap">
+        {text}
+      </div>
     )
   }
 
+  // readOnly без ограничения: показываем форматирование, но через схему TipTap,
+  // а не через dangerouslySetInnerHTML. Схема пропускает только известные теги
+  // и атрибуты, поэтому <script>, onerror= и javascript:-ссылки отбрасываются.
+  if (readOnly) {
+    return <ReadOnlyHtml value={value} />
+  }
+
   return <Editor value={value} onChange={onChange} placeholder={placeholder} />
+}
+
+function ReadOnlyHtml({ value }: { value: string }) {
+  const editor = useEditor({
+    extensions: [
+      StarterKit.configure({ bold: {}, italic: {} }),
+      Color.configure({ types: ['textStyle'] }),
+      TextStyle,
+      FontSize,
+    ],
+    content: value || '',
+    editable: false,
+    immediatelyRender: false,
+  })
+
+  useEffect(() => {
+    if (editor && value !== editor.getHTML()) {
+      editor.commands.setContent(value || '', { emitUpdate: false })
+    }
+  }, [value, editor])
+
+  return (
+    <div className="border border-gray-600 rounded bg-gray-800 px-3 py-2 min-h-[40px] text-sm text-gray-100 prose prose-sm prose-invert max-w-none">
+      {editor ? <EditorContent editor={editor} /> : null}
+    </div>
+  )
 }
 
 // отдельный компонент, чтобы хуки не вызывались при readOnly

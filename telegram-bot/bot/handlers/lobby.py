@@ -112,7 +112,7 @@ async def _handle_create_lobby(message: Message) -> None:
 
     lines = [
         f"✅ Лобби «{lobby_title}» создано.",
-        "Ссылки для входа отправил в личные сообщения (мастер и игроки).",
+        "Лобби закрытое: войти могут только приглашённые. Ссылки отправил в личные сообщения.",
     ]
 
     if invited:
@@ -158,35 +158,17 @@ async def _handle_create_lobby(message: Message) -> None:
             "Не удалось написать вам в ЛС. Напишите боту /start в личку и повторите."
         )
 
-    notified = 0
-    failed = 0
-    for user in invited:
-        telegram_id = user.get("telegram_id")
-        if not telegram_id:
-            failed += 1
-            continue
-        ok = await _dm_login_link(
-            message,
-            telegram_id=int(telegram_id),
-            first_name=user.get("full_name") or "Игрок",
-            username=user.get("tg"),
-            next_path=lobby_path,
-            text=(
-                f"🎲 Мастер {master_name} приглашает в лобби «{lobby_title}».\n"
-                "Одноразовая ссылка входа (откройте в браузере, не в Telegram):"
-            ),
-        )
-        if ok:
-            notified += 1
-        else:
-            failed += 1
-
+    # Приглашения игрокам отправляет сам бэкенд (событие lobby_invited со ссылкой
+    # входа по нажатию); здесь считаем только тех, кому писать некуда.
+    notified = int(result.get("notified") or 0)
+    no_telegram = len(invited) - notified
     if notified:
-        lines.append(f"Личные уведомления игрокам: {notified}.")
-    if failed:
+        lines.append(f"Приглашения в личку игрокам: {notified}.")
+    if no_telegram > 0:
         lines.append(
-            f"Не удалось написать в ЛС: {failed}. "
-            "Игрок должен хотя бы раз написать боту /start."
+            f"Без Telegram в приложении: {no_telegram}. "
+            "Пусть зайдут в лобби по ссылке из списка лобби. "
+            "Игрок должен хотя бы раз написать боту /start, иначе ЛС не дойдёт."
         )
 
     await message.reply("\n".join(lines))

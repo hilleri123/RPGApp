@@ -7,6 +7,7 @@ import HtmlEditor from '@/app/components/common/HtmlEditor';
 import ImagePicker from '../../../../common/MapGallery';
 import { EntityComboBox } from '../../common/EntityComboBox';
 import { useDialogMode } from '../../common/DialogModeContext';
+import { LOCATION_KINDS, kindOfTags, withKind } from '@/app/lib/locationKinds';
 import type { LocationTabCommonProps } from './types';
 
 export default function LocationMainTab({ dlg, editingId }: LocationTabCommonProps) {
@@ -120,6 +121,33 @@ export default function LocationMainTab({ dlg, editingId }: LocationTabCommonPro
           onChange={(e) => dlg.setForm((p: any) => ({ ...p, name: e.target.value }))}
         />
 
+        <div>
+          <div className="text-xs text-gray-400 mb-1">Вид местности</div>
+          <div className="flex flex-wrap gap-1.5">
+            {LOCATION_KINDS.map((k) => {
+              const active = kindOfTags(tags)?.id === k.id;
+              return (
+                <button
+                  key={k.id}
+                  type="button"
+                  disabled={readOnly}
+                  onClick={() =>
+                    dlg.setForm((p: any) => ({ ...p, tags: withKind(p.tags, active ? null : k.id) }))
+                  }
+                  className={[
+                    'rounded-full border px-2 py-0.5 text-xs transition-colors disabled:opacity-60',
+                    active
+                      ? 'border-indigo-400/60 bg-indigo-500/20 text-indigo-100'
+                      : 'border-white/15 bg-white/5 text-white/60 hover:bg-white/10 hover:text-white/80',
+                  ].join(' ')}
+                >
+                  {k.emoji} {k.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
         <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
           <label className="inline-flex items-center gap-2 text-sm text-white">
             <input
@@ -130,6 +158,19 @@ export default function LocationMainTab({ dlg, editingId }: LocationTabCommonPro
               onChange={() => toggleTag('start')}
             />
             Стартовая
+          </label>
+          <label
+            className="inline-flex items-center gap-2 text-sm text-white"
+            title="Шаблонные локации показываются первыми в «Библиотеке локаций»"
+          >
+            <input
+              type="checkbox"
+              className="rounded border-gray-600 bg-gray-900"
+              disabled={readOnly}
+              checked={tags.includes('template')}
+              onChange={() => toggleTag('template')}
+            />
+            Шаблон для библиотеки
           </label>
         </div>
 

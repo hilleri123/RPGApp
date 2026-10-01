@@ -56,6 +56,27 @@ MASTER_INIT_ONLY_FIELDS = {"story_beats", "factories"}
 
 PLAYER_ALWAYS_FIELDS = {"locations", "characters", "scenes", "notifications", "logs", "polygon_shown", "actions", "settings", "audio_queue", "npcs", "items", "dispatches", "notes", "message_replies", "presented_entity", "self_player", "players", "player_seen"}
 
+# Сущности встроены в другие payload'ы: сцены содержат персонажей, NPC и предметы,
+# игрок видит своего персонажа ещё и в self_player. Поэтому правка сущности должна
+# обновлять и всё, куда она вложена, — иначе у остальных клиентов остаётся старая копия.
+DEPENDENT_UPDATE_FIELDS = {
+    "characters": ("scenes", "players", "self_player"),
+    "npcs": ("scenes",),
+    "items": ("scenes", "characters"),
+    "locations": ("scenes",),
+}
+
+
+def expand_dependent_fields(fields: list[str]) -> list[str]:
+    """Дополняет список обновляемых полей теми, куда вложены изменённые сущности."""
+    out = list(dict.fromkeys(fields or []))
+    for f in list(out):
+        for dep in DEPENDENT_UPDATE_FIELDS.get(f, ()):
+            if dep not in out:
+                out.append(dep)
+    return out
+
+
 OBSERVER_ALWAYS_FIELDS = {"locations", "scenes", "observers", "players", "polygon_shown", "characters", "settings", "audio_queue", "presented_entity"}
 
 
@@ -420,18 +441,30 @@ class CurrentSessionManager(
         entity_type: str,
         access_map: dict[tuple[str, UUID], SeenDataAccess],
     ) -> Any:
-        """Strip master-only fields (tags always; data when access is not FULL)."""
-        updates: dict[str, Any] = {"tags": []}
+        """Strip master-only fields (tags except presentation ones; data when access is not FULL)."""
+        updates: dict[str, Any] = {"tags": self._player_visible_tags(entity_type, entity)}
         if self._entity_data_access(entity_type, entity, access_map) != SeenDataAccess.FULL:
             updates["data"] = {}
         if hasattr(entity, "model_copy"):
             return entity.model_copy(update=updates)
         if hasattr(entity, "tags"):
             try:
-                entity.tags = []
+                entity.tags = updates["tags"]
             except Exception:
                 pass
         return entity
+
+    # Теги NPC, от которых зависит, как его рисует клиент (цвет/иконка квадрата). Остальные
+    # теги — мастерская кухня (секреты, фильтры партии) и игроку не уходят.
+    PLAYER_VISIBLE_NPC_TAGS = ("enemy", "dead")
+
+    def _player_visible_tags(self, entity_type: str, entity: Any) -> list[str]:
+        if entity_type != "npc":
+            return []
+        tags = getattr(entity, "tags", None)
+        if not isinstance(tags, list):
+            return []
+        return [t for t in tags if str(t) in self.PLAYER_VISIBLE_NPC_TAGS]
 
     def _strip_tags_for_player(self, entity: Any) -> Any:
         if hasattr(entity, "model_copy"):
@@ -717,7 +750,10 @@ class CurrentSessionManager(
         if "data_revealed_entities" in fields:
             msg.data_revealed_entities = await self._load_data_revealed_entities()
         if "players" in fields:
-            msg.players = inner.players
+            msg.players = [
+                p.model_dump(mode="json") if hasattr(p, "model_dump") else p
+                for p in (inner.players or [])
+            ]
 
         return msg
 
@@ -895,7 +931,7 @@ class CurrentSessionManager(
 
 
     async def push_entity_updates(self, connection_manager, fields: list[str]) -> None:
-        fields = list(fields or [])
+        fields = expand_dependent_fields(list(fields or []))
         if "timeline" in fields:
             await self.refresh_timeline_scenario_start()
         master_fields = self._filter_fields_for_master(fields)

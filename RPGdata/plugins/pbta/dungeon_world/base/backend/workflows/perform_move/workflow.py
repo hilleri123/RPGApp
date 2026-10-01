@@ -9,6 +9,7 @@ from plugins.common.types import ActionContext, ActionParticipants, SubmitResult
 from plugins.pbta.base.backend.workflows.perform_move.helpers import attach_roll_stage_data, uniq
 
 from ...codex import FullCodex
+from ...initiative import active_entity_id, advance_after_actor, merge_patches, scene_patch
 from .engine import expand_dw_choice_effects
 from .helpers import (
     damage_quick_options,
@@ -52,6 +53,7 @@ from .stages import (
     character_for_user,
 )
 from .types import PerformMoveContext
+from plugins.pbta.base.backend.workflows.perform_move.types import EffectRecord
 from ......base.backend.workflows.perform_move.workflow import PerformMoveWorkflow as PerformMoveWorkflowBase
 
 PHASES_WITH_WIZARD = frozenset({"perform_move.pre_roll", "perform_move.post_roll"})
@@ -143,7 +145,52 @@ class PerformMoveWorkflow(PerformMoveWorkflowBase):
         wf, ctx = self._ctx(action_context)
         if wf is None or ctx is None:
             return self._missing_wf(action_context)
-        return self._submit(wf, ctx, action_context.input or {})
+        was_active = wf.status != "completed"
+        result = self._submit(wf, ctx, action_context.input or {})
+        if was_active:
+            result = self._advance_initiative(action_context, result)
+        return result
+
+    def _advance_initiative(self, action_context: ActionContext, result: SubmitResult) -> SubmitResult:
+        """Передаёт ход дальше, когда ход завершил тот, чья сейчас очередь.
+
+        Срабатывает один раз — в момент перехода workflow в completed. Если
+        ходил не активный участник (реакция, помощь), очередь не меняется.
+        """
+        if not result.ok or result.workflow is None:
+            return result
+        # стадии кладут в result.workflow то dict, то Workflow
+        done = (
+            Workflow.model_validate(result.workflow)
+            if isinstance(result.workflow, dict)
+            else result.workflow
+        )
+        if done.status != "completed":
+            return result
+        try:
+            c = PerformMoveContext.model_validate(done.context or {})
+        except Exception:
+            return result
+
+        entry = c.entry
+        actor_id = entry.actor_npc_id if entry.actor_kind == "npc" else entry.actor_character_id
+
+        scene = action_context.scene
+        # Ход NPC ведёт мастер: NPC — источник хода (`source_npc_id`), а бросает персонаж.
+        # Очередь двигаем, если текущим по инициативе был либо NPC-источник, либо актор.
+        candidates = [str(x) for x in (entry.source_npc_id, actor_id) if x]
+        if not candidates:
+            return result
+        active_id = active_entity_id(scene.data)
+        turn_owner = next((x for x in candidates if x == active_id), candidates[-1])
+
+        present = [str(x.id) for x in (scene.characters or [])] + [str(x.id) for x in (scene.npcs or [])]
+        new_ini = advance_after_actor(scene.data, turn_owner, present)
+        if new_ini is None:
+            return result
+
+        result.sessionPatch = merge_patches(result.sessionPatch, scene_patch(scene.id, new_ini))
+        return result
 
     def patch(self, action_context: ActionContext) -> SubmitResult:
         wf, ctx = self._ctx(action_context)
@@ -294,6 +341,16 @@ class PerformMoveWorkflow(PerformMoveWorkflowBase):
         manifest_route = (wf_obj.stageData or {}).get("manifestNext") if isinstance(wf_obj.stageData, dict) else None
         if manifest_route and sub_key == "perform_move.change_manifest":
             wf_obj.stageData = {**(wf_obj.stageData or {}), "manifestNext": None}
+            if manifest_route == "stay":
+                # игрок отправил заявку мастеру: остаёмся на заявке до его решения
+                wf_obj.stageKey = phase
+                self._set_wizard_current_key(wf_obj, "perform_move.change_manifest")
+                mark_progress(wf_obj, "perform_move.change_manifest")
+                self._sync_context(wf_obj, ctx)
+                c = PerformMoveContext.model_validate(wf_obj.context or {})
+                self._attach_wizard(wf_obj, c)
+                result.workflow = dump(wf_obj)
+                return self._attach_accumulated_session_patch(wf_obj, result)
             if manifest_route == "damage_roll":
                 wf_obj.stageKey = phase
                 self._set_wizard_current_key(wf_obj, "perform_move.damage_roll")
@@ -453,7 +510,7 @@ class PerformMoveWorkflow(PerformMoveWorkflowBase):
             self._init_wizard_substep(wf, first or "perform_move.change_manifest")
             wf.stageData = {
                 **(wf.stageData or {}),
-                "damageQuickOptions": damage_quick_options(ctx.scene),
+                "damageQuickOptions": damage_quick_options(ctx.scene, self.full_codex),
             }
 
         if phase == "perform_move.roll":
@@ -506,11 +563,45 @@ class PerformMoveWorkflow(PerformMoveWorkflowBase):
 
         return None
 
+    @staticmethod
+    def _record_complication(c: PerformMoveContext) -> None:
+        """Косяк мастера на 7–9 попадает в итог хода (эффект gm_directive) и в журнал."""
+        text = (c.entry.gm_complication or "").strip()
+        if not text or c.entry.roll.outcome != "hit_7_9":
+            return
+        if not any(e.payload.get("complication") for e in c.entry.resolve.effects):
+            c.entry.resolve.effects.append(
+                EffectRecord(
+                    kind="gm_directive",
+                    payload={"text": text, "complication": True},
+                    text=text,
+                    applied=True,
+                )
+            )
+        line = f"Косяк (7–9): {text}"
+        if line not in c.entry.resolve.log_lines:
+            c.entry.resolve.log_lines.append(line)
+
+    @staticmethod
+    def _record_npc_source(c: PerformMoveContext) -> None:
+        """NPC-«повод» хода и его атака попадают в журнал итога."""
+        entry = c.entry
+        if not entry.source_npc_id:
+            return
+        name = entry.source_npc_name or "NPC"
+        attack = entry.npc_attack
+        line = f"{name}: {attack.description}" if attack and attack.description else f"{name} провоцирует ход"
+        if line not in entry.resolve.log_lines:
+            entry.resolve.log_lines.append(line)
+
     def _finalize_manifest_apply(self, wf: Workflow, ctx: StageCtx) -> None:
         import logging
 
         log = logging.getLogger("myapp")
         c = PerformMoveContext.model_validate(wf.context or {})
+        self._record_complication(c)
+        self._record_npc_source(c)
+        wf.stageData = {**(wf.stageData or {}), "complicationRecorded": True}
         grants_payload = [g.model_dump(mode="json") for g in (c.entry.resource_grants or [])]
         c.entry.resource_grants = []
         spell_spend_id = ""
@@ -646,6 +737,10 @@ class PerformMoveWorkflow(PerformMoveWorkflowBase):
         assemble_context(wf, ctx, c)
         self._sync_roll_from_stage(wf, c)
         self._sync_choose_from_stage(wf, c)
+        if (wf.stageData or {}).get("complicationRecorded"):
+            # пересборка эффектов выбора не должна терять косяк мастера
+            self._record_complication(c)
+            self._record_npc_source(c)
         wf.context = c.model_dump(mode="json")
         return c
 

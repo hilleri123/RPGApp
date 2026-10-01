@@ -11,7 +11,15 @@ import { EntityEditDialogShell, EntityEditDealogProps } from './common/EntityEdi
 import { useDialogMode } from './common/DialogModeContext';
 import { useLaunchedLineageExtras } from './common/LaunchedLineageExtras';
 
-export function CounterMainTab({ dlg, editingId }: { dlg: any; editingId?: string | null }) {
+export function CounterMainTab({
+  dlg,
+  editingId,
+  lockedCharacterId,
+}: {
+  dlg: any;
+  editingId?: string | null;
+  lockedCharacterId?: string | null;
+}) {
   const { readOnly } = useDialogMode();
   const { scenarioId } = useScenario();
 
@@ -26,6 +34,14 @@ export function CounterMainTab({ dlg, editingId }: { dlg: any; editingId?: strin
       ),
     [dlg.lookups.characters]
   );
+
+  const lockedCharName = useMemo(() => {
+    if (!lockedCharacterId) return null;
+    const hit = (dlg.lookups.characters ?? []).find(
+      (c: any) => String(c.id) === String(lockedCharacterId),
+    );
+    return hit?.name ? String(hit.name) : String(lockedCharacterId);
+  }, [lockedCharacterId, dlg.lookups.characters]);
 
   const counterId = editingId ?? null;
 
@@ -98,27 +114,43 @@ export function CounterMainTab({ dlg, editingId }: { dlg: any; editingId?: strin
         />
       </div>
 
-      <div>
-        <div className="text-xs text-gray-400 mb-1">Привязан к персонажу (опционально)</div>
-        <EntityComboBox
-          value={(dlg.form.character_id ?? '') as any}
-          items={charOptions}
-          placeholder="—"
-          readOnly={readOnly}
-          onChange={(id) => dlg.setForm((p: any) => ({ ...p, character_id: id === '' ? null : id }))}
-        />
-      </div>
+      {lockedCharacterId ? (
+        <div className="text-xs text-gray-400">
+          Привязан к персонажу:{' '}
+          <span className="text-gray-200">{lockedCharName}</span>
+        </div>
+      ) : (
+        <div>
+          <div className="text-xs text-gray-400 mb-1">Привязан к персонажу (опционально)</div>
+          <EntityComboBox
+            value={(dlg.form.character_id ?? '') as any}
+            items={charOptions}
+            placeholder="—"
+            readOnly={readOnly}
+            onChange={(id) => dlg.setForm((p: any) => ({ ...p, character_id: id === '' ? null : id }))}
+          />
+        </div>
+      )}
     </div>
   );
 }
 
-export function CounterEditDialog({ open, onClose, editingId, onSave, onEntitySaved, readOnly }: EntityEditDealogProps) {
+export function CounterEditDialog({
+  open,
+  onClose,
+  editingId,
+  onSave,
+  onEntitySaved,
+  readOnly,
+  lockedCharacterId = null,
+}: EntityEditDealogProps & { lockedCharacterId?: string | null }) {
   const { scenarioId } = useScenario();
 
   const dlg = useCounterDialog({
     open,
     scenarioId,
     counterId: editingId,
+    defaultCharacterId: lockedCharacterId,
     onSaved: async (id) => {
       await onEntitySaved?.(id);
       onSave?.();
@@ -143,7 +175,19 @@ export function CounterEditDialog({ open, onClose, editingId, onSave, onEntitySa
       readOnly={readOnly}
       onSave={() => dlg.save(false)}
       footer={footer}
-      tabs={[{ key: 'main', title: 'Основное', content: <CounterMainTab dlg={dlg} editingId={editingId} /> }]}
+      tabs={[
+        {
+          key: 'main',
+          title: 'Основное',
+          content: (
+            <CounterMainTab
+              dlg={dlg}
+              editingId={editingId}
+              lockedCharacterId={lockedCharacterId}
+            />
+          ),
+        },
+      ]}
     />
     {lineageDialog}
     </>

@@ -181,7 +181,8 @@ async def add_user_to_group(
             detail="Пользователь уже состоит в этой группе",
         )
 
-    permission = data.permission or scheme.RoleAccess.READ_ROLE.value
+    # Уровень участника — потолок (min с правами группы на сценарий), по умолчанию не режем.
+    permission = data.permission or scheme.RoleAccess.ALL_ROLE.value
     if permission not in _VALID_GROUP_MEMBER_PERMS:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -204,6 +205,48 @@ async def add_user_to_group(
         ) from exc
 
     return await get_group(data.group_id, current_user=current_user, db=db)
+
+@router.get("/{group_id}/member_levels", response_model=dict[str, str])
+async def get_member_levels(
+    group_id: UUID,
+    current_user: models.User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    """user_id -> уровень участника в группе (потолок прав на сценарии группы)."""
+    rows = await db.execute(
+        select(models.UserMasterGroup.user_id, models.UserMasterGroup.permission).where(
+            models.UserMasterGroup.master_group_id == group_id
+        )
+    )
+    return {str(uid): perm for uid, perm in rows.all()}
+
+
+@router.post("/set_user_permission", response_model=dict[str, str])
+async def set_user_permission(
+    data: scheme.MasterGroupAddUser,
+    current_user: models.User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    permission = data.permission or ""
+    if permission not in _VALID_GROUP_MEMBER_PERMS:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Недопустимый уровень прав: {permission}",
+        )
+    membership = (
+        await db.execute(
+            select(models.UserMasterGroup).where(
+                models.UserMasterGroup.user_id == data.user_id,
+                models.UserMasterGroup.master_group_id == data.group_id,
+            )
+        )
+    ).scalars().first()
+    if not membership:
+        raise HTTPException(status_code=404, detail="Пользователь не найден в группе")
+    membership.permission = permission
+    await db.commit()
+    return {"user_id": str(data.user_id), "permission": permission}
+
 
 @router.post("/remove_user")
 async def remove_user_from_group(

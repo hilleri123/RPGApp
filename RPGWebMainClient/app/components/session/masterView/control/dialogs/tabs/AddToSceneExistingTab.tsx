@@ -18,9 +18,66 @@ import {
   collectTagKeysFromItems,
   entityHasAllTags,
 } from '@/app/components/scenarios/dialogs/common/EntityTagFilterChips';
+import {
+  collectItemOwnerOptions,
+  itemOwnerFilterKey,
+  itemOwnerFilterLabel,
+  matchItemOwnerFilter,
+  type ItemOwnerFilterValue,
+} from '@/app/components/scenarios/lists/common/itemOwnerFilter';
+import type { ItemOwnerShort } from '@/app/services/types2';
 
 function norm(s: any) {
   return String(s ?? '').trim().toLowerCase();
+}
+
+type CatalogItem = {
+  item: any;
+  owner: ItemOwnerShort | null;
+};
+
+function flattenSessionItems(opts: {
+  freeItems: any[];
+  characters: any[];
+  npcs: any[];
+}): CatalogItem[] {
+  const out: CatalogItem[] = [];
+  const seen = new Set<string>();
+
+  const push = (raw: any, owner: ItemOwnerShort | null) => {
+    const id = String(raw?.id ?? '');
+    if (!id || seen.has(id)) return;
+    seen.add(id);
+    out.push({ item: raw, owner });
+  };
+
+  for (const it of opts.freeItems ?? []) push(it, null);
+
+  for (const ch of opts.characters ?? []) {
+    const owner: ItemOwnerShort = {
+      type: 'character',
+      id: String(ch?.id ?? ''),
+      name: String(ch?.name ?? ''),
+      icon_url: ch?.icon_url ?? null,
+      img_url: ch?.img_url ?? null,
+    };
+    if (!owner.id) continue;
+    for (const it of ch?.owned_items ?? ch?.owneditems ?? []) push(it, owner);
+  }
+
+  for (const npc of opts.npcs ?? []) {
+    const owner: ItemOwnerShort = {
+      type: 'npc',
+      id: String(npc?.id ?? ''),
+      name: String(npc?.name ?? ''),
+      icon_url: npc?.icon_url ?? null,
+      img_url: npc?.img_url ?? null,
+    };
+    if (!owner.id) continue;
+    for (const it of npc?.owned_items ?? npc?.owneditems ?? []) push(it, owner);
+  }
+
+  return out;
 }
 
 type Presence = Map<string, Set<string>>;
@@ -164,6 +221,7 @@ export function AddToSceneExistingTab({
     scenes,
     npcs,
     items,
+    characters,
     moveToScene,
     moveOutScene,
     makeElementPublic,
@@ -174,6 +232,7 @@ export function AddToSceneExistingTab({
   const [confirmLoading, setConfirmLoading] = useState(false);
   const [pendingDelete, setPendingDelete] = useState<{ kind: 'npc' | 'item'; id: string; name?: string } | null>(null);
   const [activeTags, setActiveTags] = useState<string[]>([]);
+  const [ownerFilter, setOwnerFilter] = useState<ItemOwnerFilterValue>('');
 
   const npcPresence = useMemo(() => collectPresence(scenes ?? [], 'npc'), [scenes]);
   const itemPresence = useMemo(() => collectPresence(scenes ?? [], 'item'), [scenes]);
@@ -182,10 +241,28 @@ export function AddToSceneExistingTab({
   const qq = norm(q);
   const requiredTags = requiredTagsProp ?? [];
 
+  const catalogItems = useMemo(
+    () =>
+      flattenSessionItems({
+        freeItems: Array.isArray(items) ? items : [],
+        characters: Array.isArray(characters) ? characters : [],
+        npcs: Array.isArray(npcs) ? npcs : [],
+      }),
+    [items, characters, npcs],
+  );
+
+  const ownerOptions = useMemo(
+    () => collectItemOwnerOptions(catalogItems.map((row) => ({ owner: row.owner }))),
+    [catalogItems],
+  );
+
   const tagOptions = useMemo(() => {
-    const list = kind === 'npc' ? (Array.isArray(npcs) ? npcs : []) : (Array.isArray(items) ? items : []);
+    const list =
+      kind === 'npc'
+        ? (Array.isArray(npcs) ? npcs : [])
+        : catalogItems.map((row) => row.item);
     return collectTagKeysFromItems(list);
-  }, [kind, npcs, items]);
+  }, [kind, npcs, catalogItems]);
 
   const filteredNpcs = useMemo(() => {
     const list = Array.isArray(npcs) ? npcs : [];
@@ -198,14 +275,14 @@ export function AddToSceneExistingTab({
   }, [npcs, qq, activeTags, requiredTags]);
 
   const filteredItems = useMemo(() => {
-    const list = Array.isArray(items) ? items : [];
-    return list.filter((x: any) => {
-      if (!entityHasAllTags(x?.tags, requiredTags)) return false;
-      if (!entityHasAllTags(x?.tags, activeTags)) return false;
+    return catalogItems.filter(({ item, owner }) => {
+      if (!matchItemOwnerFilter(owner, ownerFilter)) return false;
+      if (!entityHasAllTags(item?.tags, requiredTags)) return false;
+      if (!entityHasAllTags(item?.tags, activeTags)) return false;
       if (!qq) return true;
-      return norm(x?.name).includes(qq);
+      return norm(item?.name).includes(qq);
     });
-  }, [items, qq, activeTags, requiredTags]);
+  }, [catalogItems, qq, activeTags, requiredTags, ownerFilter]);
 
   const canUse = !!isMaster && !!currentSceneId;
 
@@ -321,6 +398,7 @@ export function AddToSceneExistingTab({
             setExistingKind={(k) => {
               setExistingKind(k);
               setActiveTags([]);
+              setOwnerFilter('');
             }}
           />
         ) : null}
@@ -329,6 +407,35 @@ export function AddToSceneExistingTab({
           <div className="text-xs text-gray-400 mb-1">Поиск по имени</div>
           <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Начни вводить..." />
         </div>
+
+        {kind === 'item' ? (
+          <div>
+            <div className="text-xs text-gray-400 mb-1">У кого находятся</div>
+            <div className="flex flex-wrap gap-2 items-center">
+              <select
+                value={ownerFilter}
+                onChange={(e) => setOwnerFilter(e.target.value)}
+                className="rounded-md border border-gray-700 bg-gray-950 text-gray-100 text-sm px-2 py-1.5 max-w-full"
+              >
+                <option value="">Все владельцы</option>
+                {ownerOptions.map((opt) => (
+                  <option key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </option>
+                ))}
+              </select>
+              {ownerFilter ? (
+                <button
+                  type="button"
+                  onClick={() => setOwnerFilter('')}
+                  className="text-xs text-gray-400 hover:text-gray-200 px-2 py-1 rounded border border-gray-700"
+                >
+                  сбросить
+                </button>
+              ) : null}
+            </div>
+          </div>
+        ) : null}
 
         {tagOptions.length > 0 ? (
           <div>
@@ -375,30 +482,35 @@ export function AddToSceneExistingTab({
                     </div>
                   );
                 })
-              : filteredItems.map((item: any) => {
+              : filteredItems.map(({ item, owner }) => {
                   const id = item?.id;
                   const opacity = alphaClass(id, currentSceneId, itemPresence);
                   const state = currentSceneStateFor({ scenes: scenes ?? [], currentSceneId, kind: 'item', entityId: id });
+                  const ownerLabel = itemOwnerFilterLabel(owner);
 
                   const title = (() => {
+                    const parts: string[] = [`У: ${ownerLabel}`];
                     const set = itemPresence.get(String(id ?? ''));
-                    if (!currentSceneId) return undefined;
-                    if (set?.has(String(currentSceneId))) return 'Уже в текущей сцене';
-                    if (set && set.size > 0) return 'Есть на других сценах';
-                    return 'Не в сценах';
+                    if (currentSceneId) {
+                      if (set?.has(String(currentSceneId))) parts.push('Уже в текущей сцене');
+                      else if (set && set.size > 0) parts.push('Есть на других сценах');
+                      else parts.push('Не в сценах');
+                    }
+                    return parts.join(' · ');
                   })();
 
                   return (
-                    <div key={String(id)} className={opacity} title={title}>
+                    <div key={`${itemOwnerFilterKey(owner)}:${String(id)}`} className={opacity} title={title}>
                       <ItemDraggableSquare
                         item={item}
                         isMaster={isMaster}
+                        ownerLabel={ownerLabel}
                         onInfo={onViewItem ? () => onViewItem(item) : undefined}
                         contextItems={buildMenu({
                           entity: item,
                           kind: 'item',
                           state,
-                          canUse,
+                          canUse: canUse && !owner,
                           currentSceneId,
                           onEdit: onEditItem,
                         })}

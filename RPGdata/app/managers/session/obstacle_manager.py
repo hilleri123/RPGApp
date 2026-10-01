@@ -20,12 +20,11 @@ class SessionObstacleManager(SessionSceneManager, SessionUserManager, SessionDat
 
     async def _upsert_obstacle_in_inner(self, obstacle: scheme.ObstacleOut) -> bool:
         """
-        Обновляет или добавляет препятствие в inner.obstacles (или куда ты их хранишь).
-        Если у тебя нет отдельного списка obstacles в inner, можно вообще пропустить этот шаг
-        и держать препятствия только внутри сцен.
+        Обновляет или добавляет препятствие в общем списке inner.obstacles
+        и записывает его data/tags в БД (см. set_field).
         """
         inner = await self.get_inner()
-        obstacles = list(inner.counters or [])  # <-- заменишь на inner.obstacles, если есть
+        obstacles = list(inner.obstacles or [])
 
         found = False
         for i, ob in enumerate(obstacles):

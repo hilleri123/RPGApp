@@ -3,4 +3,10 @@ from .perform_move import *
 from .prepare_spells import *
 from .level_up import *
 
-workflows = [PerformMoveWorkflow, PrepareSpellsWorkflow, LevelUpWorkflow]
+workflows = [
+    PerformMoveWorkflow,
+    PrepareSpellsWorkflow,
+    LevelUpWorkflow,
+    RollInitiativeWorkflow,
+    InitiativeTurnWorkflow,
+]

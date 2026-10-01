@@ -4,7 +4,7 @@ import { useScenario } from '../ScenarioContext';
 import { useCharacterDialog } from '@/app/services/hooks/scenario/dialogs/useCharacterDialog';
 import { EntityEditDealogProps, EntityEditDialogShell } from './common/EntityEditDialogShell';
 
-import { CharacterMainTab, CharacterItemsTab, CharacterRulesTab } from './tabs/character';
+import { CharacterMainTab, CharacterItemsTab, CharacterRulesTab, CharacterCountersTab } from './tabs/character';
 import { EntityMasterNoteBacklinksTab } from '@/app/components/masterNotes/EntityMasterNoteBacklinksTab';
 import { openMasterWikiNote } from '@/app/services/stores/masterUi';
 import { useLaunchedLineageExtras } from './common/LaunchedLineageExtras';
@@ -47,6 +47,15 @@ export function CharacterEditDialog({ open, onClose, editingId, onSave, readOnly
           title: 'Предметы',
           content: <CharacterItemsTab dlg={dlg} />,
         },
+        ...(editingId && !readOnly
+          ? [
+              {
+                key: 'counters',
+                title: 'Счётчики',
+                content: <CharacterCountersTab characterId={editingId} />,
+              },
+            ]
+          : []),
         ...(editingId
           ? [
               {

@@ -16,6 +16,8 @@ from app.managers import lobby_manager, master_connection_manager
 from app.managers.connection_manager import is_websocket_gone
 from app.infrastructure.redis_service import redis_client
 from app.logger import logger
+from app.services.bot_notify_service import schedule_lobby_invited, schedule_session_started
+from sqlalchemy import or_
 
 
 
@@ -32,6 +34,79 @@ async def _notify_lobby_closed_and_delete(lobby_m, connection_manager) -> None:
                 pass
     finally:
         await lobby_m.delete_lobby()
+
+
+def online_user_ids(lobby: scheme.Lobby, connection_manager) -> list:
+    """Кто из участников лобби прямо сейчас подключён. Это не поле Redis: оно
+    считается по живым сокетам при каждой рассылке."""
+    ids = []
+    seen = set()
+
+    def add(user) -> None:
+        if user is None or user.id in seen:
+            return
+        seen.add(user.id)
+        if connection_manager.is_online(user.id):
+            ids.append(user.id)
+
+    add(lobby.master)
+    for u in lobby.invited_users or []:
+        add(u)
+    for u in lobby.users or []:
+        add(u)
+    for p in lobby.players or []:
+        add(p.user)
+    return ids
+
+
+async def lobby_payload(lobby_m, connection_manager) -> Optional[Dict[str, Any]]:
+    try:
+        lobby = await lobby_m.get_lobby()
+        lobby.online_user_ids = online_user_ids(lobby, connection_manager)
+        return lobby.model_dump(mode="json")
+    except Exception:
+        logger.exception("get_lobby validation failed, using raw redis state")
+        return await redis_client.json().get(lobby_m._lobby_key())
+
+
+async def broadcast_lobby(lobby_m, connection_manager) -> None:
+    payload = await lobby_payload(lobby_m, connection_manager)
+    if not payload:
+        return
+    for member in await lobby_m.get_recipients():
+        await connection_manager.send_json(member.id, payload)
+
+
+async def _send_error(connection_manager, user_id, code: str, message: str) -> None:
+    err = scheme.LobbyError(code=code, message=message)
+    await connection_manager.send_json(user_id, err.model_dump(mode="json"))
+
+
+async def _invite_user(lobby_m, connection_manager, master: models.User, target_id) -> bool:
+    if target_id == master.id:
+        await _send_error(connection_manager, master.id, "invite_failed", "Мастер уже в лобби")
+        return False
+    target = None
+    async for session in get_db():
+        target = (
+            await session.execute(select(models.User).where(models.User.id == target_id))
+        ).scalars().first()
+    if target is None or not target.is_active:
+        await _send_error(connection_manager, master.id, "invite_failed", "Пользователь не найден")
+        return False
+    if await lobby_m.is_player(target):
+        await _send_error(connection_manager, master.id, "invite_failed", "Игрок уже в лобби")
+        return False
+    if not await lobby_m.invite_user(target):
+        return False
+    lobby = await lobby_m.get_lobby()
+    schedule_lobby_invited(
+        lobby_id=lobby.id,
+        user_ids=[target.id],
+        lobby_name=lobby.name,
+        master_name=master.full_name,
+    )
+    return True
 
 
 @router.websocket("/ws/{lobby_id}")
@@ -60,14 +135,7 @@ async def websocket_endpoint(
                 await connection_manager.send_json(member.id, data)
 
         async def send_all_lobby():
-            try:
-                lobby = await lobby_m.get_lobby()
-                payload = lobby.model_dump(mode='json')
-            except Exception:
-                logger.exception("get_lobby validation failed, broadcasting raw redis state")
-                payload = await redis_client.json().get(lobby_m._lobby_key())
-            if payload:
-                await send_all(payload)
+            await broadcast_lobby(lobby_m, connection_manager)
 
         is_master = await lobby_m.is_master(current_user)
         is_user = await lobby_m.is_user(current_user)
@@ -81,11 +149,20 @@ async def websocket_endpoint(
                 await connection_manager.send_json(current_user.id, err.model_dump(mode="json"))
                 await connection_manager.disconnect(current_user.id, websocket)
                 return
+            if not await lobby_m.is_open() and not await lobby_m.is_invited(current_user):
+                await _send_error(
+                    connection_manager,
+                    current_user.id,
+                    "closed",
+                    "Лобби закрыто: мастер должен добавить вас или открыть его для всех",
+                )
+                await connection_manager.disconnect(current_user.id, websocket)
+                return
             await lobby_m.add_to_lobby(current_user)
-            await send_all_lobby()
 
-        lobby = await lobby_m.get_lobby()
-        await connection_manager.send_json(current_user.id, lobby.model_dump(mode='json'))
+        # Присутствие меняется при каждом входе, в том числе реконнекте игрока,
+        # поэтому рассылка не зависит от того, добавляли ли пользователя в список.
+        await send_all_lobby()
 
         while True:
             is_master = await lobby_m.is_master(current_user)
@@ -96,11 +173,9 @@ async def websocket_endpoint(
             logger.debug(f"{raw_data=}")
 
             if raw_data.get("msg_type") == "request_sync":
-                lobby = await lobby_m.get_lobby()
-                await connection_manager.send_json(
-                    current_user.id,
-                    lobby.model_dump(mode="json"),
-                )
+                payload = await lobby_payload(lobby_m, connection_manager)
+                if payload:
+                    await connection_manager.send_json(current_user.id, payload)
                 continue
 
             action = lobby_scheme.ActionBase.parse_action(raw_data)
@@ -114,6 +189,14 @@ async def websocket_endpoint(
                     ok = await lobby_m.select_lobby_party(action.party_id)
                 elif isinstance(action, lobby_scheme.MasterSelectCampaignAction):
                     ok = await lobby_m.select_lobby_campaign(action.campaign_id)
+                elif isinstance(action, lobby_scheme.MasterSetLobbyOpen):
+                    ok = await lobby_m.set_open(action.is_open)
+                elif isinstance(action, lobby_scheme.MasterInviteUser):
+                    ok = await _invite_user(
+                        lobby_m, connection_manager, current_user, action.invite_user_id
+                    )
+                elif isinstance(action, lobby_scheme.MasterUninviteUser):
+                    ok = await lobby_m.uninvite_user(action.invite_user_id)
                 elif isinstance(action, lobby_scheme.MasterKickPlayer):
                     ok = await lobby_m.kick_player(action.player_id)
                 elif isinstance(action, lobby_scheme.MasterDeselectPlayerCharacter):
@@ -132,9 +215,20 @@ async def websocket_endpoint(
                         )
                 elif isinstance(action, lobby_scheme.MasterStartSession):
                     try:
+                        lobby_before = await lobby_m.get_lobby()
                         data = await lobby_m.start_session()
                         if data:
                             await send_all(data.model_dump(mode="json"))
+                            schedule_session_started(
+                                session_id=data.session_id,
+                                user_ids=[
+                                    p.user.id
+                                    for p in (lobby_before.players or [])
+                                    if p.user and p.user.id != current_user.id
+                                ],
+                                lobby_name=lobby_before.name,
+                                scenario_name=getattr(lobby_before.scenario, "name", None),
+                            )
                         else:
                             err = scheme.LobbyError(
                                 code="start_session_failed",
@@ -213,12 +307,16 @@ async def websocket_endpoint(
             pass
     finally:
         if current_user is not None:
+            await connection_manager.disconnect(current_user.id, websocket)
             try:
                 if await lobby_m.lobby_exists():
-                    await lobby_m.remove_from_lobby(current_user)
+                    # Закрытая вкладка не должна выкидывать человека, у которого
+                    # открыта вторая: список «ожидающих» чистим по последнему сокету.
+                    if not connection_manager.is_online(current_user.id):
+                        await lobby_m.remove_from_lobby(current_user)
+                    await broadcast_lobby(lobby_m, connection_manager)
             except Exception:
                 pass
-            await connection_manager.disconnect(current_user.id, websocket)
 
 
 @router.post("")
@@ -238,7 +336,55 @@ async def create_lobby(
 async def list_lobbies(
     current_user: models.User = Depends(get_current_user),
     ):
-    return await lobby_manager.list_lobbies()
+    return await lobby_manager.list_lobbies(current_user.id)
+
+
+@router.get("/{lobby_id}/user_search", response_model=List[scheme.LobbyUserHit])
+async def search_users_to_invite(
+    lobby_id: str,
+    q: str = "",
+    current_user: models.User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Поиск игроков по имени или Telegram-нику для приглашения в лобби (только мастер)."""
+    lobby_m = lobby_manager[lobby_id]
+    if not await lobby_m.lobby_exists():
+        raise HTTPException(status_code=404, detail="lobby not found")
+    if not await lobby_m.is_master(current_user):
+        raise HTTPException(status_code=403, detail="only lobby master can invite")
+
+    needle = q.strip().lstrip("@")
+    if len(needle) < 2:
+        return []
+    # Совпадения по email намеренно не ищем: по префиксу это перебор чужих адресов.
+    escaped = needle.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+    pattern = "%" + escaped + "%"
+    stmt = (
+        select(models.User)
+        .where(
+            models.User.is_active.is_not(False),
+            models.User.id != current_user.id,
+            or_(
+                models.User.full_name.ilike(pattern, escape="\\"),
+                models.User.tg.ilike(pattern, escape="\\"),
+            ),
+        )
+        .order_by(models.User.full_name.asc().nulls_last())
+        .limit(10)
+    )
+    rows = (await db.execute(stmt)).scalars().all()
+    invited = {str(u.get("id")) for u in await lobby_m._get_field("invited_users", [])}
+    return [
+        scheme.LobbyUserHit(
+            id=u.id,
+            full_name=u.full_name,
+            tg=u.tg,
+            icon_url=u.icon_url,
+            has_telegram=u.telegram_id is not None,
+        )
+        for u in rows
+        if str(u.id) not in invited
+    ]
 
 
 

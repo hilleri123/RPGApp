@@ -1,5 +1,7 @@
 'use client';
 
+import { useScenarioFocusStore } from '@/app/services/stores/scenarioFocus';
+
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -595,6 +597,17 @@ export default function ScenarioFrontsList() {
     void reload();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [scenarioId]);
+
+  const focusTarget = useScenarioFocusStore((st) => st.target);
+  const setFocusTarget = useScenarioFocusStore((st) => st.setTarget);
+  useEffect(() => {
+    if (!focusTarget || loading) return;
+    if (!items.some((it) => String(it.id) === focusTarget.id)) return; // цель из другой вкладки
+    setFocusTarget(null);
+    setEditingId(focusTarget.id);
+    setReadOnly(!canEditEntities);
+    setDialogOpen(true);
+  }, [focusTarget, loading, items, canEditEntities, setFocusTarget]);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;

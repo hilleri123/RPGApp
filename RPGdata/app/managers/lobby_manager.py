@@ -583,6 +583,65 @@ class CurrentLobbyManager:
             banned,
         )
 
+    async def _get_field(self, name: str, default):
+        """Поле лобби с дефолтом: лобби, созданные до появления поля, пути не содержат."""
+        try:
+            value = await redis_client.json().get(self._lobby_key(), self._m_path(name))
+        except Exception:
+            return default
+        return default if value is None else value
+
+    async def is_open(self) -> bool:
+        return bool(await self._get_field('is_open', False))
+
+    async def set_open(self, is_open: bool) -> bool:
+        if not await self.lobby_exists():
+            return False
+        await redis_client.json().set(self._lobby_key(), self._m_path('is_open'), bool(is_open))
+        return True
+
+    async def is_invited(self, user: models.User) -> bool:
+        invited = await self._get_field('invited_users', [])
+        return any(str(u.get("id")) == str(user.id) for u in invited)
+
+    async def invite_user(self, user: models.User) -> bool:
+        """True, если приглашение новое. Приглашение снимает бан: мастер передумал."""
+        invited = await self._get_field('invited_users', [])
+        if any(str(u.get("id")) == str(user.id) for u in invited):
+            return False
+        invited.append(scheme.User.model_validate(user).model_dump(mode="json"))
+        await redis_client.json().set(self._lobby_key(), self._m_path('invited_users'), invited)
+        await self._unban_user_id(user.id)
+        return True
+
+    async def uninvite_user(self, user_id: uuid.UUID) -> bool:
+        """Снимает приглашение; если человек уже игрок — выгоняет как кик."""
+        changed = False
+        invited = await self._get_field('invited_users', [])
+        rest = [u for u in invited if str(u.get("id")) != str(user_id)]
+        if len(rest) != len(invited):
+            await redis_client.json().set(self._lobby_key(), self._m_path('invited_users'), rest)
+            changed = True
+
+        users = await self._get_field('users', [])
+        rest_users = [u for u in users if str(u.get("id")) != str(user_id)]
+        if len(rest_users) != len(users):
+            await redis_client.json().set(self._lobby_key(), self._m_path('users'), rest_users)
+            changed = True
+
+        for p in await self._get_field('players', []):
+            if str((p.get("user") or {}).get("id")) == str(user_id):
+                if await self.kick_player(uuid.UUID(str(p["id"]))):
+                    changed = True
+                break
+        return changed
+
+    async def _unban_user_id(self, user_id: uuid.UUID) -> None:
+        banned = await self._get_field('banned_user_ids', [])
+        rest = [b for b in banned if str(b) != str(user_id)]
+        if len(rest) != len(banned):
+            await redis_client.json().set(self._lobby_key(), self._m_path('banned_user_ids'), rest)
+
     async def kick_player(self, player_id: uuid.UUID):
         """Кик мастера должен держаться: выгнанный не возвращается реконнектом."""
         user_id = await self._user_id_of_player(player_id)
@@ -786,24 +845,48 @@ class LobbyManager:
             self.managers[lobby_id] = CurrentLobbyManager(lobby_id)
         return self.managers[lobby_id]
     
-    async def list_lobbies(self) -> List[scheme.LobbyPreview]:
+    @staticmethod
+    def lobby_visible_to(lobby: scheme.Lobby, user_id: Optional[uuid.UUID]) -> bool:
+        """Закрытое лобби видят только мастер, приглашённые и уже вошедшие."""
+        if lobby.is_open:
+            return True
+        if user_id is None:
+            return False
+        if lobby.master and lobby.master.id == user_id:
+            return True
+        if any(u.id == user_id for u in (lobby.invited_users or [])):
+            return True
+        if any(u.id == user_id for u in (lobby.users or [])):
+            return True
+        return any(p.user and p.user.id == user_id for p in (lobby.players or []))
+
+    async def list_lobbies(self, viewer_id: Optional[uuid.UUID] = None) -> List[scheme.LobbyPreview]:
         lobbies = []
         async for key in redis_client.scan_iter(f'{LOBBY_KEY_PREFIX}:*'):
             lobby_data = await redis_client.json().get(key)
-            if lobby_data:
-                lobbies.append(
-                    scheme.LobbyPreview.from_lobby(scheme.Lobby(**lobby_data))
-                )
+            if not lobby_data:
+                continue
+            lobby = scheme.Lobby(**lobby_data)
+            if not self.lobby_visible_to(lobby, viewer_id):
+                continue
+            lobbies.append(scheme.LobbyPreview.from_lobby(lobby, viewer_id))
         return lobbies
 
     async def create_lobby(self, lobby_data: scheme.LobbyCreate, current_user: models.User) -> scheme.Lobby:
         lobby_id = str(uuid.uuid4())
         #TODO lobby_data.master_id
 
+        # Лобби всегда рождается закрытым: открывает его уже мастер, а приглашённых
+        # и присутствие клиент задавать не может.
+        payload = lobby_data.model_dump(
+            mode="json",
+            exclude={"is_open", "invited_users", "online_user_ids", "banned_user_ids"},
+        )
         lobby = scheme.Lobby(
             id=lobby_id,
             master=scheme.User.model_validate(current_user),
-            **lobby_data.model_dump(mode="json")
+            is_open=False,
+            **payload,
         )
         await redis_client.json().set(
             f'{LOBBY_KEY_PREFIX}:{lobby_id}',

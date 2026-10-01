@@ -111,7 +111,7 @@ function useAnimatedDice(finalDice: number[], animKey?: string) {
 }
 
 
-function SeedTooltip({ src }: { src: string }) {
+export function SeedTooltip({ src }: { src: string }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 

@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.auth import get_current_user, get_current_user_ws
 from app.managers import observer_channels, ChannelKey, session_manager, master_connection_manager
 from app.managers.connection_manager import is_websocket_gone
+from app.managers.session import expand_dependent_fields
 from app.infrastructure.database import get_async_session as get_db
 from app import models, scheme
 from app.logger import logger
@@ -14,6 +15,7 @@ from fastapi import status
 # новые ws сообщения
 from app.routes._helpers import validate_entity_data
 from app.routes.websocket.ws_rpc import SessionWsRpcHandler
+from app.services import ws_idempotency
 from app.scheme.session.ws_messages import (
     MasterSessionInit, MasterSessionUpdate,
     PlayerSessionInit, PlayerSessionUpdate,
@@ -48,6 +50,7 @@ async def websocket_endpoint(
     connection_manager = master_connection_manager["session"]
     session_m = await session_manager.ensure_manager(session_id)
     current_user = None
+    active_claim: str | None = None
     try:
         await websocket.accept()
         current_user = await get_current_user_ws(websocket, db)
@@ -101,7 +104,7 @@ async def websocket_endpoint(
                 await connection_manager.send_json(current_user.id, msg.model_dump(mode="json"))
 
         async def broadcast_updates(fields: list[str]):
-            fields = _normalize_fields(fields)
+            fields = expand_dependent_fields(_normalize_fields(fields))
 
             master_fields = session_m._filter_fields_for_master(fields)
             player_fields = session_m._filter_fields_for_player(fields)
@@ -165,7 +168,23 @@ async def websocket_endpoint(
             send_json_to_current=lambda payload: connection_manager.send_json(current_user.id, payload),
         )
 
+        # active_claim: claim of the message being processed right now; released if processing fails so
+        # that the client's retry after reconnect is not swallowed as a "duplicate".
+        async def ack(client_msg_id: str | None, *, duplicate: bool = False, ok: bool = True) -> None:
+            if not client_msg_id:
+                return
+            await connection_manager.send_json(
+                current_user.id,
+                {
+                    "msg_type": "action_ack",
+                    "client_msg_id": client_msg_id,
+                    "duplicate": duplicate,
+                    "ok": ok,
+                },
+            )
+
         while True:
+            active_claim = None
             raw_data = await websocket.receive_json()
 
             logger.debug(f"{is_master=} {is_player=} {raw_data=}")
@@ -182,8 +201,17 @@ async def websocket_endpoint(
                 await broadcast_updates(fields)
                 continue
 
+            client_msg_id = ws_idempotency.normalize_client_msg_id(raw_data.pop("client_msg_id", None))
+
             action = scheme.SessionActionBase.parse_action(raw_data)
             logger.debug(f"{action=}")
+
+            if client_msg_id:
+                if not await ws_idempotency.claim(session_id, current_user.id, client_msg_id):
+                    logger.info(f"duplicate ws action dropped: {client_msg_id=} {raw_data.get('msg_type')=}")
+                    await ack(client_msg_id, duplicate=True)
+                    continue
+                active_claim = client_msg_id
 
             ok = False
             fields: list[str] = []
@@ -421,6 +449,11 @@ async def websocket_endpoint(
             if ok:
                 await broadcast_updates(fields)
                 await broadcast_observer_updates(fields)
+            elif client_msg_id:
+                # Отказ не менял состояние: разрешаем повтор с тем же id.
+                await ws_idempotency.release(session_id, current_user.id, client_msg_id)
+            active_claim = None
+            await ack(client_msg_id, ok=ok)
 
     except WebSocketException as e:
         # нет токена / политика / и т.п.
@@ -439,6 +472,8 @@ async def websocket_endpoint(
                 pass
     except Exception:
         logger.exception("session websocket error")
+        if active_claim:
+            await ws_idempotency.release(session_id, current_user.id, active_claim)
         try:
             await websocket.close(code=status.WS_1011_INTERNAL_ERROR)
         except Exception:

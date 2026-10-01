@@ -103,7 +103,8 @@ async def update_counter(
     if "character_id" in data and data["character_id"] is not None:
         res = await db.execute(
             select(models.PlayerCharacter).where(
-                models.PlayerCharacter.id == data["character_id"]
+                models.PlayerCharacter.id == data["character_id"],
+                models.PlayerCharacter.scenario_id == scenario.id,
             )
         )
         if not res.scalars().first():

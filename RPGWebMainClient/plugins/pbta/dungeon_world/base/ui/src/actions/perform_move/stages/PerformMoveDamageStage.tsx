@@ -1,13 +1,14 @@
 'use client';
 
 import React, { useEffect, useMemo, useState } from 'react';
-import { Dices, User, Skull, Zap } from 'lucide-react';
-import { CanvasSeed } from '@/plugins/common/ui';
+import { Dices, Zap } from 'lucide-react';
+import { CanvasSeed, EntitySquare } from '@/plugins/common/ui';
+import { contextEntities, orderParticipants, readInitiative, type SceneEntityRef } from '../../../shared/initiative';
 import { getSceneBundle } from '@/plugins/common/types/actionSelectors';
 import { extractMoveResolution } from '../components/moveResolution';
 import { MoveResolutionCard } from '../components/MoveResolutionCard';
 
-type EntityRef = { kind: 'character' | 'npc'; id: string; name: string };
+type EntityRef = Pick<SceneEntityRef, 'kind' | 'id' | 'name' | 'iconUrl' | 'color' | 'isEnemy' | 'isDead'>;
 type DieChip = { dieIndex: number; value: number };
 type Allocation = { die_index: number; value: number; target_kind: string; target_id: string };
 type RollState = {
@@ -23,19 +24,9 @@ function targetKey(kind: string, id: string) {
   return `${kind}:${id}`;
 }
 
-function buildEntities(scene: any): EntityRef[] {
-  return [
-    ...(Array.isArray(scene?.characters) ? scene.characters : []).map((x: any) => ({
-      kind: 'character' as const,
-      id: String(x.id),
-      name: String(x.name ?? x.id),
-    })),
-    ...(Array.isArray(scene?.npcs) ? scene.npcs : []).map((x: any) => ({
-      kind: 'npc' as const,
-      id: String(x.id),
-      name: String(x.name ?? x.id),
-    })),
-  ];
+/** Цели по порядку инициативы; без неё — сначала персонажи, потом NPC. */
+function buildEntities(scene: any, players?: unknown): EntityRef[] {
+  return orderParticipants(contextEntities(scene, players), readInitiative(scene?.data)).map((x) => x.entity);
 }
 
 function sumForTarget(allocations: Allocation[], entity: EntityRef) {
@@ -61,7 +52,7 @@ export function PerformMoveDamageStage({
   user_id,
   readOnly,
 }: any) {
-  const { scene } = getSceneBundle(action);
+  const { scene, players } = getSceneBundle(action);
   const entry = action?.workflow?.context?.entry ?? {};
   const allClaims: any[] = Array.isArray(entry?.damage_claims) ? entry.damage_claims : [];
   const gmUserId = String(action?.participants?.gmUserId ?? '');
@@ -75,7 +66,7 @@ export function PerformMoveDamageStage({
   const isRollerOnly = Boolean(myId && !isOwner);
 
   const rollsById: Record<string, RollState> = value?.rollsById ?? {};
-  const entities = useMemo(() => buildEntities(scene), [scene]);
+  const entities = useMemo(() => buildEntities(scene, players), [scene, players]);
   const moveInfo = useMemo(() => extractMoveResolution(action), [action]);
   const [dragDie, setDragDie] = useState<DieChip | null>(null);
 
@@ -218,7 +209,8 @@ export function PerformMoveDamageStage({
           <div key={claim.id} className={`rounded border p-3 space-y-3 ${isHeal ? 'border-emerald-400/20' : 'border-white/10'}`}>
             <div className="text-sm">
               <div className="font-medium text-white">
-                {claim.source_label} → {claim.target_label}
+                {claim.source_label}
+                {claim.source_attack_name ? ` (${claim.source_attack_name})` : ''} → {claim.target_label}
                 {isHeal ? ' · лечение' : ''}
               </div>
               <div className="text-white/60">
@@ -310,11 +302,16 @@ export function PerformMoveDamageStage({
                       >
                         <div className="flex items-center justify-between gap-2 text-sm">
                           <div className="flex items-center gap-2 text-white/90">
-                            {entity.kind === 'character' ? (
-                              <User className="w-4 h-4 text-cyan-300" />
-                            ) : (
-                              <Skull className="w-4 h-4 text-red-300" />
-                            )}
+                            <EntitySquare
+                              name={entity.name}
+                              kind={entity.kind}
+                              iconUrl={entity.iconUrl}
+                              color={entity.color}
+                              isEnemy={entity.isEnemy}
+                              isDead={entity.isDead}
+                              showName={false}
+                              style={{ width: '2rem', height: '2rem' }}
+                            />
                             {entity.name}
                           </div>
                           <span className={`font-mono ${isHeal ? 'text-emerald-200' : 'text-red-200'}`}>

@@ -51,13 +51,9 @@ def has_at_least(actual: object | None, required: object | None) -> bool:
     return permission_rank(actual) >= permission_rank(required)
 
 
-async def _user_group_ids(db: AsyncSession, user_id: UUID) -> list[UUID]:
-    result = await db.execute(
-        select(models.UserMasterGroup.master_group_id).where(
-            models.UserMasterGroup.user_id == user_id
-        )
-    )
-    return list(result.scalars().all())
+def min_permission(a: object | None, b: object | None) -> str:
+    """Lower of two permission levels (member level caps what the group grants)."""
+    return normalize_permission(a) if permission_rank(a) <= permission_rank(b) else normalize_permission(b)
 
 
 async def _group_permissions(
@@ -67,23 +63,35 @@ async def _group_permissions(
     object_type: str,
     object_id: UUID,
 ) -> list[str]:
+    """
+    Per-group effective level for ``object``: ``min(member level, group grant)``.
+
+    A member's own level (``UserMasterGroup.permission``) is a ceiling: a group may be
+    granted ``edit_full`` on a scenario, but a member added as ``read`` only reads.
+    """
     if user.is_admin:
         return [PERM_ALL]
 
-    group_ids = await _user_group_ids(db, user.id)
-    if not group_ids:
-        return []
-
-    if object_type == "scenario":
-        stmt = select(models.MasterGroupScenarioAccess.permission).where(
-            models.MasterGroupScenarioAccess.scenario_id == object_id,
-            models.MasterGroupScenarioAccess.master_group_id.in_(group_ids),
-        )
-    else:
+    if object_type != "scenario":
         raise ValueError(f"Unsupported object_type: {object_type}")
 
+    stmt = (
+        select(
+            models.MasterGroupScenarioAccess.permission,
+            models.UserMasterGroup.permission,
+        )
+        .join(
+            models.UserMasterGroup,
+            models.UserMasterGroup.master_group_id
+            == models.MasterGroupScenarioAccess.master_group_id,
+        )
+        .where(
+            models.UserMasterGroup.user_id == user.id,
+            models.MasterGroupScenarioAccess.scenario_id == object_id,
+        )
+    )
     result = await db.execute(stmt)
-    return [normalize_permission(p) for p in result.scalars().all()]
+    return [min_permission(group_perm, member_perm) for group_perm, member_perm in result.all()]
 
 
 async def get_max_permission_for_user(
@@ -106,7 +114,7 @@ async def get_scenario_permission(
     Effective scenario permission:
     - admin: all
     - creator (user_id): all
-    - otherwise: max permission across user's groups
+    - otherwise: max across the user's groups of min(member level, group grant)
     """
     if user.is_admin:
         return PERM_ALL

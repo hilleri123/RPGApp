@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { PlayLifecycleGuide } from '@/app/components/common/PlayLifecycleGuide';
 import Header from '@/app/components/layout/Header';
 import { campaignsApiService } from '@/app/services/api/campaign';
 import { Campaign } from '@/app/services/types/campaign';
@@ -72,6 +73,8 @@ export default function CampaignsPage() {
             </Button>
           </Link>
         </div>
+
+        <PlayLifecycleGuide />
 
         <Input
           value={search}

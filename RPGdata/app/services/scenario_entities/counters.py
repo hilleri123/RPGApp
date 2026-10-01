@@ -44,8 +44,16 @@ async def create_counter(
     return db_counter
 
 
-async def delete_counter(db: AsyncSession, *, counter_id: UUID) -> bool:
-    obj = (await db.execute(select(models.Counter).where(models.Counter.id == counter_id))).scalars().first()
+async def delete_counter(
+    db: AsyncSession,
+    *,
+    counter_id: UUID,
+    scenario_id: UUID | None = None,
+) -> bool:
+    stmt = select(models.Counter).where(models.Counter.id == counter_id)
+    if scenario_id is not None:
+        stmt = stmt.where(models.Counter.scenario_id == scenario_id)
+    obj = (await db.execute(stmt)).scalars().first()
     if not obj:
         return False
     await db.delete(obj)
@@ -113,8 +121,12 @@ async def update_counter_value(
     value: int,
     comment: str | None = None,
     user_id: UUID | None = None,
+    scenario_id: UUID | None = None,
 ) -> models.Counter | None:
-    obj = (await db.execute(select(models.Counter).where(models.Counter.id == counter_id))).scalars().first()
+    stmt = select(models.Counter).where(models.Counter.id == counter_id)
+    if scenario_id is not None:
+        stmt = stmt.where(models.Counter.scenario_id == scenario_id)
+    obj = (await db.execute(stmt)).scalars().first()
     if not obj:
         return None
     old_value = int(obj.value or 0)

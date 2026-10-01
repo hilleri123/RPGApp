@@ -4,6 +4,7 @@ import React from 'react';
 import type { ActionHandlerProps } from '@/app/plugins/pluginTypes';
 import { PerformMoveDamageStage } from './stages/PerformMoveDamageStage';
 import { isPerformMoveAction } from './types';
+import { NpcAttackBanner } from './components/NpcAttackBanner';
 import { PerformMoveChangeManifestStage } from './stages/PerformMoveChangeManifestStage';
 import { PerformMoveSetupStage } from './stages/PerformMoveSetupStage';
 import { PerformMoveDeclareStage } from './stages/PerformMoveDeclareStage';
@@ -12,7 +13,7 @@ import { PerformMoveRollStage } from '../../../../../../base/ui/src/actions/perf
 import { PerformMoveChooseStage } from '../../../../../../base/ui/src/actions/perform_move/stages/PerformMoveChooseStage';
 import { PerformMoveResultStage } from '../../../../../../base/ui/src/actions/perform_move/stages/PerformMoveResultStage';
 
-export default function PerformMoveStage(props: ActionHandlerProps) {
+function PerformMoveStageBody(props: ActionHandlerProps) {
   const {
     action,
     user_id,
@@ -91,5 +92,19 @@ export default function PerformMoveStage(props: ActionHandlerProps) {
       <div className="font-medium text-white/70">{step?.label ?? effectiveStageKey}</div>
       <div className="mt-1 text-xs text-white/40">Серверная стадия</div>
     </div>
+  );
+}
+
+/** Над каждой стадией (кроме выбора актора) держим NPC-атаку хода — она нужна до самых заявок на урон. */
+export default function PerformMoveStage(props: ActionHandlerProps) {
+  const { action, stageKey } = props;
+  const entry = (action as any)?.workflow?.context?.entry;
+  const key = String(stageKey ?? (action as any)?.workflow?.stageKey ?? '');
+  const showBanner = Boolean(entry?.source_npc_id) && key !== 'perform_move.setup';
+  return (
+    <>
+      {showBanner ? <NpcAttackBanner entry={entry} /> : null}
+      <PerformMoveStageBody {...props} />
+    </>
   );
 }

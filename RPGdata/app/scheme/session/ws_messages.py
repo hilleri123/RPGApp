@@ -80,6 +80,7 @@ class MasterSessionUpdate(WsBase):
     characters: Optional[list[InnerCharacter]] = None
     npcs: Optional[list[InnerNPC]] = None
     scenes: Optional[list[Scene]] = None
+    players: Optional[list] = None
     dispatches: Optional[list] = None
     message_replies: Optional[list] = None
     observers: list[Observer] = None

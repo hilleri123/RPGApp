@@ -21,6 +21,7 @@ export const PlayerCard: React.FC<PlayerCardProps> = ({
   const {
     lobby,
     isMaster,
+    isUserOnline,
     masterKickPlayer,
     masterPlayerDeselectCharacter,
   } = useLobbyWebSocket(lobbyId);
@@ -47,7 +48,7 @@ export const PlayerCard: React.FC<PlayerCardProps> = ({
     <Card className={`bg-gray-700 border-gray-600 transition-all duration-300 ${compact ? '' : 'hover:bg-gray-650 cursor-pointer'}`}>
       <CardContent className={compact ? 'p-3' : 'p-4'}>
         <div className="flex items-center gap-3 mb-3">
-          <UserCard user={player.user} color={player.color} />
+          <UserCard user={player.user} color={player.color} online={isUserOnline(player.user.id)} />
           <div className="flex-1">
             {isMaster && (
               <div className="flex gap-2 mt-2">
@@ -77,6 +78,11 @@ export const PlayerCard: React.FC<PlayerCardProps> = ({
 
             <div className="flex items-center gap-2 flex-wrap">
               <h4 className="font-semibold text-white">{player.name}</h4>
+              {!isUserOnline(player.user.id) && (
+                <Badge variant="outline" className="text-xs text-gray-400">
+                  Не в сети
+                </Badge>
+              )}
               {player.is_ready && (
                 <Badge variant="default" className="text-xs bg-green-600">
                   Готов

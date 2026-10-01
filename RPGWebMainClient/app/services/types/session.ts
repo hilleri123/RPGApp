@@ -45,6 +45,7 @@ export interface SessionAction {
   actionKey: string;
   participants: {
     initiatorUserId?: string;
+    gmUserId?: string;
   };
   scene?: any;
   workflow?: SessionActionWorkflow;

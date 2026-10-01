@@ -27,6 +27,7 @@ export default function SceneSessionEditDialog({
   ) : SceneDataEditor ? (
     <SceneDataEditor
       data={sceneData}
+      scene={editingScene ?? undefined}
       config={dlg.config ?? undefined}
       issues={dlg.issues ?? undefined}
       onChange={(next: any) => dlg.setData(next)}

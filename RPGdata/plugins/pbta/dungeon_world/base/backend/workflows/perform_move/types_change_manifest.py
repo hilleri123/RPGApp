@@ -29,3 +29,5 @@ class ChangeManifestState(BaseModel):
     lines: list[ManifestLine] = Field(default_factory=list)
     editing_line_id: Optional[str] = None
     editing_step: Optional[str] = None
+    # Игрок отправил заявку мастеру и ждёт подтверждения; любая правка строк сбрасывает флаг
+    sent_to_gm: bool = False

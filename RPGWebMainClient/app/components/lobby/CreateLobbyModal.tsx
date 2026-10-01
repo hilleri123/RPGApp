@@ -97,6 +97,11 @@ export default function CreateLobbyModal({ onLobbyCreated }: { onLobbyCreated: (
                 />
               </div>
               
+              <p className="text-xs text-gray-400">
+                Лобби создаётся закрытым. В самом лобби вы откроете его для всех
+                или пригласите игроков поимённо — им придёт ссылка в Telegram.
+              </p>
+
               <div className="flex justify-end space-x-2 pt-4">
                 <Button 
                   type="button" 

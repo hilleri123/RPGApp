@@ -10,6 +10,7 @@ from sqlalchemy import func, select
 from app import models, scheme
 from app.infrastructure.database import AsyncSessionLocal
 from app.managers.lobby_manager import manager as lobby_manager
+from app.services.bot_notify_service import notify_lobby_invited
 
 
 @dataclass
@@ -19,6 +20,7 @@ class CreateLobbyFromBotResult:
     not_found: list[str] = field(default_factory=list)
     skipped_master: list[str] = field(default_factory=list)
     error: str | None = None
+    notified: int = 0
 
 
 def _normalize_tg(value: str) -> str:
@@ -100,6 +102,7 @@ def result_to_dict(result: CreateLobbyFromBotResult) -> dict[str, Any]:
         "invited": [_user_public(u) for u in result.invited],
         "not_found": list(result.not_found),
         "skipped_master": list(result.skipped_master),
+        "notified": result.notified,
     }
 
 
@@ -150,26 +153,27 @@ async def create_lobby_from_bot(
     lobby_data = scheme.LobbyCreate(name=name, max_players=max_players)
     lobby = await lobby_manager.create_lobby(lobby_data, master)
 
+    # Приглашённые — не «подключённые»: в users лежат только те, у кого открыт сокет.
+    # Иначе они числились бы онлайн с момента создания лобби.
+    for user in invited:
+        await lobby_manager[str(lobby.id)].invite_user(user)
     if invited:
-        invited_payload = [
-            scheme.User.model_validate(u).model_dump(mode="json") for u in invited
-        ]
-        from redis.commands.json.path import Path
-
-        from app.infrastructure.redis_service import redis_client
-
-        await redis_client.json().set(
-            f"lobby:{lobby.id}",
-            Path(".users"),
-            invited_payload,
-        )
         lobby = await lobby_manager[str(lobby.id)].get_lobby()
+        result_notified = await notify_lobby_invited(
+            lobby_id=lobby.id,
+            user_ids=[u.id for u in invited],
+            lobby_name=lobby.name,
+            master_name=master.full_name or master.tg,
+        )
+    else:
+        result_notified = 0
 
     return CreateLobbyFromBotResult(
         lobby=lobby,
         invited=invited,
         not_found=not_found,
         skipped_master=skipped_master,
+        notified=result_notified,
     )
 
 

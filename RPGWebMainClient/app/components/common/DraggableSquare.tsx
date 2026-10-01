@@ -6,6 +6,7 @@ import * as ContextMenu from '@radix-ui/react-context-menu'
 import { Info, Settings, Palette, Trash2, CheckCircle, Share2, ShoppingBag, LogOut, Pencil, Plus, EyeOff, Eye } from 'lucide-react'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
+import { SquareTile } from './SquareTile'
 
 export interface ContextItem {
   label: string
@@ -125,6 +126,8 @@ export const DropItemContextMenu = ContextActions.dropItem;
 interface DraggableSquareProps {
   name: string
   color: string
+  /** Рамка-орнамент (например, синий «тип» персонажа при заливке цветом игрока). */
+  ornament?: string
   icon: React.ReactNode
   description: React.ReactNode
   onContextMenu?: (e: React.MouseEvent<HTMLDivElement>) => void
@@ -140,6 +143,7 @@ interface DraggableSquareProps {
 export function DraggableSquare({
   name,
   color,
+  ornament,
   icon,
   description,
   onContextMenu,
@@ -195,7 +199,7 @@ export function DraggableSquare({
         border cursor-grab relative select-none transition
         ${className}
         `}
-      style={{ borderColor: color }}
+      style={{ borderColor: ornament ?? color }}
     >
       <div
         className="w-12 h-12 rounded-lg flex items-center justify-center"
@@ -218,27 +222,15 @@ export function DraggableSquare({
   )
 
   const smallSizeEl = (
-    <div
+    <SquareTile
       {...commonContainerProps}
-      className={`relative rounded-lg flex flex-col items-center justify-center cursor-grab select-none ${className}`}
-      style={{
-        backgroundColor: color,
-        width: '3rem',
-        height: '3rem',
-        padding: undefined,
-      }}
-      title=""
-    >
-      <div className="text-white text-xl">{icon}</div>
-      <div className="font-semibold text-white text-xs mt-1 text-center leading-tight">
-        {name.length > 8 ? name.slice(0, 6) + '..' : name}
-      </div>
-      {overlay ? (
-        <div className="pointer-events-none absolute top-1 -right-2 bottom-1 flex flex-col justify-end gap-1">
-          {overlay}
-        </div>
-      ) : null}
-    </div>
+      name={name}
+      color={color}
+      ornament={ornament}
+      icon={icon}
+      overlay={overlay}
+      className={`cursor-grab ${className}`}
+    />
   )
 
   // элемент квадрат

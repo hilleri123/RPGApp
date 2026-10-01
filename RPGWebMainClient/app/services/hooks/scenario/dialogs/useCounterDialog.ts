@@ -14,8 +14,12 @@ export function useCounterDialog(opts: {
   open: boolean;
   scenarioId: string;
   counterId: string | null;
+  /** Prefill / lock create form to this character (ignored when editing existing). */
+  defaultCharacterId?: string | null;
   onSaved?: (id: string) => void;
 }) {
+  const defaultCharacterId = opts.defaultCharacterId ?? null;
+
   return useScenarioObjectDialog<Counter, CounterForm, CounterLookups, CounterForm, undefined>({
     open: opts.open,
     scenarioId: opts.scenarioId,
@@ -36,7 +40,7 @@ export function useCounterDialog(opts: {
         value: (full as any)?.value ?? 0,
         min_value: (full as any)?.min_value ?? null,
         max_value: (full as any)?.max_value ?? null,
-        character_id: (full as any)?.character_id ?? null,
+        character_id: (full as any)?.character_id ?? defaultCharacterId ?? null,
       },
       assets: undefined,
     }),
@@ -48,12 +52,17 @@ export function useCounterDialog(opts: {
         value: 0,
         min_value: null,
         max_value: null,
-        character_id: null,
+        character_id: defaultCharacterId,
       },
       assets: undefined,
     }),
 
-    buildPayload: (form) => form,
+    buildPayload: (form) => {
+      if (!opts.counterId && defaultCharacterId) {
+        return { ...form, character_id: defaultCharacterId };
+      }
+      return form;
+    },
 
     create: (api, payload) => api.createCounter(payload as any),
     update: (api, id, payload) => api.updateCounter(id, payload as any),

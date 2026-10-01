@@ -256,6 +256,9 @@ def attacks_to_damage_claims(
 
         target_label = _entity_label(scene, target_kind, target_id)
 
+        attack_id = str(raw.get("attack_id") or "")
+        attack_name = str(raw.get("attack_name") or "")
+
         claim_id = str(raw.get("id") or uuid.uuid4())
         dice = [int(x) for x in (raw.get("dice") or []) if str(x).lstrip("-").isdigit()]
         flat_bonus = int(raw.get("flat_bonus") or raw.get("flatBonus") or 0)
@@ -302,6 +305,8 @@ def attacks_to_damage_claims(
                 source_npc_id=source_id if source_kind == "npc" else None,
                 source_label=source_label,
                 source_move_id=str(raw.get("source_move_id") or source_move_id or raw.get("attack_id") or ""),
+                source_attack_id=attack_id if source_kind == "npc" else "",
+                source_attack_name=attack_name if source_kind == "npc" and attack_id else "",
                 target_kind=target_kind,  # type: ignore[arg-type]
                 target_character_id=target_id if target_kind == "character" else None,
                 target_npc_id=target_id if target_kind == "npc" else None,
@@ -909,13 +914,31 @@ def spend_spell_entry(
     return data
 
 
-def damage_quick_options(scene) -> list[dict[str, Any]]:
+def character_damage_die(data: dict[str, Any] | None, full_codex: Any = None) -> str:
+    """Куб урона персонажа: явное значение в data, иначе куб его плейбука, иначе d6."""
+    data = data if isinstance(data, dict) else {}
+    derived = data.get("derived") if isinstance(data.get("derived"), dict) else {}
+    explicit = derived.get("damage_die") or data.get("damage_die")
+    if explicit:
+        return str(explicit)
+    playbook_id = data.get("playbook_id")
+    if playbook_id and full_codex is not None:
+        try:
+            playbook = full_codex.playbooks.playbooks_map().get(playbook_id)
+        except Exception:
+            playbook = None
+        die = getattr(playbook, "damage_die", None)
+        if die:
+            return str(die)
+    return "d6"
+
+
+def damage_quick_options(scene, full_codex: Any = None) -> list[dict[str, Any]]:
     """Быстрый доступ: кубы урона персонажей и атаки NPC."""
     options: list[dict[str, Any]] = []
     for ch in scene.characters or []:
         data = ch.data if isinstance(getattr(ch, "data", None), dict) else {}
-        derived = data.get("derived") or {}
-        die = str(derived.get("damage_die") or data.get("damage_die") or "d6")
+        die = character_damage_die(data, full_codex)
         options.append({
             "kind": "character",
             "id": str(ch.id),
@@ -943,21 +966,64 @@ def damage_quick_options(scene) -> list[dict[str, Any]]:
             })
 
     for npc in scene.npcs or []:
-        data = npc.data if isinstance(getattr(npc, "data", None), dict) else {}
-        attacks = list(data.get("attacks") or getattr(npc, "attacks", None) or [])
-        for idx, atk in enumerate(attacks):
-            if not isinstance(atk, dict):
-                continue
-            expr = str(atk.get("damage_expr") or atk.get("damage") or "")
-            if not expr:
-                continue
+        for atk in npc_attack_options(npc):
             options.append({
                 "kind": "npc_attack",
                 "id": str(npc.id),
-                "attack_id": str(atk.get("id") or atk.get("name") or f"atk_{idx}"),
+                "attack_id": atk["id"],
                 "name": str(getattr(npc, "name", "") or npc.id),
-                "attack_name": str(atk.get("name") or f"Атака {idx + 1}"),
-                "damage_expr": expr,
-                "label": f"{getattr(npc, 'name', npc.id)} · {atk.get('name') or 'атака'} · {expr}",
+                "attack_name": atk["name"],
+                "damage_expr": atk["damage"],
+                "range_tags": atk["range_tags"],
+                "attack_tags": atk["attack_tags"],
+                "description": atk["description"],
+                "label": f"{getattr(npc, 'name', npc.id)} · {atk['name']} · {atk['damage']}",
             })
     return options
+
+
+def describe_npc_attack(name: str, damage: str, range_tags: list[str], attack_tags: list[str]) -> str:
+    """Короткое описание атаки NPC: «Когти — d8+2 · close, messy»."""
+    tags = [str(t) for t in (list(range_tags or []) + list(attack_tags or [])) if str(t)]
+    text = name or "Атака"
+    if damage:
+        text += f" — {damage}"
+    if tags:
+        text += f" · {', '.join(tags)}"
+    return text
+
+
+def npc_attack_options(npc: Any) -> list[dict[str, Any]]:
+    """Нормализованные атаки NPC: id, name, damage, range_tags, attack_tags, description.
+
+    Атаки без формулы урона пропускаются — бросать по ним нечего.
+    """
+    data = npc.data if isinstance(getattr(npc, "data", None), dict) else {}
+    raw_attacks = data.get("attacks") or getattr(npc, "attacks", None) or []
+    result: list[dict[str, Any]] = []
+    for idx, raw in enumerate(raw_attacks):
+        atk = raw.model_dump() if hasattr(raw, "model_dump") else raw
+        if not isinstance(atk, dict):
+            continue
+        damage = str(atk.get("damage_expr") or atk.get("damage") or "").strip()
+        if not damage:
+            continue
+        name = str(atk.get("name") or f"Атака {idx + 1}")
+        range_tags = [str(t) for t in (atk.get("range_tags") or [])]
+        attack_tags = [str(t) for t in (atk.get("attack_tags") or [])]
+        result.append({
+            "id": str(atk.get("id") or atk.get("name") or f"atk_{idx}"),
+            "name": name,
+            "damage": damage,
+            "range_tags": range_tags,
+            "attack_tags": attack_tags,
+            "description": describe_npc_attack(name, damage, range_tags, attack_tags),
+        })
+    return result
+
+
+def find_npc_attack(npc: Any, attack_id: str) -> dict[str, Any] | None:
+    for atk in npc_attack_options(npc):
+        if atk["id"] == str(attack_id):
+            return atk
+    return None

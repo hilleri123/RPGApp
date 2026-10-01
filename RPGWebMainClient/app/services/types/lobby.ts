@@ -36,6 +36,11 @@ export interface LobbyBase {
   party_id?: string | null;
   campaign_id?: string | null;
   characters?: PlayerCharacter[];
+  /** Лобби создаётся закрытым: мастер открывает его всем или приглашает поимённо. */
+  is_open?: boolean;
+  invited_users?: User[];
+  /** Кто подключён прямо сейчас (считается сервером по живым сокетам). */
+  online_user_ids?: string[];
 }
 
 /** Строка каталога лобби: без тела сценария, его отдаёт только WebSocket лобби. */
@@ -49,6 +54,17 @@ export interface LobbyPreview {
   master_name: string;
   player_count: number;
   member_ids: string[];
+  is_open?: boolean;
+  is_invited?: boolean;
+}
+
+/** Результат поиска игрока для приглашения. */
+export interface LobbyUserHit {
+  id: string;
+  full_name?: string | null;
+  tg?: string | null;
+  icon_url?: string | null;
+  has_telegram: boolean;
 }
 
 export interface LobbyCreate extends LobbyBase {
@@ -97,6 +113,21 @@ export interface MasterDeselectPlayerCharacter extends MasterActionBase {
   msg_type: 'master_deselect_character';
   player_id: string;
   user_id?: string;
+}
+
+export interface MasterSetLobbyOpen extends MasterActionBase {
+  msg_type: 'set_lobby_open';
+  is_open: boolean;
+}
+
+export interface MasterInviteUser extends MasterActionBase {
+  msg_type: 'invite_user';
+  invite_user_id: string;
+}
+
+export interface MasterUninviteUser extends MasterActionBase {
+  msg_type: 'uninvite_user';
+  invite_user_id: string;
 }
 
 export interface MasterStartSession extends MasterActionBase {
@@ -174,6 +205,9 @@ export type LobbyAction =
   | MasterSelectCampaignAction
   | MasterKickPlayer
   | MasterDeselectPlayerCharacter
+  | MasterSetLobbyOpen
+  | MasterInviteUser
+  | MasterUninviteUser
   | MasterStartSession
   | MasterCloseLobby
   | UserBecomePlayerAction

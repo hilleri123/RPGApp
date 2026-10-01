@@ -24,6 +24,13 @@ class LobbyBase(BaseModel):
     # Кого мастер выгнал. Без этого списка кик бессмыслен: лобби добавляет
     # любого подключившегося обратно на следующем же реконнекте.
     banned_user_ids: Optional[List[UUID]] = Field(default_factory=list)
+    # Лобби создаётся закрытым: войти может мастер, приглашённые и те, кто уже внутри.
+    # Мастер либо открывает его всем (is_open), либо приглашает игроков поимённо.
+    is_open: bool = False
+    invited_users: Optional[List[User]] = Field(default_factory=list)
+    # Не хранится в Redis: присутствие считается в момент рассылки по живым сокетам
+    # (id мастера, приглашённых, ожидающих и игроков, у которых сейчас есть соединение).
+    online_user_ids: Optional[List[UUID]] = Field(default_factory=list)
 
     model_config = ConfigDict(
         ser_json_encoders={
@@ -57,9 +64,11 @@ class LobbyPreview(BaseModel):
     master_name: str = ""
     player_count: int = 0
     member_ids: List[UUID] = Field(default_factory=list)
+    is_open: bool = False
+    is_invited: bool = False
 
     @classmethod
-    def from_lobby(cls, lobby: "Lobby") -> "LobbyPreview":
+    def from_lobby(cls, lobby: "Lobby", viewer_id: Optional[UUID] = None) -> "LobbyPreview":
         players = lobby.players or []
         users = lobby.users or []
         member_ids = [p.user.id for p in players if p.user] + [u.id for u in users]
@@ -73,7 +82,19 @@ class LobbyPreview(BaseModel):
             master_name=(lobby.master.full_name or "") if lobby.master else "",
             player_count=len(players),
             member_ids=member_ids,
+            is_open=bool(lobby.is_open),
+            is_invited=viewer_id is not None
+            and any(u.id == viewer_id for u in (lobby.invited_users or [])),
         )
+
+
+class LobbyUserHit(BaseModel):
+    """Результат поиска игрока для приглашения: без email и прочих чувствительных полей."""
+    id: UUID
+    full_name: Optional[str] = None
+    tg: Optional[str] = None
+    icon_url: Optional[str] = None
+    has_telegram: bool = False
 
 
 class SessionRedirect(BaseModel):
@@ -164,6 +185,18 @@ class MasterDeselectPlayerCharacter(MasterActionBase):
     msg_type: Literal['master_deselect_character'] = 'master_deselect_character'
     player_id: UUID
     user_id: Optional[UUID] = None
+
+class MasterSetLobbyOpen(MasterActionBase):
+    msg_type: Literal['set_lobby_open'] = 'set_lobby_open'
+    is_open: bool
+
+class MasterInviteUser(MasterActionBase):
+    msg_type: Literal['invite_user'] = 'invite_user'
+    invite_user_id: UUID
+
+class MasterUninviteUser(MasterActionBase):
+    msg_type: Literal['uninvite_user'] = 'uninvite_user'
+    invite_user_id: UUID
 
 class MasterStartSession(MasterActionBase):
     msg_type: Literal['start_session'] = 'start_session'

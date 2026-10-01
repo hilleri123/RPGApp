@@ -10,6 +10,7 @@ from aiogram.filters import CommandStart
 from aiogram.types import BotCommand, Message
 
 from bot.config import bot_settings
+from bot.events import run_events_consumer
 from bot.handlers import setup_routers
 from bot.rpc import rpc_client
 
@@ -55,9 +56,11 @@ async def main() -> None:
 
     await _set_commands(bot)
     logger.info("Telegram bot polling started")
+    events_task = asyncio.create_task(run_events_consumer(bot))
     try:
         await dp.start_polling(bot)
     finally:
+        events_task.cancel()
         await rpc_client.close()
         await bot.session.close()
 

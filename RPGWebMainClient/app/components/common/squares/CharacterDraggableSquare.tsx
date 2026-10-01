@@ -41,7 +41,10 @@ export function CharacterDraggableSquare({
     e.dataTransfer.setData("application/json", JSON.stringify(character));
   };
 
-  const iconColor = player?.color || "#ffffff";
+  // Заливка — цвет игрока (по нему персонажа узнают и с кастомной иконкой),
+  // тип «персонаж» остаётся синим орнаментом-рамкой.
+  const playerColor = player?.color || null;
+  const iconColor = "#ffffff";
 
   let icon: React.ReactNode;
 
@@ -51,7 +54,6 @@ export function CharacterDraggableSquare({
         src={character.img_url}
         alt={character.name}
         className="w-12 h-12 object-cover rounded-lg shadow"
-        style={{ background: "#24273d" }}
       />
     );
   } else if (character.icon_url) {
@@ -60,7 +62,6 @@ export function CharacterDraggableSquare({
         src={character.icon_url}
         alt={character.name}
         className="w-8 h-8 object-contain rounded"
-        style={{ background: "#24273d" }}
       />
     );
   } else {
@@ -70,7 +71,8 @@ export function CharacterDraggableSquare({
   return (
     <DraggableSquare
       name={character.name}
-      color={TYPE_COLORS.character}
+      color={playerColor ?? TYPE_COLORS.character}
+      ornament={playerColor ? TYPE_COLORS.character : undefined}
       icon={icon}
       onContextMenu={onContextMenu}
       contextItems={contextItems}

@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo } from 'react';
+import { displayTagLabel } from '@/app/lib/locationKinds';
 
 export type EntityTagOption = { key: string; label?: string };
 
@@ -48,7 +49,9 @@ export function EntityTagFilterChips({
 }) {
   const normalized = useMemo(() => {
     return options
-      .map((o) => (typeof o === 'string' ? { key: o, label: o } : { key: o.key, label: o.label || o.key }))
+      .map((o) => (typeof o === 'string'
+        ? { key: o, label: displayTagLabel(o) }
+        : { key: o.key, label: o.label || displayTagLabel(o.key) }))
       .filter((o) => o.key);
   }, [options]);
 

@@ -8,6 +8,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.constants.location_kinds import is_kind_tag
 from app import models, scheme
 from app.auth import require_master
 from app.infrastructure.database import get_async_session as get_db
@@ -90,6 +91,8 @@ async def import_tags_from_entities(
         if not key or key in existing:
             continue
         if key.startswith("front_"):
+            continue
+        if is_kind_tag(key):  # системные теги местности loc:* в пул не попадают
             continue
         tag = models.ScenarioTag(
             scenario_id=scenario.id,

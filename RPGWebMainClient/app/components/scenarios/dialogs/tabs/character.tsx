@@ -1,9 +1,9 @@
 'use client';
 
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { UserIcon, Plus, CopyPlus } from 'lucide-react';
+import { UserIcon, Plus, CopyPlus, Loader2 } from 'lucide-react';
 
 import HtmlEditor from '@/app/components/common/HtmlEditor';
 import ImagePicker from '../../../common/MapGallery';
@@ -14,10 +14,14 @@ import { RandomNamePicker } from '@/app/components/common/RandomNamePicker';
 import { getNameGeneratorEntries } from '../common/nameGenerators';
 import { GameItemEditDialog } from '../GameItemEditDialog';
 import { CreateItemFromTemplatePickerDialog } from '../CreateItemFromTemplatePickerDialog';
+import { CounterEditDialog } from '../CounterEditDialog';
+import { ScenarioCounterCard } from '../../cards/CounterCard';
+import { ConfirmAlertDialog } from '@/app/components/common/ConfirmAlertDialog';
 import { useScenario } from '../../ScenarioContext';
 import { ScenarioScopedApiService } from '@/app/services/api/scenario_scoped';
 import type { GameItemTemplateSeed } from '@/app/services/hooks/scenario/dialogs/useGameItemDialog';
-import type { GameItemOut } from '@/app/services/types2';
+import type { Counter, GameItemOut } from '@/app/services/types2';
+import { isLineageProtectedEntity } from '@/app/lib/launchedLineage';
 
 const FALLBACK_AVATAR = 'https://rpgzona.ru/static/img/character-avatar-default.png';
 const FALLBACK_ICON = 'https://rpgzona.ru/static/img/icon-default.png';
@@ -320,6 +324,135 @@ export function CharacterItemsTab({
         seedFromTemplate={seedFromTemplate}
         onEntitySaved={(id) => void handleItemCreated(id)}
       />
+    </div>
+  );
+}
+
+export function CharacterCountersTab({ characterId }: { characterId: string }) {
+  const { readOnly } = useDialogMode();
+  const { scenarioId, scenario } = useScenario();
+  const api = useMemo(() => new ScenarioScopedApiService(scenarioId), [scenarioId]);
+
+  const [items, setItems] = useState<Counter[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [dlgOpen, setDlgOpen] = useState(false);
+  const [dlgReadOnly, setDlgReadOnly] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<Counter | null>(null);
+  const [deleting, setDeleting] = useState(false);
+
+  const reload = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const rows = await api.getCounters();
+      setItems(
+        (rows ?? []).filter((c) => String(c.character_id ?? '') === String(characterId)),
+      );
+    } catch (e: any) {
+      setError(e?.message ?? 'Не удалось загрузить счётчики');
+      setItems([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [api, characterId]);
+
+  useEffect(() => {
+    void reload();
+  }, [reload]);
+
+  const openCreate = () => {
+    setEditingId(null);
+    setDlgReadOnly(false);
+    setDlgOpen(true);
+  };
+
+  const openEdit = (counter: Counter, viewOnly: boolean) => {
+    setEditingId(String(counter.id));
+    setDlgReadOnly(viewOnly || readOnly);
+    setDlgOpen(true);
+  };
+
+  const confirmDelete = async () => {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    try {
+      await api.deleteCounter(String(deleteTarget.id));
+      setDeleteTarget(null);
+      await reload();
+    } catch (e: any) {
+      setError(e?.message ?? 'Не удалось удалить счётчик');
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  return (
+    <div className="space-y-3">
+      {!readOnly ? (
+        <div className="flex justify-end">
+          <Button type="button" size="sm" variant="secondary" className="gap-1" onClick={openCreate}>
+            <Plus className="w-4 h-4" />
+            Создать счётчик
+          </Button>
+        </div>
+      ) : null}
+
+      {loading ? (
+        <div className="flex items-center gap-2 text-sm text-gray-400 py-4">
+          <Loader2 className="w-4 h-4 animate-spin" />
+          Загрузка счётчиков…
+        </div>
+      ) : null}
+
+      {error ? <div className="text-sm text-red-400">{error}</div> : null}
+
+      {!loading && items.length === 0 ? (
+        <div className="text-xs text-gray-500">
+          У этого персонажа пока нет счётчиков. Создайте новый кнопкой выше.
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {items.map((counter) => (
+            <ScenarioCounterCard
+              key={String(counter.id)}
+              counter={counter}
+              readOnly={readOnly}
+              onEdit={(c, ro) => openEdit(c, ro)}
+              onDelete={
+                readOnly || isLineageProtectedEntity(scenario, counter)
+                  ? undefined
+                  : (c) => setDeleteTarget(c)
+              }
+              onChanged={() => void reload()}
+            />
+          ))}
+        </div>
+      )}
+
+      <CounterEditDialog
+        open={dlgOpen}
+        onClose={() => setDlgOpen(false)}
+        editingId={editingId}
+        readOnly={dlgReadOnly}
+        lockedCharacterId={characterId}
+        onSave={() => void reload()}
+      />
+
+      {deleteTarget ? (
+        <ConfirmAlertDialog
+          open
+          onOpenChange={(v) => {
+            if (!v && !deleting) setDeleteTarget(null);
+          }}
+          description={
+            <>Удалить счётчик “{deleteTarget.name}”? Это действие нельзя отменить.</>
+          }
+          loading={deleting}
+          onConfirm={() => void confirmDelete()}
+        />
+      ) : null}
     </div>
   );
 }

@@ -21,10 +21,12 @@ export const Players: React.FC<PlayersCardProps> = ({
   variant = 'card',
 }) => {
   const {
-    lobby
+    lobby,
+    isUserOnline,
   } = useLobbyWebSocket(lobbyId);
 
   const players = lobby?.players || [];
+  const onlineCount = players.filter((p) => isUserOnline(p.user?.id)).length;
 
   const list = (
     <div className={variant === 'embedded' ? 'space-y-2' : 'space-y-3'}>
@@ -48,7 +50,7 @@ export const Players: React.FC<PlayersCardProps> = ({
             Игроки
           </h2>
           <Badge variant="secondary" className="text-xs">
-            {players.filter((p) => p?.is_active).length}/{players.length} онлайн
+            {onlineCount}/{players.length} онлайн
           </Badge>
         </div>
         <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain -mx-1 px-1">
@@ -67,7 +69,7 @@ export const Players: React.FC<PlayersCardProps> = ({
           Подключенные игроки
         </CardTitle>
         <Badge variant="secondary">
-          {players.filter((p) => p?.is_active).length}/{players.length} онлайн
+          {onlineCount}/{players.length} онлайн
         </Badge>
       </div>
     </CardHeader>

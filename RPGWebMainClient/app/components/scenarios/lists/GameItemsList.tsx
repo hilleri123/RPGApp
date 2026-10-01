@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { ScenarioEntityListShell } from './common/ScenarioEntityListShell';
 import { ScenarioItemCard } from '../cards/ItemCard';
 import { GameItemEditDialog } from '../dialogs/GameItemEditDialog';
@@ -12,6 +12,10 @@ import { isLineageProtectedEntity } from '@/app/lib/launchedLineage';
 import type { GameItemWithOwnerShort } from '@/app/services/types2';
 import type { GameItemTemplateSeed } from '@/app/services/hooks/scenario/dialogs/useGameItemDialog';
 import { useScenarioFrontBadges } from '../hooks/useScenarioFrontBadges';
+import {
+  collectItemOwnerOptions,
+  matchItemOwnerFilter,
+} from './common/itemOwnerFilter';
 
 export default function ScenarioItemsList(props: {
   templatesToggle?: { checked: boolean; onCheckedChange: (v: boolean) => void };
@@ -22,8 +26,16 @@ export default function ScenarioItemsList(props: {
   const [templatePickerOpen, setTemplatePickerOpen] = useState(false);
   const [seedFromTemplate, setSeedFromTemplate] = useState<GameItemTemplateSeed | null>(null);
   const [seedDialogOpen, setSeedDialogOpen] = useState(false);
+  const [ownerFilter, setOwnerFilter] = useState('');
 
   useTabCountEffect('items', items.length, setTabCount);
+
+  const ownerOptions = useMemo(() => collectItemOwnerOptions(items), [items]);
+
+  const filteredByOwner = useMemo(() => {
+    if (!ownerFilter) return items;
+    return items.filter((it) => matchItemOwnerFilter(it.owner, ownerFilter));
+  }, [items, ownerFilter]);
 
   const openFront = (frontId: string) => {
     const url = new URL(window.location.href);
@@ -32,13 +44,40 @@ export default function ScenarioItemsList(props: {
     window.location.href = url.toString();
   };
 
+  const customFilters = (
+    <>
+      <select
+        value={ownerFilter}
+        onChange={(e) => setOwnerFilter(e.target.value)}
+        className="rounded-md border border-gray-700 bg-black/40 text-gray-100 text-sm px-2 py-1.5 max-w-[240px]"
+        title="Фильтр по владельцу"
+      >
+        <option value="">Все владельцы</option>
+        {ownerOptions.map((opt) => (
+          <option key={opt.value} value={opt.value}>
+            {opt.label}
+          </option>
+        ))}
+      </select>
+      {ownerFilter ? (
+        <button
+          type="button"
+          onClick={() => setOwnerFilter('')}
+          className="text-xs text-gray-400 hover:text-gray-200 px-2 py-1 rounded border border-gray-700"
+        >
+          сбросить владельца
+        </button>
+      ) : null}
+    </>
+  );
+
   return (
     <>
       <ScenarioEntityListShell<GameItemWithOwnerShort>
         title="Предметы"
         loading={loading}
         error={error ? String(error) : null}
-        items={items}
+        items={filteredByOwner}
         refetch={refetch}
         readOnly={!canEditEntities}
         onDelete={(x) => removeById(String(x.id))}
@@ -46,6 +85,7 @@ export default function ScenarioItemsList(props: {
         onCreateFromTemplate={
           canEditEntities ? () => setTemplatePickerOpen(true) : undefined
         }
+        customFilters={customFilters}
         renderCard={({ item, onOpen, onDelete, readOnly }) => (
           <ScenarioItemCard
             key={String(item.id)}

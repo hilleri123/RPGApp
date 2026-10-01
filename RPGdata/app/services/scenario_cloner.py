@@ -57,9 +57,20 @@ def _scenario_load_stmt(scenario_id: UUID):
             base.selectinload(models.SceneExposure.npcs),
             base.selectinload(models.SceneExposure.items),
             base.selectinload(models.SceneExposure.obstacles),
-            base.selectinload(models.SceneExposure.template_npc_links),
-            base.selectinload(models.SceneExposure.template_item_links),
-            base.selectinload(models.SceneExposure.audio_tracks),
+            # Вложенные связи обязательны: LocationOut / _convert_exposure читают
+            # link.template_npc, link.template_item и audio.audio_track, а ленивая
+            # подгрузка в async-сессии падает с MissingGreenlet. Раньше template_npc
+            # «случайно» находился в identity map (NPC сценария уже загружены), а
+            # audio_track и NPC из чужих сценариев — нет.
+            base.selectinload(models.SceneExposure.template_npc_links).selectinload(
+                models.SceneExposureTemplateNPC.template_npc
+            ),
+            base.selectinload(models.SceneExposure.template_item_links).selectinload(
+                models.SceneExposureTemplateItem.template_item
+            ),
+            base.selectinload(models.SceneExposure.audio_tracks).selectinload(
+                models.SceneExposureAudio.audio_track
+            ),
         ]
 
     return _scenario.options(

@@ -771,15 +771,21 @@ class SessionNoteManager(SessionUserManager):
         return True, ["counters"]
 
     async def delete_counter(self, user: models.User, counter_id: UUID) -> Tuple[bool, list[str]]:
-        ok = await with_db(lambda db: counters_service.delete_counter(db, counter_id=counter_id))
+        scenario_id = await self.get_scenario_id()
+        ok = await with_db(
+            lambda db: counters_service.delete_counter(db, counter_id=counter_id, scenario_id=scenario_id)
+        )
         if not ok:
             return False, []
         await self.invalidate_entity_cache()
         return True, ["counters"]
 
     async def change_counter_value(self, user: models.User, counter_id: UUID, value: int) -> Tuple[bool, list[str]]:
+        scenario_id = await self.get_scenario_id()
         updated = await with_db(
-            lambda db: counters_service.update_counter_value(db, counter_id=counter_id, value=value)
+            lambda db: counters_service.update_counter_value(
+                db, counter_id=counter_id, value=value, scenario_id=scenario_id
+            )
         )
         if not updated:
             return False, []

@@ -156,6 +156,16 @@ export const LobbyWebSocketProvider = ({ lobbyId, children }: LobbyWebSocketProv
             const err = rawData as LobbyErrorMessage;
             setLobbyError(err);
             toast.error(err.message);
+            // Доступ закрыт: сервер сразу рвёт соединение, реконнект только зациклил бы отказ.
+            if (err.code === 'closed' || err.code === 'kicked') {
+              lobbyClosedRef.current = true;
+              disposedRef.current = true;
+              clearReconnectTimer();
+              setConnected(false);
+              cleanupSocket(socketRef.current);
+              socketRef.current = null;
+              router.push('/');
+            }
             return;
           }
 

@@ -26,6 +26,7 @@ import TemplateSetCharactersList from './lists/TemplateSetCharactersList';
 import TemplateSetItemsList from './lists/TemplateSetItemsList';
 import { TodoTab } from './tabs/TodoTab';
 import { ScenarioSettingsTab } from './tabs/ScenarioSettingsTab';
+import { ScenarioSearch } from './ScenarioSearch';
 import { useUrlTab } from '@/app/services/hooks/useUrlTab';
 import { Layers } from 'lucide-react';
 
@@ -123,6 +124,9 @@ export default function ScenarioPage() {
             ) : null}
           </div>
         ) : null}
+        <div className="mb-3 flex justify-end">
+          <ScenarioSearch scenarioId={scenario.id} onNavigate={(tab) => setActiveTab(tab)} />
+        </div>
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
 
           {/* ── Список табов ── */}

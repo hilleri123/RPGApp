@@ -16,6 +16,8 @@ interface ItemDraggableSquareProps {
   isMaster?: boolean; 
   draggable?: boolean;
   dataRevealed?: boolean;
+  /** Optional owner caption (e.g. "Персонаж: Имя") shown in tooltip. */
+  ownerLabel?: string | null;
 }
 
 export function ItemDraggableSquare({
@@ -27,6 +29,7 @@ export function ItemDraggableSquare({
   isMaster,
   draggable,
   dataRevealed,
+  ownerLabel,
 }: ItemDraggableSquareProps) {
 
 
@@ -45,7 +48,6 @@ export function ItemDraggableSquare({
         src={item.img_url}
         alt={item.name}
         className="w-12 h-12 object-cover rounded-lg shadow"
-        style={{ background: "#24273d" }}
       />
     );
   } else if (item.icon_url) {
@@ -54,7 +56,6 @@ export function ItemDraggableSquare({
         src={item.icon_url}
         alt={item.name}
         className="w-8 h-8 object-contain rounded"
-        style={{ background: "#24273d" }}
       />
     );
   } else {
@@ -82,38 +83,10 @@ export function ItemDraggableSquare({
         <div className="min-w-[220px] max-w-xs space-y-3">
           <div className="font-semibold text-white text-sm">
             {item.name}
-            {/* 
-            {item.character && (() => {
-              const color = TYPE_COLORS.character;
-              return (
-                <span className="flex items-center gap-1 text-xs" style={color ? { color } : {}}>
-                  <TYPE_ICONS.character className="w-4 h-4" />
-                  {item.character.name}
-                </span>
-              );
-            })()}
-
-            {item.npc && (() => {
-              const { color, icon: Icon } = getNpcStyle(item.npc.is_dead, item.npc.is_enemy);
-              return (
-                <span className="flex items-center gap-1 text-xs" style={color ? { color } : {}}>
-                  <Icon className="w-4 h-4" />
-                  {item.npc.name}
-                </span>
-              );
-            })()}
-
-            {item.location && (() => {
-              const color = TYPE_COLORS.location;
-              return (
-                <span className="flex items-center gap-1 text-xs" style={color ? { color } : {}}>
-                  <TYPE_ICONS.location className="w-4 h-4" />
-                  {item.location.name}
-                </span>
-              );
-            })()}
-            */}
           </div>
+          {ownerLabel ? (
+            <div className="text-xs text-amber-200/90">У: {ownerLabel}</div>
+          ) : null}
           <div className="text-xs text-gray-400">
             {item.description_for_players}
           </div>

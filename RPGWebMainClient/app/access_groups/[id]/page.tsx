@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useRouter, useParams } from "next/navigation";
 import Link from "next/link";
 import { Input } from "@/components/ui/input";
@@ -22,6 +22,13 @@ function apiErrorMessage(e: unknown, fallback: string): string {
   if (typeof err?.detail === 'object' && err.detail?.detail) return String(err.detail.detail);
   return err?.message || fallback;
 }
+
+const MEMBER_LEVELS: { value: string; label: string }[] = [
+  { value: RoleAccess.READ_ROLE, label: "Только чтение" },
+  { value: RoleAccess.EDIT_PARTIAL_ROLE, label: "Правка сущностей" },
+  { value: RoleAccess.EDIT_FULL_ROLE, label: "Полная правка" },
+  { value: RoleAccess.ALL_ROLE, label: "Всё (как у группы)" },
+];
 
 export default function GroupSettingsPage() {
   const gate = useAccessGate('admin');
@@ -45,6 +52,27 @@ function GroupSettings() {
   const [name, setName] = useState(group?.name || "");
   const [selectedUserId, setSelectedUserId] = useState<string>("");
   const [addLoading, setAddLoading] = useState(false);
+  const [memberLevels, setMemberLevels] = useState<Record<string, string>>({});
+
+  const loadMemberLevels = useCallback(async () => {
+    try {
+      setMemberLevels(await accessGroupsApiService.getMemberLevels(groupId));
+    } catch {
+      /* уровни — вторичная информация */
+    }
+  }, [groupId]);
+
+  useEffect(() => { loadMemberLevels(); }, [loadMemberLevels, groupUsers]);
+
+  const handleChangeLevel = async (userId: string, permission: string) => {
+    try {
+      await accessGroupsApiService.setUserPermission({ group_id: groupId, user_id: userId, permission });
+      setMemberLevels((prev) => ({ ...prev, [userId]: permission }));
+      setError(null);
+    } catch (e: unknown) {
+      setError(apiErrorMessage(e, "Не удалось изменить уровень участника"));
+    }
+  };
 
   useEffect(() => {
     fetchGroups();
@@ -94,7 +122,7 @@ function GroupSettings() {
       await addUserToGroup({
         group_id: group.id,
         user_id: selectedUserId,
-        permission: RoleAccess.READ_ROLE,
+        permission: RoleAccess.ALL_ROLE,
       });
       setSelectedUserId('');
       setError(null);
@@ -193,6 +221,16 @@ function GroupSettings() {
                     </span>
                     {u.email ? <span className="text-gray-500 text-sm block truncate">{u.email}</span> : null}
                   </Link>
+                  <select
+                    className="bg-gray-700 text-sm rounded px-2 py-1 border border-gray-600"
+                    title="Потолок прав участника: итог = минимум из этого уровня и прав группы на сценарий"
+                    value={memberLevels[u.id] ?? RoleAccess.ALL_ROLE}
+                    onChange={(e) => handleChangeLevel(u.id, e.target.value)}
+                  >
+                    {MEMBER_LEVELS.map((l) => (
+                      <option key={l.value} value={l.value}>{l.label}</option>
+                    ))}
+                  </select>
                   <Button
                     size="icon"
                     variant="destructive"

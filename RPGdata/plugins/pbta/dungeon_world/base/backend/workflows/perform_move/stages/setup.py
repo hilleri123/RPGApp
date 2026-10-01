@@ -18,8 +18,9 @@ from ..helpers import (
     filter_moves_by_availability,
     codex_moves_map,
     enrich_prepared_spells_for_cast,
+    find_npc_attack,
 )
-from ..types import PerformMoveContext
+from ..types import NpcAttackRef, PerformMoveContext
 from ..stage_store import set_stage_data
 from plugins.pbta.base.backend.workflows.perform_move.stages.declare import empty_declare_draft
 from ....scene_context import scene_context_tags
@@ -214,10 +215,73 @@ class PerformMoveSetupStage(DwStage, PbtaPerformMoveSetupStage):
             )
             return result
 
+        if input_dict.get("actor_npc_id"):
+            return ctx.rb.result(
+                ok=False,
+                wf=wf,
+                participants=ctx.participants,
+                participants_dict_fallback=ctx.participants_dict,
+                issues=[issue("actor_npc_id", "NPC не выполняет ход: выберите персонажа, а NPC укажите источником")],
+            )
+
+        source = self._resolve_npc_source(wf, ctx, input_dict)
+        if isinstance(source, SubmitResult):
+            return source
+
         result = super().submit(wf, ctx, input_dict)
         if not result.ok:
             return result
+        result = self._apply_npc_source(result, source)
         return self._filter_moves_for_scene(result, ctx)
+
+    @staticmethod
+    def _resolve_npc_source(wf: Workflow, ctx, input_dict: dict[str, Any]) -> tuple | SubmitResult:
+        """Проверяет NPC-«повод» хода и его атаку до любых изменений workflow."""
+        raw_npc = str(input_dict.get("source_npc_id") or "").strip()
+        raw_attack = str(input_dict.get("source_attack_id") or "").strip()
+        if not raw_npc:
+            return ("", "", None)
+
+        def err(field: str, msg: str) -> SubmitResult:
+            return ctx.rb.result(
+                ok=False,
+                wf=wf,
+                participants=ctx.participants,
+                participants_dict_fallback=ctx.participants_dict,
+                issues=[issue(field, msg)],
+            )
+
+        npc = next((x for x in (ctx.scene.npcs or []) if str(x.id) == raw_npc), None)
+        if npc is None:
+            return err("source_npc_id", "NPC не найден в сцене")
+        attack = None
+        if raw_attack:
+            atk = find_npc_attack(npc, raw_attack)
+            if atk is None:
+                return err("source_attack_id", "У этого NPC нет такой атаки")
+            attack = NpcAttackRef(
+                id=atk["id"],
+                name=atk["name"],
+                damage=atk["damage"],
+                range_tags=atk["range_tags"],
+                attack_tags=atk["attack_tags"],
+                description=atk["description"],
+            )
+        return (str(npc.id), str(getattr(npc, "name", "") or ""), attack)
+
+    @staticmethod
+    def _apply_npc_source(result: SubmitResult, source: tuple) -> SubmitResult:
+        """Ходит персонаж, а NPC и его атака записываются в ход и идут через все фазы."""
+        npc_id, npc_name, attack = source
+        try:
+            c = PerformMoveContext.model_validate(result.workflow.context or {})
+        except Exception:
+            return result
+        c.entry.source_npc_id = npc_id or None
+        c.entry.source_npc_name = npc_name
+        c.entry.npc_attack = attack
+        result.workflow.context = c.model_dump(mode="json")
+        return result
 
     def _filter_moves_for_scene(self, result: SubmitResult, ctx) -> SubmitResult:
         try:

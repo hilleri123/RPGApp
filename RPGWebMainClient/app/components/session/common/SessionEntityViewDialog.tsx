@@ -131,7 +131,12 @@ export function SessionEntityViewDialog({
   scenarioId,
   sceneId,
 }: SessionEntityViewDialogProps) {
-  const meta = KIND_META[kind];
+  // Для NPC цвет и иконка зависят от тегов (враг — красный, мёртвый — серый), как в квадрате.
+  const npcTags = kind === 'npc' ? ((entity as NPC).tags ?? []).map(String) : [];
+  const npcStyle = kind === 'npc' ? getNpcStyle(npcTags.includes('dead'), npcTags.includes('enemy')) : null;
+  const meta = npcStyle
+    ? { ...KIND_META[kind], color: npcStyle.color, Icon: npcStyle.icon }
+    : KIND_META[kind];
   const description =
     (entity as NPC).description_for_players ??
     (entity as Location).description_for_players ??

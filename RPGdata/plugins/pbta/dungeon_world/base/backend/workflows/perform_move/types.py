@@ -35,6 +35,9 @@ class DamageClaim(BaseModel):
     source_npc_id: Optional[str] = None
     source_label: str = ""
     source_move_id: str = ""
+    # Атака NPC, которой нанесён урон (только для source_kind == "npc").
+    source_attack_id: str = ""
+    source_attack_name: str = ""
 
     target_kind: DamageTargetKind = "npc"
     target_character_id: Optional[str] = None
@@ -123,7 +126,22 @@ class ResolveState(BaseModel):
     log_lines: list[str] = Field(default_factory=list)
 
 
+class NpcAttackRef(BaseModel):
+    """Снимок атаки NPC, выбранной мастером при старте хода (идёт через все фазы)."""
+    id: str = ""
+    name: str = ""
+    damage: str = ""
+    range_tags: list[str] = Field(default_factory=list)
+    attack_tags: list[str] = Field(default_factory=list)
+    description: str = ""
+
+
 class PerformMoveEntry(PerformMoveEntryBase):
+    # NPC не выполняет ход сам, но может быть его «поводом» (заставляет уклоняться и т.п.):
+    # действует персонаж (actor_*), а NPC и его атака лишь сопровождают ход.
+    source_npc_id: Optional[str] = None
+    source_npc_name: str = ""
+    npc_attack: Optional[NpcAttackRef] = None
     resolve: ResolveState = Field(default_factory=ResolveState)
     damage_claims: list[DamageClaim] = Field(default_factory=list)
     resource_grants: list[ResourceGrant] = Field(default_factory=list)
@@ -138,6 +156,8 @@ class PerformMoveEntry(PerformMoveEntryBase):
     # When True and cast_spell_entry_id is set, unprepare that spell on the caster at apply.
     # Default True (9-); after roll 10+ is set to False automatically.
     unprepare_cast_spell: bool = True
+    # Косяк на 7–9: произвольный текст мастера («что пошло не так»). Только hit_7_9.
+    gm_complication: str = ""
 
     @model_validator(mode="before")
     @classmethod

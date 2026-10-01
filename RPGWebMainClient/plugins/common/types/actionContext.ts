@@ -100,6 +100,9 @@ export interface User {
 export interface Player {
   id: UUID;
   user: User;
+  character_id?: UUID | null;
+  /** Цвет игрока (hex); им красится квадрат его персонажа. */
+  color?: string | null;
 }
 
 export interface ScenePayload {

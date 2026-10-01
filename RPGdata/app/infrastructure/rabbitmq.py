@@ -18,6 +18,11 @@ RPC_EXCHANGE = "rpg.rpc"
 RPC_QUEUE = "backend.bot.rpc"
 RPC_ROUTING_KEY = "bot.rpc"
 
+# Fire-and-forget события backend -> bot (уведомления пользователям в Telegram).
+EVENTS_EXCHANGE = "rpg.events"
+EVENTS_QUEUE = "bot.notify"
+EVENTS_ROUTING_KEY = "bot.notify"
+
 _connection: AbstractRobustConnection | AbstractConnection | None = None
 _channel: AbstractChannel | None = None
 _consumer_queue = None
@@ -139,6 +144,29 @@ async def start_bot_rpc_consumer() -> None:
         RPC_EXCHANGE,
         RPC_QUEUE,
         RPC_ROUTING_KEY,
+    )
+
+
+async def publish_bot_event(event: dict[str, Any]) -> None:
+    """Publish a notification event for the Telegram bot (no reply expected).
+
+    The queue is declared here too, so events published before the bot first starts
+    are kept instead of being dropped by the exchange.
+    """
+    channel = await connect()
+    exchange = await channel.declare_exchange(
+        EVENTS_EXCHANGE, ExchangeType.DIRECT, durable=True
+    )
+    queue = await channel.declare_queue(EVENTS_QUEUE, durable=True)
+    await queue.bind(exchange, routing_key=EVENTS_ROUTING_KEY)
+    await exchange.publish(
+        Message(
+            body=json.dumps(event, default=str).encode(),
+            content_type="application/json",
+            delivery_mode=aio_pika.DeliveryMode.PERSISTENT,
+            expiration=60 * 60,  # уведомление «сессия началась» через час бессмысленно
+        ),
+        routing_key=EVENTS_ROUTING_KEY,
     )
 
 
