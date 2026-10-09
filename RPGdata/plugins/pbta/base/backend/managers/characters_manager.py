@@ -9,6 +9,26 @@ from ..types import CharacterData, Playbook
 from ..codex import PbtaFullCodex
 
 
+def _payload_parts(payload: Any) -> tuple[dict, list]:
+    if isinstance(payload, dict):
+        data = payload.get("data") if isinstance(payload.get("data"), dict) else {}
+        tags = payload.get("tags") if isinstance(payload.get("tags"), list) else []
+        return dict(data), list(tags)
+    data = getattr(payload, "data", None)
+    tags = getattr(payload, "tags", None)
+    return (
+        dict(data) if isinstance(data, dict) else {},
+        list(tags) if isinstance(tags, list) else [],
+    )
+
+
+def _issue_blocks_save(issue: ValidationIssue) -> bool:
+    """Warnings stay visible but do not reject a normal save."""
+    if issue.icon == "warning" or issue.level == "warning":
+        return False
+    return True
+
+
 class CharactersManager:
     """
     Базовый менеджер персонажей для любой PbtA.
@@ -127,8 +147,9 @@ class CharactersManager:
     ) -> ValidateResult:
         issues: list[ValidationIssue] = []
 
+        raw_data, tags = _payload_parts(payload)
         try:
-            ch = self.data_model().model_validate(payload["data"])
+            ch = self.data_model().model_validate(raw_data)
         except ValidationError as e:
             for err in e.errors():
                 loc = ".".join(str(x) for x in err.get("loc", []))
@@ -137,7 +158,12 @@ class CharactersManager:
                     message=err.get("msg", "Invalid"),
                     icon="error",
                 ))
-            return ValidateResult(ok=False, issues=issues, result=None)
+            # Keep the submitted sheet so a force-save cannot wipe it.
+            return ValidateResult(
+                ok=False,
+                issues=issues,
+                result=PluginPayload(data=raw_data, tags=tags),
+            )
 
         skills_map = self.codex.skills.skills_map()
         pb_map     = self.codex.playbooks.playbooks_map()
@@ -161,14 +187,15 @@ class CharactersManager:
         issues += self._validate_move_overrides(ch, moves_map)
         issues += self._validate_extra(ch, pb)
 
-        if issues:
-            return ValidateResult(ok=False, issues=issues, result=None)
+        try:
+            ch = self._enrich_base(ch, pb)
+            ch = self._enrich_derived(ch, pb)
+        except Exception:
+            pass
 
-        ch = self._enrich_base(ch, pb)
-        ch = self._enrich_derived(ch, pb)   # ← теперь возвращает CharacterData
-
-        result = PluginPayload(data=ch.model_dump(mode="json"), tags=payload.get("tags", []))
-        return ValidateResult(ok=True, issues=[], result=result)
+        result = PluginPayload(data=ch.model_dump(mode="json"), tags=tags)
+        blocking = any(_issue_blocks_save(i) for i in issues)
+        return ValidateResult(ok=not blocking, issues=issues, result=result)
 
     # ── hooks ────────────────────────────────────────────────────────────────
 
@@ -287,7 +314,10 @@ class CharactersManager:
         )
         for race in getattr(pb, "races", None) or []:
             allowed.add(race.move_id)
+        custom_ids = {cm.id for cm in (ch.custom_moves or []) if getattr(cm, "id", None)}
         for mid in ch.moves:
+            if mid in custom_ids:
+                continue
             if mid not in moves_map:
                 issues.append(ValidationIssue(
                     path="data.moves",

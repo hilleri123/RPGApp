@@ -426,6 +426,46 @@ def test_apply_spellcasting_prepare_and_spend():
     assert spent["spellcasting"]["spells"][0]["prepared"] is False
 
 
+def test_free_spell_stays_prepared_and_costs_nothing():
+    from plugins.pbta.dungeon_world.base.backend.codex import FullCodex
+    from plugins.pbta.dungeon_world.base.backend.workflows.perform_move.helpers import (
+        apply_spellcasting_prepare,
+        resolve_spell_snapshot,
+        spell_prepared_level_cost,
+        spend_spell_entry,
+    )
+
+    focus = {"id": "f", "level": 2, "prepared": True, "school": "фокус", "amount": 1}
+    free = {"id": "r", "level": 3, "prepared": True, "free": True, "amount": 1}
+    normal = {"id": "n", "level": 1, "prepared": True, "school": "воплощение", "amount": 1}
+    assert spell_prepared_level_cost(focus) == 0
+    assert spell_prepared_level_cost(free) == 0
+    assert spell_prepared_level_cost(normal) == 1
+
+    light = FullCodex().spells.spells_map()["light"]
+    assert resolve_spell_snapshot({"id": "c", "spell_id": "light", "level": 0}, light)["is_cantrip"] is True
+    overridden = resolve_spell_snapshot(
+        {"id": "c", "spell_id": "light", "level": 1, "school": "воплощение"},
+        light,
+    )
+    assert overridden["school"] == "воплощение"
+    assert overridden["is_cantrip"] is False
+
+    data = {"spellcasting": {"spells": [free, focus, normal]}}
+    spent_free = spend_spell_entry(data, "r", unprepare=True)
+    assert spent_free["spellcasting"]["spells"][0]["prepared"] is True
+    spent_focus = spend_spell_entry(data, "f", unprepare=True)
+    assert next(s for s in spent_focus["spellcasting"]["spells"] if s["id"] == "f")["prepared"] is False
+
+    applied = apply_spellcasting_prepare(
+        data,
+        [{"id": "r", "prepared": False}, {"id": "n", "prepared": True}],
+    )
+    by_id = {s["id"]: s for s in applied["spellcasting"]["spells"]}
+    assert by_id["r"]["prepared"] is True
+    assert by_id["n"]["prepared"] is True
+
+
 def test_pre_roll_wizard_skips_bonuses_step():
     from plugins.pbta.dungeon_world.base.backend.workflows.perform_move.stage_store import PRE_ROLL_SUBSTEPS
     assert PRE_ROLL_SUBSTEPS == ["perform_move.declare", "perform_move.aid"]

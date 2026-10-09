@@ -12,6 +12,7 @@ from plugins.common.types import (
 )
 from plugins.common.protocols import ResultBuilder, StageCtx, issue
 
+from ..perform_move.helpers import resolve_spell_snapshot
 from .stages import PrepareSpellsDraftStage, PrepareSpellsReviewStage
 from .types import PrepareSpellsContext, PrepareSpellsEntry
 
@@ -160,31 +161,26 @@ class PrepareSpellsWorkflow:
                 continue
             spell_id = str(s.get("spell_id") or "")
             codex = spells_map.get(spell_id)
-            school = str(getattr(codex, "school", None) or s.get("school") or "")
-            description = str(
-                getattr(codex, "description", None)
-                or s.get("description")
-                or ""
-            )
-            tags = list(getattr(codex, "tags", None) or s.get("tags") or [])
-            level = int(s.get("level") if s.get("level") is not None else (getattr(codex, "level", 0) or 0))
-            is_cantrip = school == "фокус"
+            snap = resolve_spell_snapshot(s, codex)
+            is_cantrip = bool(snap["is_cantrip"])
+            free = bool(snap["free"])
             draft.append({
                 "id": str(s.get("id") or ""),
                 "spell_id": spell_id,
-                "prepared": bool(s.get("prepared")),
-                "amount": int(s.get("amount") or 1),
-                "title": str(s.get("title") or getattr(codex, "title", None) or spell_id or ""),
-                "level": level,
-                "school": school,
-                "description": description,
-                "tags": [str(t) for t in tags],
+                "prepared": True if (is_cantrip or free) else bool(s.get("prepared")),
+                "amount": 1,
+                "title": snap["title"],
+                "level": snap["level"],
+                "school": snap["school"],
+                "description": snap["description"],
+                "tags": list(snap["tags"]),
                 "is_cantrip": is_cantrip,
+                "free": free,
             })
 
-        # Фокусы всегда подготовлены по умолчанию (DW). amount для подготовки не важен.
+        # Фокусы и бесплатные всегда подготовлены. amount для подготовки не важен.
         for item in draft:
-            if item.get("is_cantrip"):
+            if item.get("is_cantrip") or item.get("free"):
                 item["prepared"] = True
             item["amount"] = 1
 

@@ -108,8 +108,10 @@ async def validate_entity_data(
         raise RuntimeError("validate_entity_data returned no result")
 
     res = ValidationResult.model_validate(res)
+    # Never replace a failed validation with an empty sheet: force-save must
+    # keep the payload the client sent.
     if res.result is None:
-        res.result = EntityPayload()
+        res.result = payload
 
     rule_id_str = getattr(factory, "system_id", None)
     if res.result and rule_id_str:

@@ -27,6 +27,11 @@ export type CharacterSpellEntry = {
   amount?: number;
   source?: 'codex' | 'custom' | 'other_playbook';
   notes?: string;
+  school?: string;
+  tags?: string[];
+  description?: string;
+  /** Не входит в сумму уровней и всегда подготовлено. */
+  free?: boolean;
 };
 
 export type CharacterSpellcasting = {
@@ -50,6 +55,12 @@ export type CharacterData = {
   alignment_id?:     string;
   alignment_notes?:  string;
 };
+
+export type CharacterDataUpdater<T extends CharacterData = CharacterData> = (prev: T) => T;
+
+export type CharacterDataChange<T extends CharacterData = CharacterData> = (
+  next: T | CharacterDataUpdater<T>,
+) => void;
 
 
 // ── Constraints ───────────────────────────────────────────────────────────────
@@ -113,12 +124,18 @@ export function listFoInstances(data: CharacterData | null | undefined): ActiveR
   return out;
 }
 
+/** Уровень, который заклинание добавляет в сумму подготовки. Фокус и бесплатные — 0. */
+export function spellPreparedLevelCost(s: CharacterSpellEntry | null | undefined): number {
+  if (!s) return 0;
+  if (s.free) return 0;
+  if (String(s.school || '') === 'фокус') return 0;
+  if (!s.prepared) return 0;
+  const level = Number(s.level || 0);
+  if (level <= 0) return 0;
+  return level * Math.max(1, Number(s.amount || 1));
+}
+
 export function preparedLevelSum(data: CharacterData | null | undefined): number {
   const spells = data?.spellcasting?.spells ?? [];
-  return spells.reduce((sum, s) => {
-    if (!s?.prepared) return sum;
-    const level = Number(s.level || 0);
-    if (level <= 0) return sum;
-    return sum + level * Math.max(1, Number(s.amount || 1));
-  }, 0);
+  return spells.reduce((sum, s) => sum + spellPreparedLevelCost(s), 0);
 }

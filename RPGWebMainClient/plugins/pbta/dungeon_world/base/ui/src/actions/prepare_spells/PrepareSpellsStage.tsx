@@ -14,6 +14,7 @@ type DraftItem = {
   description?: string;
   tags?: string[];
   is_cantrip?: boolean;
+  free?: boolean;
 };
 
 function levelLabel(level: number): string {
@@ -26,10 +27,14 @@ function isCantrip(s: DraftItem): boolean {
   return String(s.school || '') === 'фокус';
 }
 
-/** Budget uses spell level once (amount ignored). Cantrips cost 0. */
+function isFree(s: DraftItem): boolean {
+  return Boolean(s.free);
+}
+
+/** Budget uses spell level once (amount ignored). Cantrips and free spells cost 0. */
 function budgetCost(s: DraftItem): number {
+  if (isFree(s) || isCantrip(s)) return 0;
   if (!s.prepared) return 0;
-  if (isCantrip(s)) return 0;
   const level = Number(s.level || 0);
   return level > 0 ? level : 0;
 }
@@ -66,11 +71,11 @@ export default function PrepareSpellsStage(props: ActionHandlerProps) {
         : [];
     // Normalize: amount unused for prepare; cantrips always prepared by default.
     return raw.map((s: DraftItem) => {
-      const cantrip = isCantrip(s);
+      const locked = isCantrip(s) || isFree(s);
       return {
         ...s,
         amount: 1,
-        prepared: cantrip ? true : Boolean(s.prepared),
+        prepared: locked ? true : Boolean(s.prepared),
       };
     });
   }, [value?.prepared_draft, entry?.prepared_draft]);
@@ -124,6 +129,7 @@ export default function PrepareSpellsStage(props: ActionHandlerProps) {
     sync(
       draft.map((s) => {
         if (s.id !== id) return s;
+        if (isFree(s)) return { ...s, prepared: true, amount: 1 };
         const nextPrepared = !s.prepared;
         return { ...s, prepared: nextPrepared, amount: 1 };
       }),
@@ -142,6 +148,7 @@ export default function PrepareSpellsStage(props: ActionHandlerProps) {
     const prepared = !!s.prepared;
     const open = expandedId === s.id;
     const cantrip = isCantrip(s);
+    const free = isFree(s);
     return (
       <div
         key={s.id}
@@ -154,10 +161,10 @@ export default function PrepareSpellsStage(props: ActionHandlerProps) {
       >
         <button
           type="button"
-          disabled={!canEdit}
+          disabled={!canEdit || free}
           className="w-full text-left px-3 py-2.5 disabled:cursor-default"
           onClick={() => {
-            if (!canEdit) {
+            if (!canEdit || free) {
               setExpandedId(open ? null : s.id);
               return;
             }
@@ -171,9 +178,9 @@ export default function PrepareSpellsStage(props: ActionHandlerProps) {
                 {s.title || s.id}
               </div>
               <div className="mt-0.5 text-[10px] text-white/45">
-                {cantrip ? 'фокус' : levelLabel(Number(s.level ?? 0))}
+                {free ? 'бесплатное' : cantrip ? 'фокус' : levelLabel(Number(s.level ?? 0))}
                 {s.school && s.school !== 'фокус' ? ` · ${s.school}` : ''}
-                {cantrip ? ' · вне бюджета' : prepared ? ` · +${Number(s.level || 0)} к сумме` : ''}
+                {free || cantrip ? ' · вне бюджета' : prepared ? ` · +${Number(s.level || 0)} к сумме` : ''}
               </div>
             </div>
             <span
@@ -272,7 +279,7 @@ export default function PrepareSpellsStage(props: ActionHandlerProps) {
         )}
         {filtersBar}
         <div className="space-y-2 max-h-[min(55vh,28rem)] overflow-y-auto">
-          {filtered.map((s) => spellCard(s, isGm && !readOnly))}
+          {filtered.map((s) => spellCard(s, Boolean(isGm && !readOnly)))}
         </div>
         {isGm && !readOnly && (
           <>

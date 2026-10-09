@@ -17,7 +17,7 @@ import {
   DEFAULT_STAT_ORDER,
 } from '../lib/pbta';
 import { getPlaybookId, getStats } from '../types/character';
-import type { CharacterData } from '../types/character';
+import type { CharacterData, CharacterDataChange } from '../types/character';
 import { getResourceSpecs } from '../types/pbta';
 import type { MoveTextOverride } from '../types/pbta';
 import { effectiveMove } from '../lib/moves';
@@ -89,7 +89,7 @@ type Props<TData extends CharacterData = CharacterData> = {
   data: TData;
   config: CharacterConfig;
   issues?: ValidationIssue[];
-  onChange: (next: TData) => void;
+  onChange: CharacterDataChange<TData>;
   /** Hide playbook + stats (+ resources unless shown elsewhere). */
   hideSheet?: boolean;
   /** Hide class/basic/custom moves. */
@@ -653,7 +653,10 @@ export default function CharacterDataEditor<TData extends CharacterData = Charac
         skills={pbtaSkills}
         currentStats={currentStats}
         resourceSpecs={resourceSpecs}
-        onChange={(next) => onChange(next as TData)}
+        onChange={(next) => {
+          if (typeof next === 'function') onChange((prev) => next(prev) as TData);
+          else onChange(next as TData);
+        }}
       />
 
       {/* ── Базовые ходы ───────────────────────────────────────────────────── */}

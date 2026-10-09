@@ -818,6 +818,76 @@ def drop_ongoing_patch(
     return data
 
 
+def _nonempty_str(value: Any) -> str:
+    if value is None:
+        return ""
+    return str(value).strip()
+
+
+def resolve_spell_snapshot(entry: dict[str, Any], codex: Any | None = None) -> dict[str, Any]:
+    """Entry fields win when filled; otherwise fall back to the codex spell."""
+    entry_school = _nonempty_str(entry.get("school"))
+    codex_school = _nonempty_str(getattr(codex, "school", None)) if codex is not None else ""
+    school = entry_school or codex_school
+
+    entry_desc = _nonempty_str(entry.get("description"))
+    codex_desc = _nonempty_str(getattr(codex, "description", None)) if codex is not None else ""
+    description = entry_desc or codex_desc
+
+    raw_tags = entry.get("tags")
+    entry_tags = (
+        [str(t).strip() for t in raw_tags if str(t).strip()]
+        if isinstance(raw_tags, list)
+        else []
+    )
+    if entry_tags:
+        tags = entry_tags
+    elif codex is not None:
+        tags = [str(t) for t in (getattr(codex, "tags", None) or [])]
+    else:
+        tags = []
+
+    level_raw = entry.get("level")
+    if level_raw is None and codex is not None:
+        level_raw = getattr(codex, "level", 0)
+    try:
+        level = int(level_raw or 0)
+    except (TypeError, ValueError):
+        level = 0
+
+    title = _nonempty_str(entry.get("title"))
+    if not title and codex is not None:
+        title = _nonempty_str(getattr(codex, "title", None))
+    spell_id = str(entry.get("spell_id") or "")
+    if not title:
+        title = spell_id
+
+    free = bool(entry.get("free"))
+    return {
+        "school": school,
+        "description": description,
+        "tags": tags,
+        "level": level,
+        "title": title,
+        "free": free,
+        "is_cantrip": school == "фокус",
+    }
+
+
+def spell_prepared_level_cost(entry: dict[str, Any], codex: Any | None = None) -> int:
+    """Prepared level sum contribution. Focus and free spells cost nothing."""
+    snap = resolve_spell_snapshot(entry, codex)
+    if snap["free"] or snap["is_cantrip"] or snap["level"] <= 0:
+        return 0
+    if not entry.get("prepared"):
+        return 0
+    try:
+        amount = max(1, int(entry.get("amount") or 1))
+    except (TypeError, ValueError):
+        amount = 1
+    return int(snap["level"]) * amount
+
+
 def apply_spellcasting_prepare(
     actor_data: dict[str, Any],
     prepared: list[dict[str, Any]],
@@ -833,7 +903,9 @@ def apply_spellcasting_prepare(
             continue
         item = dict(raw)
         sid = str(item.get("id") or "")
-        if sid in by_id:
+        if item.get("free"):
+            item["prepared"] = True
+        elif sid in by_id:
             draft = by_id[sid]
             item["prepared"] = bool(draft.get("prepared"))
             if draft.get("amount") is not None:
@@ -856,28 +928,25 @@ def enrich_prepared_spells_for_cast(actor_data: dict[str, Any] | None, full_code
 
     out: list[dict[str, Any]] = []
     for s in raw_spells:
-        if not isinstance(s, dict) or not s.get("id") or not s.get("prepared"):
+        if not isinstance(s, dict) or not s.get("id"):
+            continue
+        free = bool(s.get("free"))
+        if not s.get("prepared") and not free:
             continue
         spell_id = str(s.get("spell_id") or "")
         codex = spells_map.get(spell_id) if spell_id else None
-        school = str(getattr(codex, "school", None) or s.get("school") or "")
-        description = str(getattr(codex, "description", None) or s.get("description") or "")
-        tags = list(getattr(codex, "tags", None) or s.get("tags") or [])
-        level = int(
-            s.get("level")
-            if s.get("level") is not None
-            else (getattr(codex, "level", 0) or 0)
-        )
+        snap = resolve_spell_snapshot(s, codex)
         out.append({
             "id": str(s.get("id") or ""),
             "spell_id": spell_id,
-            "title": str(s.get("title") or getattr(codex, "title", None) or spell_id or ""),
-            "level": level,
-            "school": school,
-            "description": description,
-            "tags": [str(t) for t in tags],
+            "title": snap["title"],
+            "level": snap["level"],
+            "school": snap["school"],
+            "description": snap["description"],
+            "tags": snap["tags"],
             "prepared": True,
-            "is_cantrip": school == "фокус",
+            "free": snap["free"],
+            "is_cantrip": snap["is_cantrip"],
             "notes": str(s.get("notes") or ""),
         })
     out.sort(key=lambda x: (0 if x.get("is_cantrip") else 1, int(x.get("level") or 0), str(x.get("title") or "")))
@@ -903,7 +972,7 @@ def spend_spell_entry(
         if not isinstance(raw, dict):
             continue
         item = dict(raw)
-        if str(item.get("id") or "") == str(entry_id):
+        if str(item.get("id") or "") == str(entry_id) and not item.get("free"):
             if decrease_amount and int(item.get("amount") or 1) > 1:
                 item["amount"] = int(item.get("amount") or 1) - 1
             elif unprepare:

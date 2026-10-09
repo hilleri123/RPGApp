@@ -420,13 +420,17 @@ export function PerformMoveDeclareStage({ action, value, patch, onPatch, onSubmi
         }));
     }
     return (actorData.spellcasting?.spells ?? [])
-      .filter((s) => s.prepared)
+      .filter((s) => s.prepared || s.free)
       .map((s) => ({
         id: String(s.id),
         spell_id: s.spell_id,
         title: s.title,
         level: s.level,
+        school: s.school,
+        description: s.description,
+        tags: s.tags,
         notes: s.notes,
+        is_cantrip: s.school === 'фокус',
         prepared: true,
       }));
   }, [action.workflow.stageData, actorData.spellcasting?.spells]);

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from typing import Literal, Optional
-from pydantic import BaseModel, Field, ConfigDict
+from pydantic import BaseModel, Field, ConfigDict, model_validator
 
 from .types_classes import CustomMove, MoveTextOverride
 
@@ -30,6 +30,17 @@ class CharacterSpellEntry(BaseModel):
     amount: int = 1
     source: Literal["codex", "custom", "other_playbook"] = "codex"
     notes: str = ""
+    school: str = ""
+    tags: list[str] = Field(default_factory=list)
+    description: str = ""
+    # Не входит в сумму уровней и всегда остаётся подготовленным.
+    free: bool = False
+
+    @model_validator(mode="after")
+    def free_stays_prepared(self) -> "CharacterSpellEntry":
+        if self.free:
+            self.prepared = True
+        return self
 
 
 class CharacterSpellcasting(BaseModel):

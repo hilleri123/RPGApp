@@ -148,7 +148,10 @@ export function useScenarioObjectDialog<
   );
 
   const data = (form as any)?.data;
-  const setData = useCallback((next: any) => setForm((p: any) => ({ ...p, data: next })), [setForm]);
+  const setData = useCallback((next: any) => setForm((p: any) => ({
+    ...p,
+    data: typeof next === 'function' ? next(p?.data) : next,
+  })), [setForm]);
 
   const reload = useCallback(async () => {
     if (!open) return;

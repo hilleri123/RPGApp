@@ -2,7 +2,7 @@
 
 import { useMemo } from 'react';
 import { Input } from '@/components/ui/input';
-import type { CharacterData } from '../types/character';
+import type { CharacterData, CharacterDataChange } from '../types/character';
 import type { CustomMove, PbtaSkill, ResourceSpec } from '../types/pbta';
 import { customMoveToMove } from '../types/pbta';
 import { MoveExpandable, toMoveDisplayData } from './moves';
@@ -14,7 +14,7 @@ type Props = {
   skills: PbtaSkill[];
   currentStats: Record<string, number>;
   resourceSpecs?: ResourceSpec[];
-  onChange: (next: CharacterData) => void;
+  onChange: CharacterDataChange;
 };
 
 function newCustomMoveId(): string {
@@ -28,50 +28,59 @@ export function CustomMovesEditor({ data, skills, currentStats, resourceSpecs = 
   const customMoves = data.custom_moves ?? [];
   const activeIds = useMemo(() => new Set(data.moves ?? []), [data.moves]);
 
-  const updateMoves = (nextCustom: CustomMove[]) => {
-    onChange({ ...structuredClone(data), custom_moves: nextCustom });
-  };
-
   const addMove = () => {
     const cm: CustomMove = {
       id: newCustomMoveId(),
       title: 'Новый ход',
       available_stats: skills[0]?.id ? [skills[0].id] : [],
     };
-    const next = [...customMoves, cm];
-    const moves = [...(data.moves ?? [])];
-    if (!moves.includes(cm.id)) moves.push(cm.id);
-    onChange({ ...structuredClone(data), custom_moves: next, moves });
+    onChange((prev) => {
+      const next = [...(prev.custom_moves ?? []), cm];
+      const moves = [...(prev.moves ?? [])];
+      if (!moves.includes(cm.id)) moves.push(cm.id);
+      return { ...structuredClone(prev), custom_moves: next, moves };
+    });
   };
 
   const patchMove = (id: string, patch: Partial<CustomMove>) => {
-    updateMoves(customMoves.map((m) => (m.id === id ? { ...m, ...patch } : m)));
+    onChange((prev) => ({
+      ...structuredClone(prev),
+      custom_moves: (prev.custom_moves ?? []).map((m) => (m.id === id ? { ...m, ...patch } : m)),
+    }));
   };
 
   const removeMove = (id: string) => {
-    const nextCustom = customMoves.filter((m) => m.id !== id);
-    const moves = (data.moves ?? []).filter((mid) => mid !== id);
-    onChange({ ...structuredClone(data), custom_moves: nextCustom, moves });
+    onChange((prev) => ({
+      ...structuredClone(prev),
+      custom_moves: (prev.custom_moves ?? []).filter((m) => m.id !== id),
+      moves: (prev.moves ?? []).filter((mid) => mid !== id),
+    }));
   };
 
   const toggleActive = (id: string, checked: boolean) => {
-    const moves = [...(data.moves ?? [])];
-    if (checked) {
-      if (!moves.includes(id)) moves.push(id);
-    } else {
-      const idx = moves.indexOf(id);
-      if (idx >= 0) moves.splice(idx, 1);
-    }
-    onChange({ ...structuredClone(data), moves });
+    onChange((prev) => {
+      const moves = [...(prev.moves ?? [])];
+      if (checked) {
+        if (!moves.includes(id)) moves.push(id);
+      } else {
+        const idx = moves.indexOf(id);
+        if (idx >= 0) moves.splice(idx, 1);
+      }
+      return { ...structuredClone(prev), moves };
+    });
   };
 
   const toggleStat = (moveId: string, statId: string, checked: boolean) => {
-    const cm = customMoves.find((m) => m.id === moveId);
-    if (!cm) return;
-    const stats = new Set(cm.available_stats ?? []);
-    if (checked) stats.add(statId);
-    else stats.delete(statId);
-    patchMove(moveId, { available_stats: [...stats] });
+    onChange((prev) => ({
+      ...structuredClone(prev),
+      custom_moves: (prev.custom_moves ?? []).map((m) => {
+        if (m.id !== moveId) return m;
+        const stats = new Set(m.available_stats ?? []);
+        if (checked) stats.add(statId);
+        else stats.delete(statId);
+        return { ...m, available_stats: [...stats] };
+      }),
+    }));
   };
 
   return (
@@ -136,18 +145,15 @@ export function CustomMovesEditor({ data, skills, currentStats, resourceSpecs = 
                 {skills.map((s) => {
                   const checked = (cm.available_stats ?? []).includes(s.id);
                   return (
-                    <label
+                    <button
                       key={s.id}
+                      type="button"
+                      aria-pressed={checked}
                       className={`text-xs px-2 py-0.5 rounded border cursor-pointer ${checked ? 'border-amber-600 text-amber-200 bg-amber-950/40' : 'border-gray-700 text-gray-500'}`}
+                      onClick={() => toggleStat(cm.id, s.id, !checked)}
                     >
-                      <input
-                        type="checkbox"
-                        className="sr-only"
-                        checked={checked}
-                        onChange={(e) => toggleStat(cm.id, s.id, e.target.checked)}
-                      />
                       {s.title ?? s.id.toUpperCase()}
-                    </label>
+                    </button>
                   );
                 })}
               </div>

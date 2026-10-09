@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import type { DWCharacterConfig, CharacterData } from '../types/character';
 import type { ValidationIssue } from '../../../../../base/ui/src/types';
+import type { CharacterDataChange } from '../../../../../base/ui/src/types/character';
 import { computeCharacterStats } from '../../../../../base/ui/src/lib/pbta';
 import { getPlaybookId, getStats } from '../../../../../base/ui/src/types/character';
 import { getResourceSpecs } from '../../../../../base/ui/src/types/pbta';
@@ -17,7 +18,7 @@ type Props = {
   data:     CharacterData;
   config:   DWCharacterConfig;
   issues?:  ValidationIssue[];
-  onChange: (next: CharacterData) => void;
+  onChange: CharacterDataChange<CharacterData>;
 };
 
 export default function DWCharacterDataEditor({ data, config, issues, onChange }: Props) {
