@@ -238,6 +238,7 @@ export function MasterLeftColumn({ sessionId }: { sessionId: string }) {
                 {mapTab === 'scene' && (
                   <LocationExposuresPanel
                     location={sceneLocation}
+                    locations={locations}
                     scene_id={currentSceneId}
                     applySceneExposure={applySceneExposure}
                   />

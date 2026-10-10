@@ -14,12 +14,15 @@ export function ExposureCard({
   scene_id,
   location_id,
   story_beat_id,
+  sourceLabel,
   applySceneExposure,
 }: {
   ex: SceneExposureOut;
   scene_id: string;
   location_id?: string;
   story_beat_id?: string;
+  /** Локация-источник, если экспозиция взята не у текущей, а у родителя. */
+  sourceLabel?: string;
   applySceneExposure: (sceneId: string, expositionId: string, from_location_id?: string, from_story_beat?: string) => void;
 }) {
   const params = useParams<{ id: string }>();
@@ -78,6 +81,11 @@ export function ExposureCard({
           <div className="font-medium truncate">{ex.name || '(без названия)'}</div>
           <span className="text-[10px] text-gray-500">#{ex.order_num ?? 0}</span>
         </div>
+        {sourceLabel ? (
+          <div className="text-[10px] text-amber-200/90 truncate" title={`Экспозиция локации «${sourceLabel}»`}>
+            из: {sourceLabel}
+          </div>
+        ) : null}
 
         <div className="flex flex-wrap gap-1 text-[10px]">
           {resolvedNpcs.length > 0 && (
