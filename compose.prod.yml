@@ -176,16 +176,48 @@ services:
         max-file: "3"
 
 
+  papervpn:
+    build:
+      context: ./vpn/papervpn
+    image: rpgzona/papervpn:latest
+    restart: unless-stopped
+    cap_add:
+      - NET_ADMIN
+    devices:
+      - /dev/net/tun
+    environment:
+      PAPERVPN_KEY: ${PAPERVPN_KEY:-}
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python3",
+          "-c",
+          "import socket; s=socket.create_connection(('149.154.167.220', 443), 8); s.close()",
+        ]
+      interval: 15s
+      timeout: 12s
+      retries: 8
+      start_period: 20s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
   telegram-bot:
     build:
       context: ./telegram-bot
     image: rpgzona/telegram-bot:latest
     restart: unless-stopped
+    network_mode: "service:papervpn"
     environment:
       BOT_TOKEN: ${BOT_TOKEN}
       WEB_CLIENT_URL: ${WEB_CLIENT_URL:-https://rpgzona.ru}
       RABBIT_URL: "${RABBIT_URL:?RABBIT_URL обязателен в проде, формат amqp://user:pass@rabbitmq:5672/}"
     depends_on:
+      papervpn:
+        condition: service_healthy
       rabbitmq:
         condition: service_healthy
       app:

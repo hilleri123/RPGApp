@@ -24,7 +24,7 @@ Usage: $(basename "$0") [--skip-pull]
   --skip-pull   Skip git pull (redeploy current checkout only)
 
 Pulls origin/master, builds images, runs Alembic via the migrate service,
-then recreates app / web-client / telegram-bot.
+then recreates app / web-client / papervpn / telegram-bot.
 EOF
 }
 
@@ -53,7 +53,7 @@ check_env_file() {
   set +a
 
   local missing=()
-  for var in POSTGRES_PASSWORD SECRET_KEY BOT_TOKEN RABBIT_URL RABBITMQ_DEFAULT_USER RABBITMQ_DEFAULT_PASS; do
+  for var in POSTGRES_PASSWORD SECRET_KEY BOT_TOKEN RABBIT_URL RABBITMQ_DEFAULT_USER RABBITMQ_DEFAULT_PASS PAPERVPN_KEY; do
     if [[ -z "${!var:-}" ]]; then
       missing+=("$var")
     fi
@@ -80,7 +80,7 @@ pull_master() {
 
 build_and_deploy() {
   log "Building images"
-  "${COMPOSE[@]}" build app web-client telegram-bot migrate
+  "${COMPOSE[@]}" build app web-client telegram-bot papervpn migrate
 
   log "Running Alembic migrations (migrate service)"
   # Force-recreate so migrate always uses the freshly built image (not a stale container).
@@ -90,7 +90,7 @@ build_and_deploy() {
   verify_migrate
 
   log "Starting / recreating application services"
-  "${COMPOSE[@]}" up -d --force-recreate app web-client telegram-bot
+  "${COMPOSE[@]}" up -d --force-recreate app web-client papervpn telegram-bot
 
   log "Ensuring infrastructure services are up"
   "${COMPOSE[@]}" up -d db redis rabbitmq pg-backup

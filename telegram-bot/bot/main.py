@@ -19,13 +19,20 @@ logger = logging.getLogger(__name__)
 
 async def _set_commands(bot: Bot) -> None:
     # Telegram BotCommand names: only a-z, 0-9, underscore (no Cyrillic).
-    await bot.set_my_commands(
-        [
-            BotCommand(command="start", description="Приветствие и инструкция"),
-            BotCommand(command="link", description="Вход в браузере"),
-            BotCommand(command="create_lobby", description="Создать лобби для игроков"),
-        ]
-    )
+    # Меню не должно ронять процесс: без него polling всё равно работает.
+    commands = [
+        BotCommand(command="start", description="Приветствие и инструкция"),
+        BotCommand(command="link", description="Вход в браузере"),
+        BotCommand(command="create_lobby", description="Создать лобби для игроков"),
+    ]
+    for attempt in range(1, 4):
+        try:
+            await bot.set_my_commands(commands)
+            return
+        except Exception:
+            logger.exception("set_my_commands failed (attempt %s/3)", attempt)
+            await asyncio.sleep(2)
+    logger.error("set_my_commands skipped; starting polling anyway")
 
 
 async def main() -> None:
