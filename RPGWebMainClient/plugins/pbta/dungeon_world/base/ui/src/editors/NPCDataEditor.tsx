@@ -160,7 +160,7 @@ function AttackEditor({ attack, index, cfg, errMap, onChange, onRemove }: {
             onChange={(e) => setAtk({ damage: buildDmg(dmgDice, e.target.value) })}
           >
             <option value="">—</option>
-            {['-2', '-1', '+1', '+2', '+3', '+4'].map((b) => (
+            {['-2', '-1', '+1', '+2', '+3', '+4', '+5', '+6', '+7', '+8', '+9'].map((b) => (
               <option key={b} value={b}>{b}</option>
             ))}
           </select>
@@ -228,7 +228,7 @@ function MoveEditor({ move, index, onChange, onRemove }: {
 
 export default function NpcDataEditor({ data, config, issues, onChange }: Props) {
   const initKeyRef = useRef<string | null>(null);
-  const cfg = config ?? EMPTY_CFG;
+  const cfg: NpcConfig = { ...EMPTY_CFG, ...(config ?? {}) };
 
   useEffect(() => {
     const init = cfg.initialData;

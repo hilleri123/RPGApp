@@ -72,7 +72,7 @@ class NpcCodex:
         TagMeta(id="far",   label="Far"),
     ]
 
-    DAMAGE_DICE = ["d4", "d6", "d8", "d10", "d12", "2d6", "2d8"]
+    DAMAGE_DICE = ["d4", "d6", "d8", "d10", "d12", "2d4", "2d6", "2d8", "2d10", "2d12"]
 
     def config(self) -> dict:
         return {
