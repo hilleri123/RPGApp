@@ -259,9 +259,12 @@ async def admin_update_user(
 @router.get("/{user_id}/groups", response_model=List[scheme.MasterGroup])
 async def get_user_groups(
     user_id: UUID,
-    current_user: models.User = Depends(require_admin),
+    current_user: models.User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
+    if current_user.id != user_id and not current_user.is_admin:
+        raise HTTPException(status_code=403, detail="Требуется роль admin")
+
     # Загружаем пользователя с группами сразу (eager loading)
     stmt = (
         select(models.User)

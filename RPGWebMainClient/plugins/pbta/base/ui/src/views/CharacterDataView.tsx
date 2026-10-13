@@ -48,7 +48,7 @@ export default function CharacterDataView({ data, config, hideMoves = false, hid
           {playbookObj.summary && (
             <div className="text-xs text-gray-500">{playbookObj.summary}</div>
           )}
-          {(data.race_id || data.alignment_id || data.alignment_notes) && (
+          {(data?.race_id || data?.alignment_id || data?.alignment_notes) && (
             <div className="text-xs text-gray-500 space-y-1 mt-2">
               {data.race_id && playbookObj.races?.length ? (
                 <div>

@@ -65,13 +65,15 @@ function MePageContent() {
   // Загрузить группы пользователя
   useEffect(() => {
     if (!user) return;
-    const fetchData = async () => {
-      const master_groups = await userApiService.getUserGroups(user.id);
-      if (master_groups) {
-        setGroups(master_groups);
-      }
-    };
-    fetchData();
+    let cancelled = false;
+    userApiService.getUserGroups(user.id)
+      .then((master_groups) => {
+        if (!cancelled && master_groups) setGroups(master_groups);
+      })
+      .catch(() => {
+        if (!cancelled) setGroups([]);
+      });
+    return () => { cancelled = true; };
   }, [user]);
 
   // Аватарка превью

@@ -426,3 +426,21 @@ async def test_session_snapshot_outsider_denied(monkeypatch):
     with pytest.raises(HTTPException) as exc:
         await access.require_scenario_access(_FakeDB(), user, scenario, "read")
     assert exc.value.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_user_reads_own_groups_stranger_still_needs_admin():
+    get_user_groups = _module("app.routes.user.router").get_user_groups
+    me_id = uuid.uuid4()
+    me = SimpleNamespace(id=me_id, is_admin=False)
+    target = SimpleNamespace(id=me_id, master_groups=[])
+
+    with pytest.raises(HTTPException) as exc:
+        await get_user_groups(uuid.uuid4(), current_user=me, db=_FakeDB(target))
+    assert exc.value.status_code == 403
+    assert exc.value.detail == "Требуется роль admin"
+
+    assert await get_user_groups(me_id, current_user=me, db=_FakeDB(target)) == []
+
+    admin = SimpleNamespace(id=uuid.uuid4(), is_admin=True)
+    assert await get_user_groups(me_id, current_user=admin, db=_FakeDB(target)) == []

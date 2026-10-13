@@ -90,12 +90,12 @@ export type CharacterConfig<
 };
 
 
-export function getPlaybookId(data: CharacterData): string {
-  return data.playbook_id ?? '';
+export function getPlaybookId(data: CharacterData | null | undefined): string {
+  return data?.playbook_id ?? '';
 }
 
-export function getStats(data: CharacterData): Record<string, number> {
-  return data.stats ?? {};
+export function getStats(data: CharacterData | null | undefined): Record<string, number> {
+  return data?.stats ?? {};
 }
 
 /** Sum of forward + ongoing amounts. */

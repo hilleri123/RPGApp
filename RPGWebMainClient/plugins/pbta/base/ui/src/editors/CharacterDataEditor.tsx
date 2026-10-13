@@ -128,6 +128,11 @@ export default function CharacterDataEditor<TData extends CharacterData = Charac
   const dataRef = useRef(data);
   dataRef.current = data;
 
+  // Первый кадр бывает с data === null: эффект ниже ещё не записал initialData.
+  const sheet = (
+    data && typeof data === 'object' ? data : (config?.initialData ?? DEFAULT_INITIAL)
+  ) as TData;
+
   const pbtaSkills: PbtaSkill[] = config?.pbta?.skills ?? [];
   const playbooks = config?.pbta?.playbooks ?? [];
   const moves: Move[] = config?.pbta?.moves ?? [];
@@ -136,10 +141,10 @@ export default function CharacterDataEditor<TData extends CharacterData = Charac
   const statMin = config?.constraints?.stat_min ?? 3;
   const statMax = config?.constraints?.stat_max ?? 18;
 
-  const currentStats = getStats(data);
-  const currentPlaybookId = getPlaybookId(data);
-  const currentMoves = data?.moves ?? [];
-  const moveOverridesRoot = data.move_overrides ?? {};
+  const currentStats = getStats(sheet);
+  const currentPlaybookId = getPlaybookId(sheet);
+  const currentMoves = sheet.moves ?? [];
+  const moveOverridesRoot = sheet.move_overrides ?? {};
 
   const movesMap = useMemo(() => new Map(moves.map((m) => [m.id, m])), [moves]);
   const basicMoves = useMemo(() => moves.filter((m) => m.kind === 'basic'), [moves]);
@@ -159,7 +164,7 @@ export default function CharacterDataEditor<TData extends CharacterData = Charac
   const [openClassMoveIds, setOpenClassMoveIds] = useState<Set<string>>(() => new Set());
   const [textEditMoveId, setTextEditMoveId] = useState<string | null>(null);
   const playbookObj = playbooks.find((p) => p.id === currentPlaybookId) ?? null;
-  const characterLevel = Number((data as CharacterData & { level?: number }).level ?? 1);
+  const characterLevel = Number((sheet as CharacterData & { level?: number }).level ?? 1);
 
   const setClassMoveOpen = (mid: string, open: boolean) => {
     setOpenClassMoveIds((prev) => {
@@ -197,13 +202,13 @@ export default function CharacterDataEditor<TData extends CharacterData = Charac
 
   const setStat = (sid: string, value: number) => {
     onChange({
-      ...structuredClone(data),
-      stats: { ...(data.stats ?? {}), [sid]: value },
+      ...structuredClone(sheet),
+      stats: { ...(sheet.stats ?? {}), [sid]: value },
     } as TData);
   };
 
   const setPlaybook = (playbookId: string) => {
-    const next = structuredClone(data) as TData;
+    const next = structuredClone(sheet) as TData;
     const newPb = playbooks.find((p) => p.id === playbookId);
     const customIds = new Set((next.custom_moves ?? []).map((m) => m.id));
 
@@ -229,7 +234,7 @@ export default function CharacterDataEditor<TData extends CharacterData = Charac
   };
 
   const toggleMove = (moveId: string, checked: boolean) => {
-    const next = structuredClone(data) as TData;
+    const next = structuredClone(sheet) as TData;
     const arr = Array.isArray(next.moves) ? [...next.moves] : [];
     if (checked) {
       const group = startingChoiceGroup(playbookObj, moveId);
@@ -256,7 +261,7 @@ export default function CharacterDataEditor<TData extends CharacterData = Charac
   const applyStatArray = (arr: number[]) => {
     const sorted = [...arr].sort((a, b) => b - a);
     const targetIds = DEFAULT_STAT_ORDER.filter((sid) => pbtaSkills.some((s) => s.id === sid));
-    const next = structuredClone(data) as TData;
+    const next = structuredClone(sheet) as TData;
     next.stats = { ...(next.stats ?? {}) };
     targetIds.forEach((sid, i) => {
       if (i < sorted.length) next.stats[sid] = sorted[i];
@@ -322,9 +327,9 @@ export default function CharacterDataEditor<TData extends CharacterData = Charac
                 <span>Раса</span>
                 <select
                   className="rounded border border-gray-700 bg-black/40 text-gray-100 text-sm px-2 py-1"
-                  value={(data as CharacterData).race_id ?? ''}
+                  value={(sheet as CharacterData).race_id ?? ''}
                   onChange={(e) => {
-                    const next = structuredClone(data) as TData;
+                    const next = structuredClone(sheet) as TData;
                     (next as CharacterData).race_id = e.target.value;
                     const race = playbookObj.races?.find((r) => r.id === e.target.value);
                     if (race) {
@@ -353,9 +358,9 @@ export default function CharacterDataEditor<TData extends CharacterData = Charac
                   <span>Мировоззрение</span>
                   <select
                     className="rounded border border-gray-700 bg-black/40 text-gray-100 text-sm px-2 py-1"
-                    value={(data as CharacterData).alignment_id ?? ''}
+                    value={(sheet as CharacterData).alignment_id ?? ''}
                     onChange={(e) => {
-                      const next = structuredClone(data) as TData;
+                      const next = structuredClone(sheet) as TData;
                       const aid = e.target.value;
                       (next as CharacterData).alignment_id = aid;
                       const align = playbookObj.alignments?.find((a) => a.id === aid);
@@ -376,15 +381,15 @@ export default function CharacterDataEditor<TData extends CharacterData = Charac
                   <span>Смысл мировоззрения (можно менять в игре)</span>
                   <Textarea
                     className="min-h-[72px] bg-zinc-950/40 text-sm"
-                    value={(data as CharacterData).alignment_notes ?? ''}
+                    value={(sheet as CharacterData).alignment_notes ?? ''}
                     onChange={(e) => {
-                      const next = structuredClone(data) as TData;
+                      const next = structuredClone(sheet) as TData;
                       (next as CharacterData).alignment_notes = e.target.value;
                       onChange(next);
                     }}
                     placeholder={
                       playbookObj.alignments?.find(
-                        (a) => a.id === (data as CharacterData).alignment_id,
+                        (a) => a.id === (sheet as CharacterData).alignment_id,
                       )?.summary ?? 'Как это проявляется у вашего героя…'
                     }
                   />
@@ -397,7 +402,7 @@ export default function CharacterDataEditor<TData extends CharacterData = Charac
 
       {!hideResources && (
         <CharacterResourcesPanel
-          data={data}
+          data={sheet}
           resourceSpecs={resourceSpecs}
           editable
           onChange={(next) => onChange(next as TData)}
@@ -652,7 +657,7 @@ export default function CharacterDataEditor<TData extends CharacterData = Charac
       })()}
 
       <CustomMovesEditor
-        data={data}
+        data={sheet}
         skills={pbtaSkills}
         currentStats={currentStats}
         resourceSpecs={resourceSpecs}

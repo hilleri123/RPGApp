@@ -5,6 +5,7 @@ import { CaptureUpdateAction } from '@excalidraw/excalidraw';
 import type { ExcalidrawElement } from '@excalidraw/excalidraw/types/element/types';
 import type { ExcalidrawImperativeAPI } from '@excalidraw/excalidraw/types/types';
 import ExcalidrawDynamic from './ExcalidrawDynamic';
+import { mergeToponymLibrary, toponymLibrary } from './toponymLibrary';
 import type { LocationTabCommonProps } from './types';
 import { useDialogMode } from '../../common/DialogModeContext';
 import type { MapObjectPolygonCreate } from '@/app/services/types2';
@@ -365,6 +366,17 @@ export default function ExcalidrawMapTab({ dlg, editingId }: LocationTabCommonPr
   const handleApi = useCallback(
     (api: ExcalidrawImperativeAPI) => {
       apiRef.current = api;
+      void toponymLibrary()
+        .then((items) =>
+          api.updateLibrary({
+            libraryItems: (current) => mergeToponymLibrary(current, items),
+            merge: false,
+            prompt: false,
+            openLibraryMenu: false,
+            defaultStatus: 'published',
+          }),
+        )
+        .catch(() => {});
       // Fit the canvas frame into view so bounds are obvious.
       try {
         const frame = (api.getSceneElements() as any[]).find(

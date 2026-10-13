@@ -41,7 +41,8 @@ export default function DWCharacterDataEditor({ data, config, issues, onChange }
     pbtaModifier(score) - debilityPenalty(statId, debilities);
 
   const setField = <K extends keyof CharacterData>(field: K, value: CharacterData[K]) => {
-    onChange({ ...structuredClone(data), [field]: value });
+    const base = data && typeof data === 'object' ? data : {};
+    onChange({ ...structuredClone(base), [field]: value } as CharacterData);
   };
 
   const toggleDebility = (id: string) => {

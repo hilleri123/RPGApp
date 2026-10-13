@@ -34,7 +34,7 @@ export default function DWCharacterDataView({ data, config }: Props) {
   const stats = getStats(data);
   const playbookId = getPlaybookId(data);
   const currentMoves = data?.moves ?? [];
-  const moveOverridesRoot = data.move_overrides ?? {};
+  const moveOverridesRoot = data?.move_overrides ?? {};
   const playbookObj = playbooks.find((p) => p.id === playbookId) ?? null;
   const resourceSpecs = getResourceSpecs(config?.pbta);
 
@@ -69,8 +69,8 @@ export default function DWCharacterDataView({ data, config }: Props) {
   }, [moves]);
 
   const customMoveItems = useMemo(
-    () => (data.custom_moves ?? []).filter((cm) => currentMoves.includes(cm.id)),
-    [data.custom_moves, currentMoves],
+    () => (data?.custom_moves ?? []).filter((cm) => currentMoves.includes(cm.id)),
+    [data?.custom_moves, currentMoves],
   );
 
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({
