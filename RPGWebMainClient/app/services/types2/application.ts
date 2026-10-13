@@ -93,6 +93,7 @@ export interface ApplicationCreatePayload {
 
 /** PUT /applications/{id} — JSON-часть внутри FormData */
 export interface ApplicationUpdatePayload {
+  rule_id_str?: string;
   name?: string;
   short_desc?: string;
   story?: string;

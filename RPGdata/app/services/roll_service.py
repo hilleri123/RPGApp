@@ -26,6 +26,7 @@ class RollSpec(BaseModel):
 class RollResult(BaseModel):
     expression: str
     dice: list[int] = Field(default_factory=list)
+    dice_sides: list[int] = Field(default_factory=list)
     rolled_sum: int = 0
     modifier_total: int = 0
     total: int = 0
@@ -36,6 +37,7 @@ class RollResult(BaseModel):
 
 
 _DICE_RE = re.compile(r"^\s*(\d+)\s*d\s*(\d+)\s*$", re.IGNORECASE)
+_TERM_RE = re.compile(r"(\d+)\s*d\s*(\d+)", re.IGNORECASE)
 
 
 def parse_expression(expression: str) -> tuple[int, int]:
@@ -45,13 +47,31 @@ def parse_expression(expression: str) -> tuple[int, int]:
     return int(m.group(1)), int(m.group(2))
 
 
-def roll_from_seed(seed: str, spec: RollSpec) -> RollResult:
-    count, sides = spec.count, spec.sides
-    if count is None or sides is None:
-        count, sides = parse_expression(spec.expression)
+def parse_dice_terms(expression: str) -> list[tuple[int, int]]:
+    """`2d6` и `1d6+1d8`. Пустая строка остаётся привычными 2d6."""
+    found = _TERM_RE.findall(expression or "")
+    if not found:
+        return [(2, 6)]
+    return [(int(count), int(sides)) for count, sides in found]
 
+
+def roll_faces(seed: str, spec: RollSpec) -> tuple[list[int], list[int]]:
+    if spec.count is not None and spec.sides is not None:
+        terms = [(int(spec.count), int(spec.sides))]
+    else:
+        terms = parse_dice_terms(spec.expression)
     rng = random.Random(seed)
-    dice = [rng.randint(1, sides) for _ in range(count)]
+    dice: list[int] = []
+    sides: list[int] = []
+    for count, die in terms:
+        for _ in range(count):
+            dice.append(rng.randint(1, die))
+            sides.append(die)
+    return dice, sides
+
+
+def roll_from_seed(seed: str, spec: RollSpec) -> RollResult:
+    dice, dice_sides = roll_faces(seed, spec)
     rolled_sum = sum(dice)
     modifier_total = sum(m.value for m in spec.modifiers)
     total = rolled_sum + modifier_total
@@ -66,6 +86,7 @@ def roll_from_seed(seed: str, spec: RollSpec) -> RollResult:
     return RollResult(
         expression=spec.expression,
         dice=dice,
+        dice_sides=dice_sides,
         rolled_sum=rolled_sum,
         modifier_total=modifier_total,
         total=total,

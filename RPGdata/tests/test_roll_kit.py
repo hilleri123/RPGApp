@@ -18,6 +18,30 @@ def test_roll_2d6_is_deterministic():
     assert len(dice_a) == 2
 
 
+def test_mixed_dice_keep_each_die_size():
+    result = roll_from_seed("appetite-seed", RollSpec(expression="1d6+1d8"))
+    assert result.dice_sides == [6, 8]
+    assert len(result.dice) == 2
+    assert 1 <= result.dice[0] <= 6
+    assert 1 <= result.dice[1] <= 8
+    assert result.rolled_sum == sum(result.dice)
+
+    again = roll_from_seed("appetite-seed", RollSpec(expression="1d6+1d8"))
+    assert again.dice == result.dice
+
+    plain = roll_from_seed("appetite-seed", RollSpec(expression="2d6"))
+    assert plain.dice_sides == [6, 6]
+    assert len(plain.dice) == 2
+
+
+def test_appetite_consequence_when_d6_is_higher():
+    from plugins.pbta.dungeon_world.base.backend.debilities import appetite_consequence
+
+    assert appetite_consequence(6, 5) is True
+    assert appetite_consequence(3, 3) is False
+    assert appetite_consequence(2, 8) is False
+
+
 def test_roll_from_seed_with_modifiers():
     spec = RollSpec(
         expression="2d6",

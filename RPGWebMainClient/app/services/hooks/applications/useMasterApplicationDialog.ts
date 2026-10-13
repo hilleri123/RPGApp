@@ -180,6 +180,7 @@ export function useMasterApplicationDialog(opts: {
     dispatch({ type: 'SAVE_START' });
     try {
       const updatePayload: ApplicationUpdatePayload = {
+        rule_id_str: state.form.rule_id_str,
         name: state.form.name,
         short_desc: state.form.short_desc ?? undefined,
         story: state.form.story ?? undefined,

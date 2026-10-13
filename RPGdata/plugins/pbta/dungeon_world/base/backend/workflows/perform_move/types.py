@@ -103,6 +103,13 @@ class ResourceDraft(BaseModel):
     factory_id: str = ""
 
 
+class DebilityUpdate(BaseModel):
+    """Итог заявки: какой набор травм остаётся у персонажа."""
+    id: str = ""
+    target_id: str = ""
+    debilities: list[str] = Field(default_factory=list)
+
+
 class ResourceGrant(BaseModel):
     id: str = ""
     spec_id: str = ""
@@ -144,6 +151,7 @@ class PerformMoveEntry(PerformMoveEntryBase):
     npc_attack: Optional[NpcAttackRef] = None
     resolve: ResolveState = Field(default_factory=ResolveState)
     damage_claims: list[DamageClaim] = Field(default_factory=list)
+    debility_updates: list[DebilityUpdate] = Field(default_factory=list)
     resource_grants: list[ResourceGrant] = Field(default_factory=list)
     affected_entities: list[AffectedEntity] = Field(default_factory=list)
     grant_cursor: int = 0
@@ -156,7 +164,7 @@ class PerformMoveEntry(PerformMoveEntryBase):
     # When True and cast_spell_entry_id is set, unprepare that spell on the caster at apply.
     # Default True (9-); after roll 10+ is set to False automatically.
     unprepare_cast_spell: bool = True
-    # Косяк на 7–9: произвольный текст мастера («что пошло не так»). Только hit_7_9.
+    # Косяк: произвольный текст мастера. На 7–9 и когда к6 выше к8 (аппетиты).
     gm_complication: str = ""
 
     @model_validator(mode="before")

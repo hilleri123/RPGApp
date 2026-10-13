@@ -240,7 +240,10 @@ export default function ApplicationDetailPage() {
                 <p className="text-gray-300">{app.short_desc}</p>
               )}
               {app.story && (
-                <p className="text-gray-400 text-sm whitespace-pre-wrap">{app.story}</p>
+                <div
+                  className="prose prose-invert prose-sm max-w-none text-gray-400"
+                  dangerouslySetInnerHTML={{ __html: app.story }}
+                />
               )}
               {!!app.tags?.length && (
                 <div className="flex flex-wrap gap-1 pt-1">

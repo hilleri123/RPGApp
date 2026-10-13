@@ -27,6 +27,17 @@ COMPLICATION_MAX_LEN = 500
 PARTIAL_OUTCOME = "hit_7_9"
 
 
+def complication_reasons(entry: Any) -> list[str]:
+    """Поводы для поля «Косяк»: частичный успех или к6 выше к8 у аппетитов."""
+    roll = getattr(entry, "roll", None)
+    reasons: list[str] = []
+    if getattr(roll, "outcome", None) == PARTIAL_OUTCOME:
+        reasons.append("7–9")
+    if getattr(roll, "appetite_complication", False):
+        reasons.append("к6 выше к8")
+    return reasons
+
+
 def is_gm(ctx: StageCtx) -> bool:
     return str(ctx.actor_user_id) == str(ctx.participants.gmUserId)
 
@@ -89,15 +100,15 @@ class PerformMoveChangeManifestStage(DwStage):
         return StageOutcome.ok_data(cur)
 
     def _complication_problem(self, wf: Workflow, ctx: StageCtx) -> str | None:
-        """Косяк пишет только мастер и только на 7–9."""
+        """Косяк пишет только мастер: на 7–9 или когда к6 выше к8."""
         if not is_gm(ctx):
             return "Косяк вписывает только мастер"
         try:
-            outcome = self._context(wf).entry.roll.outcome
+            entry = self._context(wf).entry
         except Exception:
             return "Контекст хода повреждён"
-        if outcome != PARTIAL_OUTCOME:
-            return "Косяк бывает только на результате 7–9"
+        if not complication_reasons(entry):
+            return "Косяк бывает только на результате 7–9 или когда к6 выше к8"
         return None
 
     def apply_patch(self, wf: Workflow, ctx: StageCtx, data: dict[str, Any]) -> None:

@@ -4,7 +4,7 @@ from typing import Any, Literal, Optional
 
 from pydantic import BaseModel, Field
 
-ManifestLineKind = Literal["resource_draft", "damage", "resource_grant"]
+ManifestLineKind = Literal["resource_draft", "damage", "resource_grant", "debility"]
 ManifestLineStatus = Literal["draft", "needs_roll", "rolled", "skipped", "applied"]
 ManifestMode = Literal["edit", "review"]
 

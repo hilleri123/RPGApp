@@ -234,6 +234,10 @@ class CharactersManager(PbtaCharactersManager):
         ch: CharacterData,
         pb: Playbook,
     ) -> CharacterData:
-        # Сначала базовые модификаторы (stat_modifiers)
+        # Сначала базовые модификаторы (stat_modifiers), затем −1 за травму.
+        from ..debilities import apply_debility_mods, clean_debilities
+
         ch = super()._enrich_derived(ch, pb)
+        ch.debilities = clean_debilities(list(ch.debilities or []))
+        ch.stat_modifiers = apply_debility_mods(ch.stat_modifiers, ch.debilities)
         return ch

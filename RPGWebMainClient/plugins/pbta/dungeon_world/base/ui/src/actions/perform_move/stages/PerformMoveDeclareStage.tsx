@@ -14,7 +14,7 @@ import {
   type PerformMoveEntry,
 } from '../../../../../../../base/ui/src/actions/perform_move/types';
 import { MoveCard } from '../../../../../../../base/ui/src/actions/perform_move/components/MoveCard';
-import { statScoresForMove } from '../../../../../../../base/ui/src/lib/pbta';
+import { pbtaModifier, statScoresForMove } from '../../../../../../../base/ui/src/lib/pbta';
 import type { CharacterData } from '../../../../../../../base/ui/src/types/character';
 import { normalizeSceneMode, MODE_LABEL, MODE_BADGE_CLASS } from '../../../shared/sceneModes';
 import {
@@ -567,7 +567,11 @@ export function PerformMoveDeclareStage({ action, value, patch, onPatch, onSubmi
           <MoveCard
             key={mid}
             move={m}
-            statScores={statScoresForMove(moveForScores, rawStats as Record<string, number>)}
+            statScores={statScoresForMove(
+              moveForScores,
+              rawStats as Record<string, number>,
+              (sid, score) => (statMods[sid] ?? pbtaModifier(score)),
+            )}
             skills={skills}
           />
         );

@@ -24,10 +24,11 @@ export function alpha(hex: string, a: number): string | undefined {
 export function statScoresForMove(
   move: Move,
   stats: Record<string, number>,
+  modFor?: (statId: string, score: number) => number,
 ): MoveStatScore[] {
   return (move.available_stats ?? []).map((sid) => {
     const score = Number(stats[sid] ?? 10);
-    return { sid, score, mod: pbtaModifier(score) };
+    return { sid, score, mod: modFor ? modFor(sid, score) : pbtaModifier(score) };
   });
 }
 

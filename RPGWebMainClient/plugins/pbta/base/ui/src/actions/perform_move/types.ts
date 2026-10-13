@@ -43,6 +43,8 @@ export interface RollState {
   temp_bonus_ids: string[];
   roll_seed:      string;
   dice:           number[];
+  dice_sides?:    number[];
+  appetite_complication?: boolean;
   total:          number;
   outcome?:       OutcomeKind | null;
   result_text:    string;

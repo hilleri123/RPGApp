@@ -6,6 +6,7 @@ import type { DWCharacterConfig, CharacterData } from '../types/character';
 import { getPlaybookId, getStats } from '../../../../../base/ui/src/types/character';
 import { getResourceSpecs } from '../../../../../base/ui/src/types/pbta';
 import { computeCharacterStats, modStr, pbtaModifier } from '../../../../../base/ui/src/lib/pbta';
+import { DW_DEBILITIES, debilityPenalty, debilityTitle } from '../shared/debilities';
 import type { Move } from '../../../../../base/ui/src/types';
 import { MoveExpandable, toMoveDisplayData } from '../editors/shared/MoveCard';
 import { effectiveMove } from '../../../../../base/ui/src/lib/moves';
@@ -82,10 +83,14 @@ export default function DWCharacterDataView({ data, config }: Props) {
     setOpenSections((s) => ({ ...s, [key]: !s[key] }));
   };
 
+  const debilities = data?.debilities ?? [];
+  const modForStat = (statId: string, score: number) =>
+    pbtaModifier(score) - debilityPenalty(statId, debilities);
+
   const statScoresForMove = (move: Move) =>
     (move.available_stats ?? []).map((sid) => {
       const score = Number(stats[sid] ?? 10);
-      return { sid, score, mod: pbtaModifier(score) };
+      return { sid, score, mod: modForStat(sid, score) };
     });
 
   return (
@@ -115,9 +120,22 @@ export default function DWCharacterDataView({ data, config }: Props) {
             <ViewChip label="Уровень" value={level} />
             <ViewChip label="Опыт" value={xp} />
           </div>
+          {debilities.length > 0 && (
+            <div className="flex flex-wrap gap-1 pt-1">
+              {debilities.map((id) => {
+                const spec = DW_DEBILITIES.find((d) => d.id === id);
+                return (
+                  <span key={id} className="rounded border border-red-500/50 bg-red-950/30 px-2 py-0.5 text-xs text-red-200">
+                    {debilityTitle(id)}
+                    {spec ? ` · ${spec.statTitle} −1` : ''}
+                  </span>
+                );
+              })}
+            </div>
+          )}
         </section>
 
-        <BaseCharacterDataView data={data} config={config} hideMoves hideResources />
+        <BaseCharacterDataView data={data} config={config} hideMoves hideResources modForStat={modForStat} />
 
         <CharacterResourcesPanel data={data} resourceSpecs={resourceSpecs} />
       </TabsContent>

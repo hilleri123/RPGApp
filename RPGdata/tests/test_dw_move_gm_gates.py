@@ -119,6 +119,23 @@ def test_complication_only_on_seven_to_nine():
         assert not res.ok, outcome
 
 
+def test_appetite_complication_opens_the_same_field_on_full_hit():
+    gm, _, _, _, scene, participants, links, wf = _world("hit_10_plus")
+    ctx = PerformMoveContext.model_validate(wf.context)
+    ctx.entry.roll.appetite_complication = True
+    ctx.entry.roll.dice = [6, 3]
+    ctx.entry.roll.dice_sides = [6, 8]
+    wf.context = ctx.model_dump(mode="json")
+    w = PerformMoveWorkflow(FullCodex())
+    wf = _wf(w.patch(_ctx(scene, participants, links, gm, wf, gm_complication="К6 выше: стража услышала")))
+    res = w.submit(_ctx(scene, participants, links, gm, wf, action="apply", mode="review", lines=[]))
+    assert res.ok, res.issues
+    entry = _entry(_wf(res))
+    directives = [e for e in entry.resolve.effects if e.kind == "gm_directive"]
+    assert [e.payload["text"] for e in directives] == ["К6 выше: стража услышала"]
+    assert "Косяк (к6 выше к8): К6 выше: стража услышала" in entry.resolve.log_lines
+
+
 def test_complication_lands_in_result_effects_and_log_on_apply():
     gm, _, _, _, scene, participants, links, wf = _world()
     w = PerformMoveWorkflow(FullCodex())

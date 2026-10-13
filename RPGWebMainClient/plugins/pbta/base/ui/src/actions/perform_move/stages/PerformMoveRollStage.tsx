@@ -5,8 +5,11 @@
 import React, { useEffect, useState } from "react";
 import type { DiceInterpreter } from "plugins/common/ui";
 import { RollStageShell } from "@/app/components/roll/RollStageShell";
+import { getSceneBundle } from "plugins/common/types/actionSelectors";
 import { parseMovesFromStageData, outcomeColor, primaryMoveRef } from "../types";
 import { MoveCard } from "../components/MoveCard";
+
+const APPETITE_MOVE = "barbarian_herculean_appetites";
 
 type Props = {
   action: any;
@@ -31,6 +34,20 @@ export function PerformMoveRollStage({ action, value, patch, onSubmit, setSubmit
   const primary = primaryMoveRef(entry);
 
   const [seed, setSeed] = useState<string | null>(null);
+  const [appetite, setAppetite] = useState(false);
+
+  const scene = getSceneBundle(action)?.scene;
+  const actorId = String(entry?.actor_character_id || "");
+  const actorMoves = (() => {
+    const ch = (scene?.characters ?? []).find((c) => String(c.id) === actorId);
+    const raw = (ch?.data as { moves?: unknown } | undefined)?.moves;
+    return Array.isArray(raw) ? raw.map(String) : [];
+  })();
+  const canAppetite = actorMoves.includes(APPETITE_MOVE);
+  const shownSpec = canAppetite && appetite && rollSpec
+    ? { ...rollSpec, expression: "1d6+1d8" }
+    : rollSpec;
+  const complication = Boolean(roll?.appetite_complication);
 
   useEffect(() => { setSubmitEnabled(false); }, [setSubmitEnabled]);
 
@@ -51,17 +68,33 @@ export function PerformMoveRollStage({ action, value, patch, onSubmit, setSubmit
       <div>Ход: <span className="text-white">{primary?.title || "—"}</span></div>
       <div>Стат: <span className="text-white">{(roll?.stat_id ?? "").toUpperCase()}</span>
         {" "}<span className="text-white40">({roll?.stat_value ?? "?"})</span></div>
+      {canAppetite && !alreadyRolled && (
+        <label className="flex items-center gap-2 font-sans text-sm text-amber-100">
+          <input
+            type="checkbox"
+            checked={appetite}
+            disabled={!!readOnly}
+            onChange={(e) => setAppetite(e.target.checked)}
+          />
+          Бросить 1к6+1к8
+        </label>
+      )}
+      {complication && (
+        <div className="font-sans rounded border border-amber-400/60 bg-amber-500/15 px-2 py-1 text-amber-100">
+          Последствие: к6 выше к8
+        </div>
+      )}
     </div>
   );
 
   return (
     <RollStageShell
       summary={summary}
-      rollSpec={rollSpec}
+      rollSpec={shownSpec}
       interpreter={pbtaRollInterpreter}
       seed={seed}
       onSeedChange={handleSeedChange}
-      onRoll={() => !readOnly && seed && onSubmit({ roll_seed: seed })}
+      onRoll={() => !readOnly && seed && onSubmit({ roll_seed: seed, appetite_dice: canAppetite && appetite })}
       rollDisabled={alreadyRolled || !!readOnly}
       rolled={
         alreadyRolled

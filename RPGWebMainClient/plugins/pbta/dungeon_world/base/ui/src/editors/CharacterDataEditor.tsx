@@ -10,7 +10,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import type { DWCharacterConfig, CharacterData } from '../types/character';
 import type { ValidationIssue } from '../../../../../base/ui/src/types';
 import type { CharacterDataChange } from '../../../../../base/ui/src/types/character';
-import { computeCharacterStats } from '../../../../../base/ui/src/lib/pbta';
+import { computeCharacterStats, pbtaModifier } from '../../../../../base/ui/src/lib/pbta';
+import { DW_DEBILITIES, debilityPenalty } from '../shared/debilities';
 import { getPlaybookId, getStats } from '../../../../../base/ui/src/types/character';
 import { getResourceSpecs } from '../../../../../base/ui/src/types/pbta';
 
@@ -35,8 +36,19 @@ export default function DWCharacterDataEditor({ data, config, issues, onChange }
   const currentLevel: number = Number(data?.level      ?? 1);
   const currentXp:   number = Number(data?.xp          ?? 0);
 
+  const debilities = data?.debilities ?? [];
+  const modForStat = (statId: string, score: number) =>
+    pbtaModifier(score) - debilityPenalty(statId, debilities);
+
   const setField = <K extends keyof CharacterData>(field: K, value: CharacterData[K]) => {
     onChange({ ...structuredClone(data), [field]: value });
+  };
+
+  const toggleDebility = (id: string) => {
+    const next = debilities.includes(id)
+      ? debilities.filter((d) => d !== id)
+      : [...debilities, id];
+    setField('debilities', next);
   };
 
   return (
@@ -61,6 +73,7 @@ export default function DWCharacterDataEditor({ data, config, issues, onChange }
           onChange={onChange}
           hideMoves
           hideResources
+          modForStat={modForStat}
         />
 
         {playbookObj && (
@@ -84,6 +97,32 @@ export default function DWCharacterDataEditor({ data, config, issues, onChange }
             </div>
           </section>
         )}
+
+        <section className="space-y-2">
+          <div className="text-sm text-gray-300">Травмы</div>
+          <div className="text-xs text-gray-500">Каждая даёт −1 к броску своей характеристики.</div>
+          <div className="flex flex-wrap gap-2">
+            {DW_DEBILITIES.map((d) => {
+              const on = debilities.includes(d.id);
+              return (
+                <button
+                  key={d.id}
+                  type="button"
+                  aria-pressed={on}
+                  onClick={() => toggleDebility(d.id)}
+                  className={`rounded border px-2 py-1 text-xs ${
+                    on
+                      ? 'border-red-500/70 bg-red-950/40 text-red-200'
+                      : 'border-gray-700 bg-black/20 text-gray-400 hover:border-gray-500'
+                  }`}
+                >
+                  {d.title}
+                  <span className="ml-1 text-[10px] opacity-70">{d.statTitle}</span>
+                </button>
+              );
+            })}
+          </div>
+        </section>
 
         <section className="space-y-2">
           <div className="text-sm text-gray-300">Прогресс</div>
@@ -120,6 +159,7 @@ export default function DWCharacterDataEditor({ data, config, issues, onChange }
           onChange={onChange}
           hideSheet
           hideResources
+          modForStat={modForStat}
         />
       </TabsContent>
 

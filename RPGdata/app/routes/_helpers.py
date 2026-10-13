@@ -6,7 +6,7 @@ from sqlalchemy import delete, select
 from sqlalchemy.orm import selectinload
 
 from app.plugins.contracts import EntityPayload, ValidationResult
-from app.plugins.resolver import get_factory_from_db
+from app.plugins.resolver import get_factory_by_rule_id_str, get_factory_from_db
 from app.services.entity_data_rule import stamp_entity_payload
 from app.infrastructure.database import get_async_session as get_db
 from app.logger import logger
@@ -93,8 +93,12 @@ async def validate_entity_data(
     payload: EntityPayload,
     scenario_id: Optional[UUID] = None,
     template_set_id: Optional[UUID] = None,
+    rule_id_str: Optional[str] = None,
 ) -> ValidationResult:
-    factory = await get_factory_from_db(db, scenario_id, template_set_id)
+    if rule_id_str:
+        factory = await get_factory_by_rule_id_str(db, rule_id_str)
+    else:
+        factory = await get_factory_from_db(db, scenario_id, template_set_id)
     if not factory:
         raise HTTPException(status_code=404, detail="Ruleset not found")
 

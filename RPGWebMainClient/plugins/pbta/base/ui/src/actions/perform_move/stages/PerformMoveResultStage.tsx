@@ -128,12 +128,20 @@ export function PerformMoveResultStage({ action, onSubmit, setSubmitEnabled }: P
         {Array.isArray(roll?.dice) && roll.dice.length === 2 && (
           <div className="font-mono">
             Кубики: <span className="text-white">{roll.dice[0]}+{roll.dice[1]}</span>
+            {Array.isArray(roll.dice_sides) && roll.dice_sides.length === 2 && (
+              <span className="text-white40"> (к{roll.dice_sides[0]}+к{roll.dice_sides[1]})</span>
+            )}
             {" "}= <span className="text-white">{roll.total}</span>
             {roll.outcome && (
               <span className={`ml-2 font-semibold ${outcomeColor(roll.outcome)}`}>
                 {outcomeLabel(roll.outcome)}
               </span>
             )}
+          </div>
+        )}
+        {roll?.appetite_complication && (
+          <div className="rounded border border-amber-400/60 bg-amber-500/15 px-2 py-1 text-amber-100">
+            Последствие: к6 выше к8
           </div>
         )}
         {roll?.result_text && (

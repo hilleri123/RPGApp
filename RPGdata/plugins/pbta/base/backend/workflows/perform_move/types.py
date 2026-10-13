@@ -39,6 +39,8 @@ class RollState(BaseModel):
 
     roll_seed: str = ""
     dice: list[int] = Field(default_factory=list)
+    dice_sides: list[int] = Field(default_factory=list)
+    appetite_complication: bool = False
     total: int = 0
     outcome: Optional[OutcomeKind] = None
     result_text: str = ""

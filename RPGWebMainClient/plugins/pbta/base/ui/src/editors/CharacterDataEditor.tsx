@@ -96,6 +96,8 @@ type Props<TData extends CharacterData = CharacterData> = {
   hideMoves?: boolean;
   /** Hide CharacterResourcesPanel. */
   hideResources?: boolean;
+  /** Подмена модификатора (травмы DW вычитают 1, не трогая само значение). */
+  modForStat?: (statId: string, score: number) => number;
 };
 
 
@@ -108,6 +110,7 @@ export default function CharacterDataEditor<TData extends CharacterData = Charac
   hideSheet = false,
   hideMoves = false,
   hideResources = false,
+  modForStat,
 }: Props<TData>) {
   useEffect(() => {
     const init = (config?.initialData ?? DEFAULT_INITIAL) as CharacterData;
@@ -441,7 +444,7 @@ export default function CharacterDataEditor<TData extends CharacterData = Charac
         <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
           {pbtaSkills.map((s) => {
             const score      = Number(currentStats[s.id] ?? 10);
-            const mod        = pbtaModifier(score);
+            const mod        = modForStat ? modForStat(s.id, score) : pbtaModifier(score);
             const issue      = issueMap.get(`stats.${s.id}`);
             const isErr      = !!issue && issue.icon === 'error';
             const statBg     = alpha(s.color, 0.12);
@@ -623,7 +626,7 @@ export default function CharacterDataEditor<TData extends CharacterData = Charac
                           ? 'С 2 уровня'
                           : undefined
                     }
-                    statScores={statScoresForMove(codex, currentStats)}
+                    statScores={statScoresForMove(codex, currentStats, modForStat)}
                     skills={pbtaSkills}
                     onToggle={
                       isStarting
@@ -678,7 +681,7 @@ export default function CharacterDataEditor<TData extends CharacterData = Charac
                   move={toMoveDisplayData(m)}
                   checked
                   isStarting={false}
-                  statScores={statScoresForMove(m, currentStats)}
+                  statScores={statScoresForMove(m, currentStats, modForStat)}
                   skills={pbtaSkills}
                 />
               ))}

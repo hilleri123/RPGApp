@@ -17,6 +17,7 @@ from ..stage_store import DwStage
 
 class RollInput(BaseModel):
     roll_seed: str
+    appetite_dice: bool = False
 
 
 class PerformMoveRollStage(DwStage):
@@ -25,6 +26,8 @@ class PerformMoveRollStage(DwStage):
     def _clear_entry_slice(self, entry: Any, wf: Workflow | None = None) -> None:
         entry.roll.roll_seed = ""
         entry.roll.dice = []
+        entry.roll.dice_sides = []
+        entry.roll.appetite_complication = False
         entry.roll.total = 0
         entry.roll.outcome = None
         entry.roll.result_text = ""
@@ -41,6 +44,8 @@ class PerformMoveRollStage(DwStage):
             return
         entry.roll.roll_seed = str(data["roll_seed"])
         entry.roll.dice = dice
+        entry.roll.dice_sides = [int(s) for s in (data.get("dice_sides") or [])]
+        entry.roll.appetite_complication = bool(data.get("appetite_complication"))
         entry.roll.total = int(data.get("total") or 0)
         outcome = data.get("outcome")
         entry.roll.outcome = outcome if outcome else None
@@ -65,7 +70,10 @@ class PerformMoveRollStage(DwStage):
         if isinstance(parsed, SubmitResult):
             return StageOutcome(ok=False, issues=parsed.issues)
 
-        return StageOutcome.ok_data({"roll_seed": parsed.roll_seed})
+        return StageOutcome.ok_data({
+            "roll_seed": parsed.roll_seed,
+            "appetite_dice": parsed.appetite_dice,
+        })
 
     def submit(self, wf: Workflow, ctx: StageCtx, data: dict[str, Any]) -> SubmitResult:
         try:
@@ -82,9 +90,21 @@ class PerformMoveRollStage(DwStage):
         seed = str(data.get("roll_seed") or "")
         from app.services.roll_service import RollSpec, commit_roll
 
-        roll_result = commit_roll(seed, RollSpec(expression="2d6"))
+        from ..helpers import actor_data_from_scene
+        from ....debilities import appetite_consequence
+
+        actor_moves = (actor_data_from_scene(c, ctx.scene) or {}).get("moves") or []
+        use_appetite = bool(data.get("appetite_dice")) and "barbarian_herculean_appetites" in actor_moves
+        expression = "1d6+1d8" if use_appetite else "2d6"
+        roll_result = commit_roll(seed, RollSpec(expression=expression))
         dice = list(roll_result.dice)
+        dice_sides = list(roll_result.dice_sides or [])
         rolled = int(roll_result.rolled_sum)
+        complication = (
+            use_appetite
+            and len(dice) >= 2
+            and appetite_consequence(dice[0], dice[1])
+        )
         total = (
             rolled
             + c.entry.roll.base_modifier
@@ -114,6 +134,8 @@ class PerformMoveRollStage(DwStage):
                 f"{c.entry.roll.local_bonus:+d} "
                 f"{c.entry.roll.aid_bonus:+d} = {total}"
             )
+        if complication:
+            result_text = f"{result_text}. Последствие: к6 ({dice[0]}) выше к8 ({dice[1]})"
 
         bonus = int(c.entry.resource_bonus_total or 0)
         if bonus:
@@ -122,6 +144,8 @@ class PerformMoveRollStage(DwStage):
 
         c.entry.roll.roll_seed = seed
         c.entry.roll.dice = dice
+        c.entry.roll.dice_sides = dice_sides
+        c.entry.roll.appetite_complication = complication
         c.entry.roll.total = total
         c.entry.roll.outcome = outcome
         c.entry.roll.result_text = result_text.strip()
@@ -133,6 +157,9 @@ class PerformMoveRollStage(DwStage):
         self.put(wf, {
             "roll_seed": seed,
             "dice": dice,
+            "dice_sides": dice_sides,
+            "appetite_complication": complication,
+            "expression": expression,
             "total": total,
             "outcome": outcome,
             "result_text": c.entry.roll.result_text,
@@ -152,14 +179,16 @@ class PerformMoveRollStage(DwStage):
         move_title = c.entry.moves[0].title if c.entry.moves else "Ход"
         log_events = [
             ctx.rb.log_roll(
-                title=f"{move_title} · 2d6",
+                title=f"{move_title} · {expression}",
                 dice=dice,
                 total=total,
                 outcome=outcome,
                 seed=seed,
                 meta={
                     "stat_id": c.entry.roll.stat_id,
-                    "expression": "2d6",
+                    "expression": expression,
+                    "dice_sides": dice_sides,
+                    "appetite_complication": complication,
                     "system_id": "pbta.dungeon_world",
                     "seed_hash": roll_result.seed_hash,
                     "character_id": c.entry.actor_character_id,

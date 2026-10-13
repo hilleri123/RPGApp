@@ -182,6 +182,8 @@ def reset_entry_after(entry: Any, from_stage_key: str) -> None:
         roll = entry.roll
         roll.roll_seed = ""
         roll.dice = []
+        roll.dice_sides = []
+        roll.appetite_complication = False
         roll.total = 0
         roll.outcome = None
         roll.result_text = ""
@@ -191,6 +193,7 @@ def reset_entry_after(entry: Any, from_stage_key: str) -> None:
 
     if from_idx < substep_index("perform_move.change_manifest"):
         entry.damage_claims = []
+        entry.debility_updates = []
         entry.affected_entities = []
         entry.grant_cursor = 0
         entry.resource_grants = []

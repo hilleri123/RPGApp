@@ -35,6 +35,7 @@ export type CharacterData = BaseCharacterData & {
   level:       number;
   xp:          number;
   armor_cache: number;
+  debilities?: string[];
 };
 
 

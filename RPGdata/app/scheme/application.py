@@ -119,8 +119,14 @@ class ApplicationCreatePayload(CharacterDataBase):
     player_comment: Optional[str] = None
 
 
-class ApplicationUpdatePayload(ApplicationBase):
-    pass
+class ApplicationUpdatePayload(CharacterDataBase):
+    """Обновление не меняет систему правил, если клиент её не прислал.
+
+    `data` обязателен в схеме: иначе правка характеристик молча теряется,
+    потому что лишний ключ JSON отбрасывается.
+    """
+    rule_id_str: Optional[str] = None
+    player_comment: Optional[str] = None
 
 
 class PlayerReviewPayload(BaseModel):

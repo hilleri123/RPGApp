@@ -7,7 +7,7 @@ from plugins.common.types import Workflow
 
 from .helpers import attacks_to_damage_claims, primary_move_id
 from .stage_store import get_stage_data, set_stage_data
-from .types import AffectedEntity, PerformMoveContext, ResourceGrant
+from .types import AffectedEntity, DebilityUpdate, PerformMoveContext, ResourceGrant
 from .types_change_manifest import ChangeManifestState, ManifestLine, ManifestTarget
 
 
@@ -66,6 +66,7 @@ def sync_manifest_lines_to_entry(wf: Workflow, c: PerformMoveContext, scene, *, 
     state = read_manifest(wf)
     attacks: list[dict[str, Any]] = []
     grants: list[ResourceGrant] = []
+    debilities: list[DebilityUpdate] = []
     affected: dict[str, AffectedEntity] = {}
 
     move_id = primary_move_id(c.entry)
@@ -128,6 +129,23 @@ def sync_manifest_lines_to_entry(wf: Workflow, c: PerformMoveContext, scene, *, 
                     factory_id=str(p.get("factory_id") or ""),
                 )
             )
+            continue
+
+        if line.kind == "debility":
+            tid = str(line.target.id or line.payload.get("target_id") or "")
+            if line.target.kind not in ("character", "") or not tid:
+                continue
+            raw = line.payload.get("debilities")
+            debilities.append(DebilityUpdate(
+                id=line.id,
+                target_id=tid,
+                debilities=[str(x) for x in raw] if isinstance(raw, list) else [],
+            ))
+            affected[f"character:{tid}"] = AffectedEntity(
+                kind="character",
+                id=tid,
+                name=line.target.name,
+            )
 
     existing_by_id = {str(cl.id): cl for cl in (c.entry.damage_claims or [])}
     rebuilt = attacks_to_damage_claims(attacks, scene=scene, source_move_id=move_id)
@@ -158,6 +176,7 @@ def sync_manifest_lines_to_entry(wf: Workflow, c: PerformMoveContext, scene, *, 
         merged_claims.append(claim)
 
     c.entry.damage_claims = merged_claims
+    c.entry.debility_updates = debilities
     c.entry.resource_grants = grants
     c.entry.affected_entities = list(affected.values())
     c.entry.grant_cursor = 0

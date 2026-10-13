@@ -15,6 +15,8 @@ class CharacterData(BaseCharacterData):
 
     max_hp: int = Field(default=0)
 
+    debilities: list[str] = Field(default_factory=list)
+
     level: int = 1
     xp: int = 0
     armor_cache: int = 0

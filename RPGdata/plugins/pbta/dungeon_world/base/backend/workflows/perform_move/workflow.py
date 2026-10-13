@@ -565,9 +565,12 @@ class PerformMoveWorkflow(PerformMoveWorkflowBase):
 
     @staticmethod
     def _record_complication(c: PerformMoveContext) -> None:
-        """Косяк мастера на 7–9 попадает в итог хода (эффект gm_directive) и в журнал."""
+        """Косяк мастера (7–9 или к6 выше к8) попадает в итог хода и в журнал."""
+        from .stages.change_manifest import complication_reasons
+
         text = (c.entry.gm_complication or "").strip()
-        if not text or c.entry.roll.outcome != "hit_7_9":
+        reasons = complication_reasons(c.entry)
+        if not text or not reasons:
             return
         if not any(e.payload.get("complication") for e in c.entry.resolve.effects):
             c.entry.resolve.effects.append(
@@ -578,7 +581,7 @@ class PerformMoveWorkflow(PerformMoveWorkflowBase):
                     applied=True,
                 )
             )
-        line = f"Косяк (7–9): {text}"
+        line = f"Косяк ({', '.join(reasons)}): {text}"
         if line not in c.entry.resolve.log_lines:
             c.entry.resolve.log_lines.append(line)
 
@@ -601,6 +604,12 @@ class PerformMoveWorkflow(PerformMoveWorkflowBase):
         c = PerformMoveContext.model_validate(wf.context or {})
         self._record_complication(c)
         self._record_npc_source(c)
+        from ...debilities import build_debility_patch
+
+        debility_patch, debility_logs = build_debility_patch(ctx.scene, c.entry.debility_updates)
+        for line in debility_logs:
+            if line not in c.entry.resolve.log_lines:
+                c.entry.resolve.log_lines.append(line)
         wf.stageData = {**(wf.stageData or {}), "complicationRecorded": True}
         grants_payload = [g.model_dump(mode="json") for g in (c.entry.resource_grants or [])]
         c.entry.resource_grants = []
@@ -613,6 +622,10 @@ class PerformMoveWorkflow(PerformMoveWorkflowBase):
         ):
             spell_spend_id = str(c.entry.cast_spell_entry_id)
         wf.context = c.model_dump(mode="json")
+        if debility_patch:
+            from .helpers import merge_session_patch
+
+            merge_session_patch(wf, debility_patch)
 
         claims = list(c.entry.damage_claims or [])
         damage_apply = self._handlers.get("perform_move.damage_apply")
@@ -754,6 +767,8 @@ class PerformMoveWorkflow(PerformMoveWorkflowBase):
             return
         c.entry.roll.roll_seed = str(data["roll_seed"])
         c.entry.roll.dice = dice
+        c.entry.roll.dice_sides = [int(s) for s in (data.get("dice_sides") or [])]
+        c.entry.roll.appetite_complication = bool(data.get("appetite_complication"))
         c.entry.roll.total = int(data.get("total") or 0)
         outcome = data.get("outcome")
         c.entry.roll.outcome = outcome if outcome else None

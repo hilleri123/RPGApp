@@ -92,6 +92,17 @@ def _fighter_sheet(**extra):
     return mgr, CharacterData.model_validate(data)
 
 
+def test_debility_subtracts_one_from_the_roll_modifier():
+    mgr, ch = _fighter_sheet(debilities=["weak", "scarred", "not-a-real-debility"])
+    result = mgr.validate_and_enrich({"data": ch.model_dump()})
+    enriched = CharacterData.model_validate(result.result.data)
+    assert enriched.debilities == ["weak", "scarred"]
+    # СИЛ 16 → +2, слабость снимает 1. ХАР 8 → −1, шрам снимает ещё 1.
+    assert enriched.stat_modifiers["str"] == 1
+    assert enriched.stat_modifiers["cha"] == -2
+    assert enriched.stat_modifiers["dex"] == 1
+
+
 def test_custom_move_is_a_known_move():
     codex = FullCodex()
     mgr = CharactersManager(full_codex=codex)

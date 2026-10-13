@@ -160,7 +160,7 @@ dw_race_moves: list[Move] = [
     _race_move(
         "barbarian_outlander",
         "Чужеземец (раса)",
-        "Вы можете быть эльфом, гномом, полуросликом или человеком, но вы "
+        "Вы можете быть эльфом, полуэльфом, гномом, полуросликом или человеком, но вы "
         "и ваш народ не из этих земель. В начале каждой сессии ведущий задаст "
         "вам вопрос о вашей родине, почему вы ушли или что вы оставили позади. "
         "Если вы ответите на вопрос, отметьте опыт.",
@@ -200,6 +200,7 @@ PLAYBOOK_IDENTITY: dict[str, dict] = {
     "barbarian": {
         "races": [
             _race("elf", "Эльф (чужеземец)", "barbarian_outlander"),
+            _race("half_elf", "Полуэльф (чужеземец)", "barbarian_outlander"),
             _race("gnome", "Гном (чужеземец)", "barbarian_outlander"),
             _race("halfling", "Полурослик (чужеземец)", "barbarian_outlander"),
             _race("human", "Человек (чужеземец)", "barbarian_outlander"),

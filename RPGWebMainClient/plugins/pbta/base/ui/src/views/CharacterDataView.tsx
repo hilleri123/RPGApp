@@ -12,9 +12,10 @@ type Props = {
   config?: CharacterConfig;
   hideMoves?: boolean;
   hideResources?: boolean;
+  modForStat?: (statId: string, score: number) => number;
 };
 
-export default function CharacterDataView({ data, config, hideMoves = false, hideResources = false }: Props) {
+export default function CharacterDataView({ data, config, hideMoves = false, hideResources = false, modForStat }: Props) {
   const pbtaSkills: PbtaSkill[] = config?.pbta?.skills    ?? [];
   const playbooks: Playbook[]   = config?.pbta?.playbooks  ?? [];
   const moves: Move[]           = config?.pbta?.moves      ?? [];
@@ -80,7 +81,7 @@ export default function CharacterDataView({ data, config, hideMoves = false, hid
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
           {pbtaSkills.map((s) => {
             const score = Number(stats[s.id] ?? 10);
-            const mod   = pbtaModifier(score);
+            const mod   = modForStat ? modForStat(s.id, score) : pbtaModifier(score);
             return (
               <div key={s.id} className="rounded border border-gray-700 bg-black/20 px-3 py-2 flex items-center justify-between">
                 <span className="text-gray-300">{s.title}</span>

@@ -18,8 +18,9 @@ import {
   type SceneEntityKind,
   type SceneEntityRef,
 } from '../components/SceneEntityTile';
+import { DW_DEBILITIES, debilityTitle } from '../../../shared/debilities';
 
-type ManifestLineKind = 'resource_draft' | 'damage' | 'resource_grant';
+type ManifestLineKind = 'resource_draft' | 'damage' | 'resource_grant' | 'debility';
 type ManifestLineStatus = 'draft' | 'needs_roll' | 'rolled' | 'skipped' | 'applied';
 type ManifestMode = 'edit' | 'review';
 
@@ -38,7 +39,7 @@ type ManifestLine = {
   label: string;
 };
 
-type UiStep = 'hub' | 'pick_type' | 'damage_form' | 'resource_form';
+type UiStep = 'hub' | 'pick_type' | 'damage_form' | 'resource_form' | 'debility_form';
 
 type Factory = {
   id: string;
@@ -72,6 +73,10 @@ function lineSummary(line: ManifestLine): string {
       return `${effect === 'heal' ? 'Лечение' : 'Урон'} ${total}`;
     }
     return `${effect === 'heal' ? 'Лечение' : 'Урон'} ${expr}`;
+  }
+  if (line.kind === 'debility') {
+    const ids = Array.isArray(line.payload.debilities) ? line.payload.debilities.map(String) : [];
+    return ids.length ? `Травмы: ${ids.map(debilityTitle).join(', ')}` : 'Травмы сняты';
   }
   const spec = String(line.payload.spec_id || 'ресурс');
   const amount = line.payload.amount != null ? ` ×${line.payload.amount}` : '';
@@ -529,6 +534,87 @@ function ResourceLineForm({
   );
 }
 
+function characterDebilities(scene: any, characterId: string): string[] {
+  const ch = (scene?.characters ?? []).find((c: any) => String(c.id) === characterId);
+  const raw = ch?.data?.debilities;
+  return Array.isArray(raw) ? raw.map(String) : [];
+}
+
+function DebilityLineForm({
+  entity,
+  scene,
+  initial,
+  onSave,
+  onCancel,
+}: {
+  entity: SceneEntityRef;
+  scene: any;
+  initial?: ManifestLine | null;
+  onSave: (line: ManifestLine) => void;
+  onCancel: () => void;
+}) {
+  const fromSheet = characterDebilities(scene, entity.id);
+  const initialIds = Array.isArray(initial?.payload.debilities)
+    ? (initial?.payload.debilities as unknown[]).map(String)
+    : fromSheet;
+  const [selected, setSelected] = useState<string[]>(initialIds);
+
+  const toggle = (id: string) => {
+    setSelected((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+  };
+
+  return (
+    <div className="flex flex-col gap-3">
+      <div className="font-medium">Травмы · {entity.name}</div>
+      <div className="text-xs text-white/40">Включённая травма даёт −1 к броску своей характеристики.</div>
+      <div className="flex flex-wrap gap-2">
+        {DW_DEBILITIES.map((d) => {
+          const on = selected.includes(d.id);
+          return (
+            <button
+              key={d.id}
+              type="button"
+              aria-pressed={on}
+              onClick={() => toggle(d.id)}
+              className={`rounded border px-2 py-1 text-xs ${
+                on
+                  ? 'border-red-500/70 bg-red-950/40 text-red-100'
+                  : 'border-white/15 text-white/50'
+              }`}
+            >
+              {d.title}
+              <span className="ml-1 opacity-60">{d.statTitle}</span>
+            </button>
+          );
+        })}
+      </div>
+      <div className="flex gap-2">
+        <button
+          type="button"
+          className="rounded border border-red-400/50 px-3 py-2 text-sm text-red-100"
+          onClick={() =>
+            onSave({
+              id: initial?.id ?? newId('deb'),
+              kind: 'debility',
+              target: { kind: 'character', id: entity.id, name: entity.name },
+              payload: { debilities: selected },
+              status: 'draft',
+              label: selected.length
+                ? `Травмы: ${selected.map(debilityTitle).join(', ')}`
+                : 'Травмы сняты',
+            })
+          }
+        >
+          Сохранить
+        </button>
+        <button type="button" className="rounded border px-3 py-2 text-sm text-white/60" onClick={onCancel}>
+          Отмена
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export function PerformMoveChangeManifestStage({
   user_id,
   action,
@@ -592,6 +678,12 @@ export function PerformMoveChangeManifestStage({
     stageData?.stages?.['perform_move.change_manifest']?.sent_to_gm ?? value?.sent_to_gm,
   );
   const isPartial = rollOutcome === 'hit_7_9';
+  const appetiteComplication = Boolean(entry?.roll?.appetite_complication);
+  const needsComplication = isPartial || appetiteComplication;
+  const complicationTitle = [
+    isPartial ? '7–9' : '',
+    appetiteComplication ? 'к6 выше к8' : '',
+  ].filter(Boolean).join(', ');
   const serverComplication = String(entry?.gm_complication ?? '');
   const [complication, setComplication] = useState(serverComplication);
   useEffect(() => {
@@ -716,6 +808,21 @@ export function PerformMoveChangeManifestStage({
             <Gift className="w-4 h-4 text-violet-300 inline mr-2" />
             Ресурс (forward / ongoing)
           </button>
+          {selectedEntity.kind === 'character' && (
+            <button
+              type="button"
+              className="rounded border border-red-400/30 px-3 py-3 text-left hover:bg-red-500/10 sm:col-span-2"
+              onClick={() => {
+                const existing = lines.find(
+                  (l) => l.kind === 'debility' && l.target.id === selectedEntity.id && l.status !== 'skipped',
+                );
+                setEditingLine(existing ?? null);
+                setUiStep('debility_form');
+              }}
+            >
+              Травма — включить или снять
+            </button>
+          )}
         </div>
       </div>
     );
@@ -732,6 +839,24 @@ export function PerformMoveChangeManifestStage({
           scene={scene}
           entry={entry}
           quickOptions={quickOptions}
+          initial={editingLine}
+          onSave={upsertLine}
+          onCancel={() => {
+            setUiStep('hub');
+            setSelectedEntity(null);
+            setEditingLine(null);
+          }}
+        />
+      </div>
+    );
+  }
+
+  if (uiStep === 'debility_form' && selectedEntity) {
+    return (
+      <div className="rounded border p-3 flex flex-col gap-3">
+        <DebilityLineForm
+          entity={selectedEntity}
+          scene={scene}
           initial={editingLine}
           onSave={upsertLine}
           onCancel={() => {
@@ -786,9 +911,9 @@ export function PerformMoveChangeManifestStage({
         </div>
       ) : null}
 
-      {isPartial && (isGm || serverComplication) ? (
+      {needsComplication && (isGm || serverComplication) ? (
         <div className="rounded border border-amber-400/30 bg-amber-500/5 px-3 py-2 space-y-1.5">
-          <div className="text-xs uppercase tracking-wide text-amber-300/80">Косяк (7–9)</div>
+          <div className="text-xs uppercase tracking-wide text-amber-300/80">Косяк ({complicationTitle})</div>
           {isGm && !readOnly ? (
             <>
               <textarea
@@ -875,6 +1000,8 @@ export function PerformMoveChangeManifestStage({
                         ? line.status === 'rolled'
                           ? 'бросок готов'
                           : 'нужен бросок'
+                        : line.kind === 'debility'
+                          ? 'травма'
                         : line.kind === 'resource_draft'
                           ? 'из хода'
                           : 'выдача'}
@@ -931,7 +1058,7 @@ export function PerformMoveChangeManifestStage({
                 mode: 'edit',
                 lines,
                 unprepare_cast_spell: Boolean(unprepareCastSpell),
-                ...(isGm && isPartial ? { gm_complication: complication } : {}),
+                ...(isGm && needsComplication ? { gm_complication: complication } : {}),
               })
             }
             className="rounded border border-cyan-400/60 px-3 py-2 text-sm text-cyan-100 disabled:opacity-40"
@@ -954,7 +1081,7 @@ export function PerformMoveChangeManifestStage({
                 mode: 'review',
                 lines,
                 unprepare_cast_spell: Boolean(unprepareCastSpell),
-                ...(isPartial ? { gm_complication: complication } : {}),
+                ...(needsComplication ? { gm_complication: complication } : {}),
               })
             }
             className="rounded border border-emerald-400/60 px-3 py-2 text-sm text-emerald-100 disabled:opacity-40"
