@@ -3,7 +3,7 @@ from __future__ import annotations
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app import models, scheme
@@ -28,13 +28,29 @@ async def list_launched_scenarios(
     current_user: models.User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
+    # Снимок клонируется с владельцем prep-сценария. Мастер подхода — часто
+    # другой человек, и после финиша ему нечего открыть: список сессий уже пуст.
+    filters = [
+        models.Scenario.is_session_snapshot == True,  # noqa: E712
+        models.Scenario.lifecycle_status == "running",
+    ]
+    if not current_user.is_admin:
+        mastered = (
+            select(models.GameSession.launched_scenario_id)
+            .where(
+                models.GameSession.master_id == current_user.id,
+                models.GameSession.launched_scenario_id.is_not(None),
+            )
+        )
+        filters.append(
+            or_(
+                models.Scenario.user_id == current_user.id,
+                models.Scenario.id.in_(mastered),
+            )
+        )
     stmt = (
         select(models.Scenario)
-        .where(
-            models.Scenario.is_session_snapshot == True,
-            models.Scenario.lifecycle_status == "running",
-            models.Scenario.user_id == current_user.id,
-        )
+        .where(*filters)
         .order_by(models.Scenario.created.desc())
     )
     rows = (await db.execute(stmt)).scalars().all()

@@ -44,8 +44,12 @@ async def create_character_from_ws_dict(
     for k in plugin_data:
         entity_data.pop(k, None)
 
+    # CharacterUpsertPayload не хранит id: pydantic его отбрасывает, хотя в словаре он есть.
+    raw_id = ch_dict.get("id")
+    if not raw_id:
+        raise HTTPException(status_code=400, detail="missing character id")
     obj = models.PlayerCharacter(
-        id=payload.id,
+        id=UUID(str(raw_id)),
         **entity_data,
         **plugin_data,
         scenario_id=scenario_id,

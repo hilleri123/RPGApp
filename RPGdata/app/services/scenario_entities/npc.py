@@ -82,7 +82,11 @@ async def upsert_npc_from_ws_dict(
     for k in plugin_data:
         entity_data.pop(k, None)
 
-    npc_id = payload.id
+    # NPCUpsertPayload не хранит id: pydantic его отбрасывает, хотя в словаре он есть.
+    raw_id = payload_data.get("id")
+    if not raw_id:
+        raise HTTPException(status_code=400, detail="missing npc id")
+    npc_id = UUID(str(raw_id))
     copied_from = npc_dict.get("copied_from")
     if is_create:
         obj = models.NPC(

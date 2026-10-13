@@ -74,7 +74,11 @@ async def upsert_item_from_ws_dict(
     for k in plugin_data:
         entity_data.pop(k, None)
 
-    item_id = payload.id
+    # ItemUpsertPayload не хранит id: pydantic его отбрасывает, хотя в словаре он есть.
+    raw_id = item_dict.get("id")
+    if not raw_id:
+        raise HTTPException(status_code=400, detail="missing item id")
+    item_id = UUID(str(raw_id))
     copied_from = item_dict.get("copied_from")
     if is_create:
         obj = models.GameItem(
