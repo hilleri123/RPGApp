@@ -24,8 +24,10 @@ import {
   Mail,
   ChevronDown,
   Crown,
+  Inbox,
 } from 'lucide-react';
 import { useAuth } from '@/app/services/hooks/useAuth';
+import { useMasterApplicationInbox } from '@/app/services/hooks/useMasterApplicationInbox';
 
 interface SimpleNavItem {
   href: string;
@@ -33,7 +35,14 @@ interface SimpleNavItem {
   icon: React.ComponentType<{ className?: string }>;
 }
 
+const applicationsNavItem: SimpleNavItem = {
+  href: '/master/applications',
+  label: 'Заявки на персонажей',
+  icon: Inbox,
+};
+
 const masterMenuItems: SimpleNavItem[] = [
+  applicationsNavItem,
   { href: '/scenarios', label: 'Сценарии', icon: BookOpen },
   { href: '/entity-packs', label: 'Паки', icon: Package },
   { href: '/name-packs', label: 'Имена', icon: Sparkles },
@@ -53,6 +62,19 @@ const publicNavItems: SimpleNavItem[] = [
   { href: '/contacts', label: 'Контакты', icon: Mail },
 ];
 
+function CountMark({ count, loaded }: { count: number; loaded: boolean }) {
+  if (!loaded) return null;
+  return (
+    <span
+      className={`ml-auto min-w-[1.25rem] rounded-full px-1.5 text-center text-[10px] font-bold leading-5 ${
+        count > 0 ? 'bg-yellow-500 text-black' : 'bg-gray-700 text-gray-300'
+      }`}
+    >
+      {count > 99 ? '99+' : count}
+    </span>
+  );
+}
+
 function linkClass(active: boolean, extra = '') {
   return `flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
     active
@@ -69,6 +91,8 @@ export default function Navigation() {
   const pathname = usePathname();
 
   const canMaster = Boolean(user && (user.can_be_master || user.is_admin));
+  const inbox = useMasterApplicationInbox(canMaster);
+  const applicationCount = inbox.items.length;
 
   const isActiveLink = (href: string) => {
     if (href === '/') return pathname === '/';
@@ -109,12 +133,17 @@ export default function Navigation() {
                 >
                   <Crown className="w-4 h-4 text-amber-400/90" />
                   Мастеру
+                  {inbox.loaded && applicationCount > 0 && (
+                    <span className="min-w-[1.1rem] rounded-full bg-yellow-500 px-1 text-center text-[10px] font-bold leading-4 text-black">
+                      {applicationCount > 99 ? '99+' : applicationCount}
+                    </span>
+                  )}
                   <ChevronDown className="w-4 h-4 opacity-70" />
                 </button>
               </DropdownMenuTrigger>
               <DropdownMenuContent
                 align="start"
-                className="min-w-[12rem] border-gray-700 bg-gray-800 text-gray-100"
+                className="min-w-[16rem] border-gray-700 bg-gray-800 text-gray-100"
               >
                 {masterMenuItems.map((item) => {
                   const Icon = item.icon;
@@ -123,10 +152,13 @@ export default function Navigation() {
                     <DropdownMenuItem key={item.href} asChild className="focus:bg-gray-700 focus:text-white">
                       <Link
                         href={item.href}
-                        className={`flex cursor-pointer items-center gap-2 ${active ? 'text-white' : ''}`}
+                        className={`flex w-full cursor-pointer items-center gap-2 ${active ? 'text-white' : ''}`}
                       >
                         <Icon className="w-4 h-4" />
                         {item.label}
+                        {item.href === applicationsNavItem.href && (
+                          <CountMark count={applicationCount} loaded={inbox.loaded} />
+                        )}
                       </Link>
                     </DropdownMenuItem>
                   );
@@ -177,7 +209,20 @@ export default function Navigation() {
                     Мастеру
                   </p>
                   {masterMenuItems.map((item) =>
-                    renderSimpleLink(item, closeMobileMenu, 'w-5 h-5')
+                    item.href === applicationsNavItem.href ? (
+                      <Link
+                        key={item.href}
+                        href={item.href}
+                        onClick={closeMobileMenu}
+                        className={linkClass(isActiveLink(item.href), 'w-full')}
+                      >
+                        <Inbox className="w-5 h-5" />
+                        {item.label}
+                        <CountMark count={applicationCount} loaded={inbox.loaded} />
+                      </Link>
+                    ) : (
+                      renderSimpleLink(item, closeMobileMenu, 'w-5 h-5')
+                    )
                   )}
                   <div className="pt-1">{renderSimpleLink(groupsNavItem, closeMobileMenu, 'w-5 h-5')}</div>
                 </div>

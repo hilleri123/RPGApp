@@ -12,6 +12,7 @@ import {
   Eye
 } from "lucide-react";
 import Navigation from './Navigation';
+import { MasterApplicationBell } from './MasterApplicationBell';
 import { useAuth } from '@/app/services/hooks/useAuth';
 
 interface HeaderProps {
@@ -25,6 +26,7 @@ export default function Header({ section, onLoginClick, onRegisterClick }: Heade
   const { state, logout } = useAuth();
   const { user, isAuthenticated } = state;
   const showProfile = isAuthenticated && user;
+  const canMaster = Boolean(user && (user.can_be_master || user.is_admin));
 
   return (
     <header className="bg-gray-800 border-b border-gray-700 sticky top-0 z-40 backdrop-blur-sm">
@@ -50,6 +52,7 @@ export default function Header({ section, onLoginClick, onRegisterClick }: Heade
           <div className="flex items-center gap-4">
             {showProfile ? (
               <>
+                <MasterApplicationBell enabled={canMaster} />
                 <Link href="/me" className="hidden sm:flex flex-row items-center gap-3">
                   <div className="flex flex-col items-end">
                     <div className="flex items-center gap-2">
