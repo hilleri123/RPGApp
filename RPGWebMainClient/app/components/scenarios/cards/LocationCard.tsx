@@ -6,6 +6,7 @@ import { TYPE_COLORS, TYPE_ICONS } from '@/lib/constants';
 import { ScenarioEntityCardShell } from './common/ScenarioEntityCardShell';
 import { kindOfTags } from '@/app/lib/locationKinds';
 import { SceneExposuresPreview } from './common/SceneExposuresPreview';
+import { locationHasMapPreview, LocationMapThumb } from './LocationMapThumb';
 
 export function ScenarioLocationCard({
   location,
@@ -19,28 +20,8 @@ export function ScenarioLocationCard({
   readOnly?: boolean;
 }) {
   const iconNode = (() => {
-    if (location.map_url) {
-      return (
-        <div className="relative w-12 h-12 shrink-0">
-          <img
-            src={location.map_url}
-            alt={location.name}
-            className="w-12 h-12 object-cover rounded-lg shadow"
-          />
-
-          {location.icon_url ? (
-            <div className="absolute top-1 right-1 z-10">
-              <img src={location.icon_url} alt="" className="w-3 h-3 opacity-90" />
-            </div>
-          ) : (
-            <div className="absolute top-1 right-1 z-10">
-              <TYPE_ICONS.location className="w-3 h-3 opacity-90" color="rgba(255,255,255,0.95)" />
-            </div>
-          )}
-
-          <div className="absolute top-0.5 right-0.5 w-4 h-4 rounded-md bg-black/45 backdrop-blur-[1px]" />
-        </div>
-      );
+    if (locationHasMapPreview(location)) {
+      return <LocationMapThumb location={location} />;
     }
 
     if (location.icon_url) {

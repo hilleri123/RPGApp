@@ -21,6 +21,8 @@ interface MapCanvasProps {
   svgRef?: React.RefObject<SVGSVGElement | null>;
   className?: string;
   svgClassName?: string;
+  /** Default keeps the full canvas visible. Thumbs pass `xMidYMid slice` to crop like object-cover. */
+  preserveAspectRatio?: string;
   children?: React.ReactNode;
 }
 
@@ -33,6 +35,7 @@ export function MapCanvas({
   svgRef,
   className,
   svgClassName,
+  preserveAspectRatio = 'xMidYMid meet',
   children,
 }: MapCanvasProps) {
   if (!canvasInfo) {
@@ -53,7 +56,7 @@ export function MapCanvas({
       width="100%"
       height="100%"
       viewBox={canvasInfo.viewBox}
-      preserveAspectRatio="xMidYMid meet"
+      preserveAspectRatio={preserveAspectRatio}
       onClick={onClick}
       className={svgClassName}
       style={{ display: 'block' }}
