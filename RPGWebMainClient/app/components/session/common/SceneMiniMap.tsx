@@ -9,6 +9,7 @@ import type { GameSessionBase, Scene } from '@/app/services/types/session';
 import MapViewerPure from './MapViewerPure';
 import { useMapUiStore } from '@/app/services/stores/mapUi';
 import { cn } from '@/lib/utils';
+import { locationWithDisplayPolygons } from './mapPolygons';
 
 type CheckedState = boolean | 'indeterminate';
 
@@ -45,6 +46,7 @@ export default function SceneMiniMap({
   enabledPolygonIds,
   className,
   showParentCheckbox = true,
+  dimHidden = false,
 }: {
   location: Location | null | undefined;
   locations: Location[];
@@ -53,6 +55,7 @@ export default function SceneMiniMap({
   enabledPolygonIds: string[];
   className?: string;
   showParentCheckbox?: boolean;
+  dimHidden?: boolean;
 }) {
   const showParentMapIfNoImage = useMapUiStore((s) => s.showParentMapIfNoImage);
   const setShowParentMapIfNoImage = useMapUiStore((s) => s.setShowParentMapIfNoImage);
@@ -113,10 +116,11 @@ export default function SceneMiniMap({
           >
             <div className="pointer-events-none absolute inset-0">
               <MapViewerPure
-                location={mapLocation}
+                location={locationWithDisplayPolygons(mapLocation, locations)}
                 scenes={scenes}
                 session={session ?? undefined}
                 enabledPolygonIds={enabledPolygonIds}
+                dimHidden={dimHidden}
                 interactive={false}
                 className="h-full w-full"
               />
@@ -169,10 +173,11 @@ export default function SceneMiniMap({
             onClick={(e) => e.stopPropagation()}
           >
             <MapViewerPure
-              location={mapLocation}
+              location={locationWithDisplayPolygons(mapLocation, locations)}
               scenes={scenes}
               session={session ?? undefined}
               enabledPolygonIds={enabledPolygonIds}
+              dimHidden={dimHidden}
               className="h-full w-full"
             />
           </div>

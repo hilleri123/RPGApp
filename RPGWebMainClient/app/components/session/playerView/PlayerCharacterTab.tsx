@@ -153,7 +153,13 @@ export default function PlayerCharacterTab({ sessionId }: PlayerCharacterTabProp
           {rulesError ? <div className="text-xs text-red-400 mb-2">Ошибка конфига: {rulesError}</div> : null}
 
           <DialogModeProvider readOnly={true}>
-            <CharacterRulesTab dlg={dlg as any} pluginUI={pluginUI} rulesMode="view" />
+            <CharacterRulesTab
+              dlg={dlg as any}
+              pluginUI={pluginUI}
+              rulesMode="view"
+              scenarioId={scenarioId || null}
+              characterId={characterId ? String(characterId) : null}
+            />
           </DialogModeProvider>
         </TabsContent>
 

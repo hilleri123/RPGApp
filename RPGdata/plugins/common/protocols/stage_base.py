@@ -66,6 +66,7 @@ class ResultBuilder:
         broadcasts: Optional[list[dict[str, Any]]] = None,
         logEvents: Optional[list[dict[str, Any]]] = None,
         sessionPatch: Optional[dict[str, Any]] = None,
+        chronicleLines: Optional[list[dict[str, Any]]] = None,
         next: Optional[dict[str, Any]] = None,
         can_close: bool = False,
     ) -> SubmitResult:
@@ -94,6 +95,7 @@ class ResultBuilder:
             logEvents=logEvents or [],
             participantIds=participant_ids,
             sessionPatch=sessionPatch,
+            chronicleLines=chronicleLines or [],
             can_close=can_close
         )
 

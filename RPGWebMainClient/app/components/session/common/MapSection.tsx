@@ -15,6 +15,10 @@ import FullscreenMap from "./FullscreenMap";
 import { GameSessionBase, Scene } from "@/app/services/types/session";
 import { useMapUiStore } from "@/app/services/stores/mapUi";
 import { resolveSceneMapLocation } from "./SceneMiniMap";
+import { locationWithDisplayPolygons } from "./mapPolygons";
+import { SessionMapDrawBar } from "./SessionMapDrawBar";
+import { useSessionScenarioApi } from "@/app/services/hooks/session/useSessionScenarioApi";
+import type { MapObjectPolygonPoint } from "@/app/services/types2";
 
 type CheckedState = boolean | "indeterminate";
 
@@ -73,6 +77,12 @@ export default function MapSection({
   const setShowParentMapIfNoImage = useMapUiStore((s) => s.setShowParentMapIfNoImage);
   const [locationsOpen, setLocationsOpen] = useState(false);
   const [textOpen, setTextOpen] = useState(false);
+  const [drawing, setDrawing] = useState(false);
+  const [draftPoints, setDraftPoints] = useState<MapObjectPolygonPoint[]>([]);
+  const [areaName, setAreaName] = useState("");
+  const [savingArea, setSavingArea] = useState(false);
+  const [drawError, setDrawError] = useState<string | null>(null);
+  const { api, reloadSessionFields } = useSessionScenarioApi();
 
   const visibleLocations = useMemo(
     () => filterVisibleForPlayer(locationList, isMaster),
@@ -95,6 +105,88 @@ export default function MapSection({
     mapLocation && currentLocation && mapLocation.id !== currentLocation.id
       ? ` (карта: ${mapLocation.name})`
       : "";
+
+  const mapForView = useMemo(
+    () => (mapLocation ? locationWithDisplayPolygons(mapLocation, visibleLocations) : null),
+    [mapLocation, visibleLocations],
+  );
+
+  const cancelDraw = () => {
+    setDrawing(false);
+    setDraftPoints([]);
+    setAreaName("");
+    setDrawError(null);
+  };
+
+  const saveArea = async () => {
+    if (!mapLocation || draftPoints.length < 3 || !areaName.trim()) return;
+    if (!api) {
+      setDrawError("Нет сценария сессии");
+      return;
+    }
+    setSavingArea(true);
+    setDrawError(null);
+    try {
+      const result = await api.createLocation({
+        name: areaName.trim(),
+        description_for_master: "",
+        description_for_players: "",
+        parent_location_id: mapLocation.id,
+        force: true,
+        data: {},
+        tags: [],
+        sublocations: [],
+        scene_exposures: [],
+        map_objects: [
+          {
+            name: areaName.trim(),
+            source_location_id: mapLocation.id,
+            target_location_id: null,
+            is_shown: true,
+            is_filled: true,
+            is_line: false,
+            alpha: 0.35,
+            color: "#74c0fc",
+            polygon_list: draftPoints,
+          },
+        ],
+      });
+      if (!result.location) {
+        setDrawError(result.issues?.[0]?.message || "Не удалось сохранить область");
+        return;
+      }
+      const polygonId = result.location.map_objects?.[0]?.id;
+      if (polygonId) {
+        updateLocationPolygonVisibility?.(mapLocation.id, String(polygonId), true);
+      }
+      reloadSessionFields(["locations"]);
+      cancelDraw();
+    } catch (err) {
+      setDrawError(err instanceof Error ? err.message : "Не удалось сохранить область");
+    } finally {
+      setSavingArea(false);
+    }
+  };
+
+  const drawBar = isMaster && mapLocation ? (
+    <SessionMapDrawBar
+      drawing={drawing}
+      pointCount={draftPoints.length}
+      name={areaName}
+      saving={savingArea}
+      error={drawError}
+      onName={setAreaName}
+      onStart={() => {
+        setDrawing(true);
+        setDraftPoints([]);
+        setAreaName("");
+        setDrawError(null);
+      }}
+      onUndo={() => setDraftPoints((points) => points.slice(0, -1))}
+      onCancel={cancelDraw}
+      onSave={() => void saveArea()}
+    />
+  ) : null;
 
   const onToggleShown = (polygonId: string, value: boolean) => {
     if (!mapLocation) return;
@@ -173,6 +265,8 @@ export default function MapSection({
             </Button>
           )}
 
+          {drawBar}
+
           {homeLocation && (
             <Button
               variant="secondary"
@@ -185,7 +279,7 @@ export default function MapSection({
         </div>
       </div>
 
-      {currentLocation && mapLocation && (
+      {currentLocation && mapLocation && mapForView && (
         <>
           {/* Controls */}
           <div className="flex items-center justify-between gap-3">
@@ -202,11 +296,15 @@ export default function MapSection({
           <div className="rounded-md overflow-hidden border border-gray-700">
             <div className={compact ? "h-[40dvh] min-h-[200px]" : "h-[50vh] min-h-[280px]"}>
               <MapViewerPure
-                location={mapLocation}
+                location={mapForView}
                 scenes={scenes}
                 session={session}
                 enabledPolygonIds={enabledPolygonIds}
-                onImageClick={() => setFullscreenMap(true)}
+                dimHidden={isMaster}
+                isDrawing={drawing}
+                draftPoints={draftPoints}
+                onDraftPoint={(point) => setDraftPoints((points) => [...points, point])}
+                onImageClick={drawing ? undefined : () => setFullscreenMap(true)}
               />
             </div>
           </div>
@@ -236,9 +334,9 @@ export default function MapSection({
       )}
 
       {/* Fullscreen map */}
-      {fullscreenMap && mapLocation && (
+      {fullscreenMap && mapForView && (
         <FullscreenMap
-          currentLocation={mapLocation}
+          currentLocation={mapForView}
           enabledPolygonIds={enabledPolygonIds}
           setCurrentLocation={setCurrentLocation}
           locationList={visibleLocations}
@@ -249,6 +347,11 @@ export default function MapSection({
           onToggleShown={onToggleShown}
           onClose={() => setFullscreenMap(false)}
           isMaster={isMaster}
+          dimHidden={isMaster}
+          isDrawing={drawing}
+          draftPoints={draftPoints}
+          onDraftPoint={(point) => setDraftPoints((points) => [...points, point])}
+          drawBar={drawBar}
         />
       )}
 

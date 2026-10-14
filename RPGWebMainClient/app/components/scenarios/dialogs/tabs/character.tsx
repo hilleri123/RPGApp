@@ -487,11 +487,15 @@ export function CharacterRulesTab({
   dlg,
   pluginUI,
   rulesMode = 'auto',
+  scenarioId,
+  characterId,
 }: {
   dlg: CharacterDlg;
   pluginUI: any;
   /** Явный режим: в диалогах редактирования передавайте `edit`, иначе View может включиться из-за readOnly в контексте. */
   rulesMode?: CharacterRulesMode;
+  scenarioId?: string | null;
+  characterId?: string | null;
 }) {
   const { readOnly } = useDialogMode();
 
@@ -508,9 +512,9 @@ export function CharacterRulesTab({
   return (
     <div className="space-y-3">
       {canEditRules && Editor && dlg.config ? (
-        <Editor data={dlg.data} config={dlg.config} issues={dlg.issues} onChange={dlg.setData} />
+        <Editor data={dlg.data} config={dlg.config} issues={dlg.issues} onChange={dlg.setData} scenarioId={scenarioId} characterId={characterId} />
       ) : View && dlg.config ? (
-        <View data={dlg.data} config={dlg.config} />
+        <View data={dlg.data} config={dlg.config} scenarioId={scenarioId} characterId={characterId} />
       ) : canEditRules ? (
         <div className="text-gray-400 text-sm">Нет редактора правил или config не загрузился.</div>
       ) : (

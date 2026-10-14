@@ -58,6 +58,34 @@ function buildMultipart(data: unknown, files?: Record<string, File | null | unde
   return form;
 }
 
+export type ChronicleLine = {
+  id: string;
+  scenario_id: string;
+  kind: string;
+  text: string;
+  subject_kind?: string | null;
+  subject_id?: string | null;
+  real_at?: string | null;
+  game_time?: string | null;
+  scene_id?: string | null;
+  scene_time?: string | null;
+  location_id?: string | null;
+  payload?: Record<string, unknown> | null;
+};
+
+export type ChronicleLineCreate = {
+  kind: string;
+  text?: string;
+  subject_kind?: string | null;
+  subject_id?: string | null;
+  payload?: Record<string, unknown>;
+  scene_id?: string | null;
+  render?: boolean;
+};
+
+export type MentionHit = { kind: string; id: string; name: string };
+export type MentionRef = { kind: string; id: string };
+
 export type ScenarioSearchHit = {
   type:
     | 'story_beat'
@@ -147,6 +175,40 @@ export class ScenarioScopedApiService extends BaseApiClient {
     if (params.limit) qs.set('limit', String(params.limit));
     const suffix = qs.toString();
     return this.get<ScenarioSearchHit[]>(this.p(`/search${suffix ? `?${suffix}` : ''}`));
+  }
+
+  async listChronicle(params: {
+    subjectId?: string;
+    kinds?: string[];
+    sceneId?: string;
+    all?: boolean;
+  }): Promise<ChronicleLine[]> {
+    const qs = new URLSearchParams();
+    if (params.subjectId) qs.set('subject_id', params.subjectId);
+    if (params.kinds?.length) qs.set('kinds', params.kinds.join(','));
+    if (params.sceneId) qs.set('scene_id', params.sceneId);
+    if (params.all) qs.set('all', 'true');
+    const suffix = qs.toString();
+    return this.get<ChronicleLine[]>(this.p(`/chronicle${suffix ? `?${suffix}` : ''}`));
+  }
+
+  async createChronicleLine(body: ChronicleLineCreate): Promise<ChronicleLine> {
+    return this.post<ChronicleLine>(this.p('/chronicle'), body);
+  }
+
+  async updateChronicleLine(id: string, body: { text?: string; payload?: Record<string, unknown> }): Promise<ChronicleLine> {
+    return this.patch<ChronicleLine>(this.p(`/chronicle/${id}`), body);
+  }
+
+  async suggestMentions(q: string, kinds: string[]): Promise<MentionHit[]> {
+    const qs = new URLSearchParams();
+    if (q.trim()) qs.set('q', q.trim());
+    if (kinds.length) qs.set('types', kinds.join(','));
+    return this.get<MentionHit[]>(this.p(`/mentions?${qs.toString()}`));
+  }
+
+  async resolveMentions(refs: MentionRef[]): Promise<MentionHit[]> {
+    return this.post<MentionHit[]>(this.p('/mentions/resolve'), { refs });
   }
 
   async createLocation(

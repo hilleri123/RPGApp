@@ -19,6 +19,7 @@ type SessionEntityPluginDataViewProps = {
   pluginUI?: PluginUI | null;
   scenarioId?: string | null;
   sceneId?: string | null;
+  entityId?: string | null;
 };
 
 export function SessionEntityPluginDataView({
@@ -27,6 +28,7 @@ export function SessionEntityPluginDataView({
   pluginUI,
   scenarioId,
   sceneId,
+  entityId,
 }: SessionEntityPluginDataViewProps) {
   const [config, setConfig] = useState<any>(null);
   const [loading, setLoading] = useState(false);
@@ -103,7 +105,12 @@ export function SessionEntityPluginDataView({
   return (
     <section className="space-y-2">
       <h3 className="text-xs font-semibold uppercase tracking-wide text-gray-400">Игровые данные</h3>
-      <View data={data} config={config ?? undefined} />
+      <View
+        data={data}
+        config={config ?? undefined}
+        scenarioId={scenarioId}
+        characterId={kind === 'player_character' ? entityId : undefined}
+      />
     </section>
   );
 }

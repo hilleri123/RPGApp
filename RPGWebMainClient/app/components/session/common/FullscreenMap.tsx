@@ -5,7 +5,8 @@ import { MapPin, X } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 
-import type { PlayerCharacter, Location, MapObjectPolygon } from '@/app/services/types2';
+import type { PlayerCharacter, Location, MapObjectPolygon, MapObjectPolygonPoint } from '@/app/services/types2';
+import type { ReactNode } from 'react';
 
 import MapLocationList from '../masterView/MapLocationList';
 import { PolygonListViewer } from '@/app/components/common/PolygonListViewer';
@@ -25,6 +26,11 @@ interface FullscreenMapProps {
   scenes?: Scene[];
   session?: GameSessionBase;
   isMaster?: boolean;
+  dimHidden?: boolean;
+  isDrawing?: boolean;
+  draftPoints?: MapObjectPolygonPoint[];
+  onDraftPoint?: (point: MapObjectPolygonPoint) => void;
+  drawBar?: ReactNode;
 }
 
 export default function FullscreenMap({
@@ -39,6 +45,11 @@ export default function FullscreenMap({
   scenes,
   session,
   isMaster = true,
+  dimHidden = false,
+  isDrawing = false,
+  draftPoints = [],
+  onDraftPoint,
+  drawBar,
 }: FullscreenMapProps) {
   const showLocationsPanel = Boolean(isMaster && locationList && setCurrentLocation);
   const showPolygonPanel = Boolean(isMaster);
@@ -69,6 +80,7 @@ export default function FullscreenMap({
             </div>
           </div>
 
+          {isMaster ? drawBar : null}
           <Button variant="ghost" onClick={onClose} className={isMaster ? '' : 'h-9 w-9 p-0'}>
             <X className="w-6 h-6" />
           </Button>
@@ -104,6 +116,10 @@ export default function FullscreenMap({
                     session={session}
                     enabledPolygonIds={enabledPolygonIds}
                     onPolygonClicked={onPolygonClicked}
+                    dimHidden={dimHidden}
+                    isDrawing={isDrawing}
+                    draftPoints={draftPoints}
+                    onDraftPoint={onDraftPoint}
                     className="h-full w-full"
                   />
                 </div>

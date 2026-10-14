@@ -15,7 +15,7 @@ from .action_manager import SessionActionManager, _dump_json
 
 from .data_manager import SESSION_KEY_PREFIX, SessionDataManager
 from .item_manager import SessionItemManager
-from .location_manager import SessionLocationManager
+from .location_manager import SessionLocationManager, location_with_child_polygons
 from .npc_manager import SessionNPCManager
 from .scene_manager import SessionSceneManager
 from .user_manager import SessionUserManager
@@ -764,9 +764,10 @@ class CurrentSessionManager(
         scenes_denorm = self._build_scene_objects(inner, current_user_id, access_map=access_map)
         party_tags = await self.get_party_filter_tags() if self.launched_scenario_id else []
 
+        all_locations = self._enrich_locations(inner)
         visible_locations = [
-            self._strip_tags_for_player(loc)
-            for loc in self._enrich_locations(inner)
+            location_with_child_polygons(self._strip_tags_for_player(loc), all_locations)
+            for loc in all_locations
             if loc.id in player_seen_ids
             and entity_visible_for_party(getattr(loc, "tags", None), party_tags or None)
         ]
@@ -805,9 +806,10 @@ class CurrentSessionManager(
 
         if "actions" in fields: msg.actions = self._enrich_actions_for_user(inner, current_user_id)
         if "locations" in fields:
+            all_locations = self._enrich_locations(inner)
             msg.locations = [
-                self._strip_tags_for_player(loc)
-                for loc in self._enrich_locations(inner)
+                location_with_child_polygons(self._strip_tags_for_player(loc), all_locations)
+                for loc in all_locations
                 if loc.id in player_seen_ids
                 and entity_visible_for_party(getattr(loc, "tags", None), party_tags or None)
             ]

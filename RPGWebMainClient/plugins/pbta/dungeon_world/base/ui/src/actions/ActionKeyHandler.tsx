@@ -7,6 +7,7 @@ import InitiativeTurnStage from './scene_battle_initiative_roll/InitiativeTurnSt
 import PerformActionStage from './perform_move/PerformMoveStage';
 import PrepareSpellsStage from './prepare_spells/PrepareSpellsStage';
 import LevelUpStage from './level_up/LevelUpStage';
+import GrantXpStage from './grant_xp/GrantXpStage';
 
 type Handler = (props: ActionHandlerProps) => JSX.Element;
 
@@ -16,6 +17,7 @@ const HANDLERS: Record<string, Handler> = {
   perform_move: PerformActionStage,
   prepare_spells: PrepareSpellsStage,
   level_up: LevelUpStage,
+  grant_xp: GrantXpStage,
 };
 
 export default function ActionKeyHandler(props: ActionHandlerProps) {

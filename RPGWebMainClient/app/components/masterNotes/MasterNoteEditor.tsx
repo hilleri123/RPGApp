@@ -25,7 +25,7 @@ function suggestionsForKind(
     list
       .filter((x) => !q || (x.name ?? '').toLowerCase().includes(q))
       .slice(0, 12)
-      .map((x) => ({ label: x.name ?? String(x.id), insert: x.name ?? String(x.id) }));
+      .map((x) => ({ label: x.name ?? String(x.id), insert: String(x.id) }));
 
   switch (kind) {
     case 'npc':

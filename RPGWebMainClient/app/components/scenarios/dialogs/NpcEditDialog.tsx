@@ -1,5 +1,6 @@
 'use client';
 
+import type React from 'react';
 import { useNpcDialog } from '@/app/services/hooks/scenario/dialogs/useNpcDialog';
 import { useScenario } from '../ScenarioContext';
 import { EntityEditDialogShell, EntityEditDealogProps } from './common/EntityEditDialogShell';
@@ -7,6 +8,7 @@ import { useLaunchedLineageExtras } from './common/LaunchedLineageExtras';
 import { EntityMasterNoteBacklinksTab } from '@/app/components/masterNotes/EntityMasterNoteBacklinksTab';
 import { openMasterWikiNote } from '@/app/services/stores/masterUi';
 import { NpcItemsTab, NpcMainTab, NpcRulesTab } from './tabs/npc';
+import { EntityJournal } from '@/app/components/chronicle/EntityJournal';
 
 export function NpcEditDialog({
   open,
@@ -15,7 +17,8 @@ export function NpcEditDialog({
   onSave,
   onEntitySaved,
   readOnly,
-}: EntityEditDealogProps) {
+  leading,
+}: EntityEditDealogProps & { leading?: React.ReactNode }) {
   const { scenarioId, pluginUI } = useScenario();
 
   const dlg = useNpcDialog({
@@ -48,10 +51,32 @@ export function NpcEditDialog({
       onSave={() => dlg.save(false)}
       footer={footer}
       tabs={[
-        { key: 'main', title: 'Основное', content: <NpcMainTab dlg={dlg} /> },
+        {
+          key: 'main',
+          title: 'Основное',
+          content: (
+            <>
+              {leading}
+              <NpcMainTab dlg={dlg} />
+            </>
+          ),
+        },
         { key: 'items', title: 'Предметы', content: <NpcItemsTab dlg={dlg} /> },
         ...(editingId
           ? [
+              {
+                key: 'journal',
+                title: 'Журнал',
+                content: (
+                  <EntityJournal
+                    scenarioId={scenarioId}
+                    subjectKind="npc"
+                    subjectId={editingId}
+                    readOnly={readOnly}
+                    title="История NPC"
+                  />
+                ),
+              },
               {
                 key: 'masterRefs',
                 title: 'Ссылки',

@@ -43,5 +43,6 @@ class SubmitResult(BaseModel):
 
     # NEW: изменения сессии (выполняет SessionActionManager)
     sessionPatch: Optional[dict[str, Any]] = None
+    chronicleLines: list[dict[str, Any]] = Field(default_factory=list)
     can_close: bool = False
 

@@ -18,6 +18,50 @@ from app.infrastructure.database import get_async_session as get_db
 from app.routes.locations import create_location, update_location
 
 
+def reveal_polygon_ids(locations, polygon_id: UUID) -> set[UUID]:
+    """Полигон и полигоны детей той локации, которую он обозначает."""
+    ids = {polygon_id}
+    owner = None
+    for loc in locations or []:
+        for poly in getattr(loc, "map_objects", None) or []:
+            if getattr(poly, "id", None) == polygon_id:
+                owner = getattr(poly, "target_location_id", None) or getattr(loc, "id", None)
+                break
+        if owner is not None:
+            break
+    if owner is None:
+        return ids
+    for loc in locations or []:
+        if getattr(loc, "parent_location_id", None) != owner:
+            continue
+        for poly in getattr(loc, "map_objects", None) or []:
+            pid = getattr(poly, "id", None)
+            if pid is not None:
+                ids.add(pid)
+    return ids
+
+
+def location_with_child_polygons(loc, all_locations):
+    """Копия локации, на которой есть полигоны прямых детей (для игрока, у которого детей нет в списке)."""
+    if loc is None or not hasattr(loc, "model_copy"):
+        return loc
+    existing = list(getattr(loc, "map_objects", None) or [])
+    seen = {p.id for p in existing}
+    extra = []
+    for child in all_locations or []:
+        if getattr(child, "parent_location_id", None) != loc.id:
+            continue
+        for poly in getattr(child, "map_objects", None) or []:
+            if poly.id in seen:
+                continue
+            seen.add(poly.id)
+            target = getattr(poly, "target_location_id", None) or child.id
+            extra.append(poly.model_copy(update={"target_location_id": target}))
+    if not extra:
+        return loc
+    return loc.model_copy(update={"map_objects": [*existing, *extra]})
+
+
 def _make_upload_file(data: bytes, filename: str, content_type: str) -> UploadFile:
     return UploadFile(
         filename=filename,
@@ -104,10 +148,12 @@ class SessionLocationManager(SessionTODOManager):
         is_visible: bool,
     ) -> Tuple[bool, list[str]]:
         inner = await self.get_inner()
+        ids = reveal_polygon_ids(inner.locations, polygon_id)
         if is_visible:
-            inner.polygon_shown.add(polygon_id)
+            inner.polygon_shown.update(ids)
         else:
-            inner.polygon_shown.discard(polygon_id)
+            for pid in ids:
+                inner.polygon_shown.discard(pid)
         await self.persist_polygon_shown(set(inner.polygon_shown))
         return True, ["polygon_shown"]
 

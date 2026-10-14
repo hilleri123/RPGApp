@@ -11,7 +11,7 @@ from app.services.entity_data_rule import stamp_entity_payload
 from app.infrastructure.database import get_async_session as get_db
 from app.logger import logger
 from app import models, scheme
-from app.auth import require_master
+from app.auth import get_current_user, require_master
 from app.auth.permissions import PERM_EDIT_FULL, PERM_EDIT_PARTIAL, PERM_READ
 from app.routes.scenarios.access import require_scenario_access
 
@@ -40,6 +40,17 @@ async def _load_scenario(scenario_id: UUID, db: AsyncSession) -> models.Scenario
     )).scalars().first()
     if not scenario:
         raise HTTPException(status_code=404, detail="Сценарий не найден")
+    return scenario
+
+
+async def get_scenario_read(
+    scenario_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+) -> models.Scenario:
+    """Чтение сценария: мастер с правом или игрок активной сессии."""
+    scenario = await _load_scenario(scenario_id, db)
+    await require_scenario_access(db, current_user, scenario, PERM_READ)
     return scenario
 
 

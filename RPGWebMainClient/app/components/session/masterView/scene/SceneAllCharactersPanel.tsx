@@ -141,6 +141,7 @@ export default function SceneAllCharactersPanel({
           scenes={scenes}
           session={session}
           enabledPolygonIds={polygon_shown ?? []}
+          dimHidden={isMaster}
         />
       </div>
     </Panel>

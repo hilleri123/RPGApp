@@ -384,9 +384,11 @@ class SessionSceneManager(SessionDataManager):
         target = scene.private if private else scene.public
         updated = False
 
+        npc_added = False
         if npc_id is not None and npc_id not in (target.npc_ids or []):
             target.npc_ids.append(npc_id)
             updated = True
+            npc_added = True
 
         if item_id is not None:
             existing = {str(x) for x in (target.item_ids or [])}
@@ -400,7 +402,44 @@ class SessionSceneManager(SessionDataManager):
         
         await self._recompute_available_actions_for_scene(inner, scene)
         await self._save_scenes(scenes)
+        if npc_added and npc_id is not None:
+            await self._chronicle_npc(scene_id, npc_id, created=False, joined=True)
         return True, ["scenes"]
+
+    async def _chronicle_npc(self, scene_id, npc_id, *, created: bool, joined: bool) -> None:
+        from app.services.chronicle import KIND_NPC_CREATED, KIND_SCENE_JOIN, record_line, stamp_from_inner
+        from app.services.scenario_entities.common import with_db
+
+        try:
+            inner = await self.get_inner()
+            scenario_id = await self.get_scenario_id()
+            stamp = stamp_from_inner(inner, scene_id)
+            if created:
+                await with_db(
+                    lambda db: record_line(
+                        db,
+                        scenario_id,
+                        kind=KIND_NPC_CREATED,
+                        subject_kind="npc",
+                        subject_id=npc_id,
+                        stamp=stamp,
+                        render=True,
+                    )
+                )
+            if joined:
+                await with_db(
+                    lambda db: record_line(
+                        db,
+                        scenario_id,
+                        kind=KIND_SCENE_JOIN,
+                        subject_kind="npc",
+                        subject_id=npc_id,
+                        stamp=stamp,
+                        render=True,
+                    )
+                )
+        except Exception:
+            logger.exception("chronicle npc scene=%s npc=%s", scene_id, npc_id)
 
     async def move_out_scene(
         self,

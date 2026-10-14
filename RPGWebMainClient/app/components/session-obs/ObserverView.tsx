@@ -3,6 +3,7 @@
 import { Loader2 } from 'lucide-react';
 import { useObserverStore } from '@/app/services/providers/ObserverWsProvider';
 import MapViewerPure from '../session/common/MapViewerPure';
+import { locationWithDisplayPolygons } from '../session/common/mapPolygons';
 import { SessionPresentedEntityOverlay } from '../session/common/SessionPresentedEntityOverlay';
 import { useMemo } from 'react';
 
@@ -97,7 +98,7 @@ export function ObserverView() {
                   </div>
                 )} */}
                 <MapViewerPure
-                  location={mapLocation}
+                  location={locationWithDisplayPolygons(mapLocation, locations)}
                   session={session ?? undefined}
                   scenes={scenes}
                   enabledPolygonIds={visiblePolygonIds}

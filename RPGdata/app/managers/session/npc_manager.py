@@ -2,9 +2,9 @@
 from __future__ import annotations
 
 from uuid import UUID, uuid4
-from typing import Any, List, Optional
+from typing import Any, List, Optional, Tuple
 
-from sqlalchemy import Tuple
+from sqlalchemy import select
 
 from app import models, scheme
 from app.logger import logger
@@ -71,28 +71,36 @@ class SessionNPCManager(SessionSceneManager, SessionUserManager, SessionDataMana
 
         return True
 
+    async def _persist_npc_tags(self, npc_id: UUID, tags: list[str]) -> None:
+        async def _write(db):
+            row = (
+                await db.execute(select(models.NPC).where(models.NPC.id == npc_id))
+            ).scalars().first()
+            if row is None:
+                return
+            row.tags = tags
+            await db.commit()
+
+        await with_db(_write)
+
     # ---- public API (ws actions) ----
     async def make_npc_dead(self, npc_id: UUID, is_dead: bool):
         inner = await self.get_inner()
         npcs = list(inner.npcs or [])
         for npc in npcs:
-            if npc.id == npc_id:
-                # у тебя в NPCOut может не быть is_dead — тогда положи в npc.data или отдельное поле
-                if hasattr(npc, "is_dead"):
-                    npc.is_dead = is_dead
-                else:
-                    data = dict(getattr(npc, "data", None) or {})
-                    data["is_dead"] = is_dead
-                    npc.data = data
-
-                await self.set_field("npcs", [x.model_dump(mode="json") for x in npcs])
-
-                await self.add_log(
-                    scheme.LogMsgBase(  # замени на конкретный тип лога если есть
-                        # если у тебя нет такого конструктора — просто убери лог
-                    )
-                )
-                return True, ["npcs"]  # можно добавить "logs" если реально пишешь лог
+            if npc.id != npc_id:
+                continue
+            tags = [t for t in (npc.tags or []) if t != "dead"]
+            if is_dead:
+                tags.append("dead")
+            try:
+                await self._persist_npc_tags(npc.id, tags)
+            except Exception:
+                logger.exception("make_npc_dead: не удалось записать тег dead")
+                return False, []
+            npc.tags = tags
+            await self.set_field("npcs", [x.model_dump(mode="json") for x in npcs])
+            return True, ["npcs"]
         return False, []
 
     async def upsert_npc_from_db(self, npc_out: scheme.NPCOut):
@@ -171,6 +179,7 @@ class SessionNPCManager(SessionSceneManager, SessionUserManager, SessionDataMana
         if moved:
             fields.append("scenes")
 
+        await self._chronicle_npc(scene_id, new_npc_id, created=True, joined=bool(moved))
         return True, fields
 
 

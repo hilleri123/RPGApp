@@ -13,6 +13,8 @@ import { MasterNoteNavigationPanel } from '@/app/components/masterNotes/MasterNo
 import { WikiTreeList } from '@/app/components/masterNotes/WikiTreeList';
 import { collectDescendantIds } from '@/app/components/masterNotes/wikiTree';
 import { useWikiNotesScope } from '@/app/components/masterNotes/useWikiNotesScope';
+import { useMasterNotesScope } from '@/app/components/masterNotes/MasterNotesContext';
+import { EntityJournal } from '@/app/components/chronicle/EntityJournal';
 import { useMasterNoteActions } from '@/app/components/masterNotes/useMasterNoteActions';
 import { SessionEntityDialogs } from '@/app/components/session/common/SessionEntityDialogs';
 import { ConfirmDialog } from '@/app/components/common/ConfirmDialog';
@@ -43,6 +45,8 @@ export function MasterNotesPanel({
   wikiRefreshKey = 0,
 }: MasterNotesPanelProps = {}) {
   const scope = useWikiNotesScope();
+  const sessionScope = useMasterNotesScope();
+  const currentSceneId = useMasterUiStore((s) => s.currentSceneId);
   const masterNotes = scope?.masterNotes ?? [];
   const catalog = scope?.catalog ?? { npcs: [], items: [], characters: [], locations: [], notes: [] };
   const reloadNotes = scope?.reloadNotes ?? (() => {});
@@ -201,6 +205,20 @@ export function MasterNotesPanel({
         setPendingParentId(null);
         pushNav({ kind: 'note', id: created.id, name: created.name });
         setMode('view');
+        if (sessionScope) {
+          try {
+            await client.createChronicleLine({
+              kind: 'core:note',
+              text: (text || '').trim() || name.trim(),
+              subject_kind: 'note',
+              subject_id: created.id,
+              scene_id: currentSceneId,
+              render: true,
+            });
+          } catch {
+            // Страница уже сохранена: строка хроники не должна откатывать её.
+          }
+        }
       }
       reloadNotes();
     } finally {
@@ -282,6 +300,17 @@ export function MasterNotesPanel({
           ) : null}
         </div>
       </div>
+
+      {sessionScope?.scenarioId ? (
+        <div className="max-h-48 overflow-auto mb-2">
+          <EntityJournal
+            scenarioId={sessionScope.scenarioId}
+            allowAll
+            readOnly={readOnly}
+            title="Хронология"
+          />
+        </div>
+      ) : null}
 
       <div className={`flex flex-1 gap-2 ${compact ? 'min-h-[320px]' : 'min-h-[280px]'}`}>
         <ScrollArea className="w-[28%] min-w-[88px] shrink-0 border border-gray-700 rounded-md">

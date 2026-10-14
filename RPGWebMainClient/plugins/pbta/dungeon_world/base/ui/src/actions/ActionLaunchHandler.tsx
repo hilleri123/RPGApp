@@ -1,7 +1,7 @@
 'use client';
 
 import type { ComponentType } from 'react';
-import { ArrowUpCircle, BookOpen, Swords } from 'lucide-react';
+import { ArrowUpCircle, BookOpen, Sparkles, Swords } from 'lucide-react';
 import type { ActionLaunchProps } from '@/app/plugins/pluginTypes';
 import {
   ActionLaunchShell,
@@ -56,8 +56,25 @@ function PerformMoveLaunchButton(props: ActionLaunchProps) {
   );
 }
 
+function GrantXpLaunchButton(props: ActionLaunchProps) {
+  return (
+    <ActionLaunchShell
+      {...props}
+      icon={<Sparkles className="h-4 w-4" />}
+      tone={{
+        border: 'border-amber-500/45',
+        bg: 'bg-amber-950/35',
+        bgHover: 'hover:bg-amber-900/45 hover:border-amber-400/55',
+        title: 'text-amber-100',
+        icon: 'text-amber-300',
+      }}
+    />
+  );
+}
+
 const LAUNCHERS: Record<string, ComponentType<ActionLaunchProps>> = {
   level_up: LevelUpLaunchButton,
+  grant_xp: GrantXpLaunchButton,
   prepare_spells: PrepareSpellsLaunchButton,
   perform_move: PerformMoveLaunchButton,
 };

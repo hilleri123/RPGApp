@@ -15,6 +15,7 @@ import { SpellBookPanel } from '../shared/SpellBookPanel';
 import { customMoveToMove } from '../../../../../base/ui/src/types/pbta';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ClipboardList, Footprints, Sparkles } from 'lucide-react';
+import { EntityJournal } from '@/app/components/chronicle/EntityJournal';
 import {
   CONTEXT_GROUP_LABEL,
   CONTEXT_GROUP_ORDER,
@@ -25,9 +26,11 @@ import {
 type Props = {
   data: CharacterData;
   config?: DWCharacterConfig;
+  scenarioId?: string | null;
+  characterId?: string | null;
 };
 
-export default function DWCharacterDataView({ data, config }: Props) {
+export default function DWCharacterDataView({ data, config, scenarioId, characterId }: Props) {
   const playbooks = config?.pbta?.playbooks ?? [];
   const moves: Move[] = config?.pbta?.moves ?? [];
   const pbtaSkills = config?.pbta?.skills ?? [];
@@ -120,6 +123,16 @@ export default function DWCharacterDataView({ data, config }: Props) {
             <ViewChip label="Уровень" value={level} />
             <ViewChip label="Опыт" value={xp} />
           </div>
+          {scenarioId && characterId ? (
+            <EntityJournal
+              scenarioId={scenarioId}
+              subjectKind="character"
+              subjectId={characterId}
+              kinds={['plugin:dw:xp']}
+              readOnly
+              title="Получение опыта"
+            />
+          ) : null}
           {debilities.length > 0 && (
             <div className="flex flex-wrap gap-1 pt-1">
               {debilities.map((id) => {

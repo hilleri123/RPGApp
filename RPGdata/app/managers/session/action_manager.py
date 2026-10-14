@@ -340,7 +340,8 @@ class SessionActionManager(SessionSceneManager):
         inner: scheme.GameSessionInner,
     ) -> ActionContext:
         scene_payload = self._build_scene_payload_for_plugin(inner, scene_id)
-        
+        input_with_chronicle = await self._chronicle_for_action(inner, input_data)
+
         return ActionContext(
             **scene_payload.model_dump(),
             actionKey=action_key,
@@ -348,8 +349,55 @@ class SessionActionManager(SessionSceneManager):
             actorUserId=actor_user_id,
             participants=participants,
             workflow=workflow,
-            input=input_data,
+            input=input_with_chronicle,
         )
+
+    async def _chronicle_for_action(self, inner, input_data: Optional[dict[str, Any]]) -> Optional[dict[str, Any]]:
+        """Кладёт в input.chronicle строки по фильтру. Без фильтра список пустой."""
+        if not isinstance(input_data, dict):
+            return input_data
+        filt = input_data.get("chronicleFilter")
+        if not isinstance(filt, dict):
+            return input_data
+        from app.services.chronicle import line_out, list_lines
+        from app.services.scenario_entities.common import with_db
+
+        kinds = filt.get("kinds")
+        if isinstance(kinds, str):
+            kinds = [part.strip() for part in kinds.split(",") if part.strip()]
+        rows = await with_db(
+            lambda db: list_lines(
+                db,
+                inner.scenario_id,
+                subject_id=filt.get("subject_id"),
+                kinds=kinds or None,
+                scene_id=filt.get("scene_id"),
+            )
+        )
+        return {**input_data, "chronicle": [line_out(row) for row in rows]}
+
+    async def _write_chronicle_lines(self, inner, scene_id, user_id, drafts: list[dict[str, Any]]) -> None:
+        from app.services.chronicle import record_line, stamp_from_inner
+        from app.services.scenario_entities.common import with_db
+
+        stamp = stamp_from_inner(inner, scene_id)
+        for draft in drafts:
+            if not isinstance(draft, dict) or not draft.get("kind"):
+                continue
+            await with_db(
+                lambda db, draft=draft: record_line(
+                    db,
+                    inner.scenario_id,
+                    kind=str(draft["kind"]),
+                    text=str(draft.get("text") or ""),
+                    subject_kind=draft.get("subject_kind"),
+                    subject_id=draft.get("subject_id"),
+                    payload=draft.get("payload") or {},
+                    author_user_id=user_id,
+                    stamp=stamp,
+                    render=bool(draft.get("render", True)),
+                )
+            )
 
     # ---------- public api ----------
 
@@ -531,6 +579,13 @@ class SessionActionManager(SessionSceneManager):
             extra_fields += persisted
 
         action.can_close = submit_result.can_close
+        if submit_result.chronicleLines:
+            await self._write_chronicle_lines(
+                inner,
+                action.scene_id,
+                user.id,
+                list(submit_result.chronicleLines),
+            )
 
         actions[idx] = action
         await self._save_actions(actions)

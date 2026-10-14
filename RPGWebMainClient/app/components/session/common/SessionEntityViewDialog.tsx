@@ -11,6 +11,7 @@ import type { SeenDataAccess } from '@/app/services/types/playerSeen';
 import { cn } from '@/lib/utils';
 import type { PluginUI } from '@/app/plugins/pluginTypes';
 import { SessionEntityPluginDataView } from './SessionEntityPluginDataView';
+import { EntityJournal } from '@/app/components/chronicle/EntityJournal';
 
 export type SessionEntityViewKind = 'npc' | 'game_item' | 'player_character' | 'location';
 
@@ -199,6 +200,17 @@ export function SessionEntityViewDialog({
               pluginUI={pluginUI}
               scenarioId={scenarioId}
               sceneId={sceneId}
+              entityId={entity.id ? String(entity.id) : null}
+            />
+          ) : null}
+
+          {kind === 'npc' && scenarioId && entity.id ? (
+            <EntityJournal
+              scenarioId={scenarioId}
+              subjectKind="npc"
+              subjectId={String(entity.id)}
+              readOnly
+              title="История NPC"
             />
           ) : null}
 

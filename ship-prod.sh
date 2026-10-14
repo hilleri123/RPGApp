@@ -95,7 +95,6 @@ do_commit() {
   git add -A
   # Keep local scratch / secrets out of the ship commit when present
   git reset HEAD -- \
-    'dynamic-scenes (2)/' \
     .env \
     .env.* \
     '*.pem' \

@@ -1,3 +1,4 @@
+from sqlalchemy.exc import InterfaceError
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
@@ -25,8 +26,15 @@ event.listen(
 
 
 async def get_async_session() -> AsyncSession:
-    async with AsyncSessionLocal() as session:
+    session = AsyncSessionLocal()
+    try:
         yield session
+    finally:
+        try:
+            await session.close()
+        except InterfaceError:
+            # Остановка процесса уже закрыла соединение: rollback слать некуда.
+            pass
 
 async def create_tables():
     """Асинхронное создание таблиц"""

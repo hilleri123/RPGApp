@@ -8,6 +8,7 @@ import { CharacterMainTab, CharacterItemsTab, CharacterRulesTab, CharacterCounte
 import { EntityMasterNoteBacklinksTab } from '@/app/components/masterNotes/EntityMasterNoteBacklinksTab';
 import { openMasterWikiNote } from '@/app/services/stores/masterUi';
 import { useLaunchedLineageExtras } from './common/LaunchedLineageExtras';
+import { EntityJournal } from '@/app/components/chronicle/EntityJournal';
 
 export function CharacterEditDialog({ open, onClose, editingId, onSave, readOnly }: EntityEditDealogProps) {
   const { scenarioId, pluginUI } = useScenario();
@@ -59,6 +60,19 @@ export function CharacterEditDialog({ open, onClose, editingId, onSave, readOnly
         ...(editingId
           ? [
               {
+                key: 'journal',
+                title: 'Журнал',
+                content: (
+                  <EntityJournal
+                    scenarioId={scenarioId}
+                    subjectKind="character"
+                    subjectId={editingId}
+                    readOnly={readOnly}
+                    title="История персонажа"
+                  />
+                ),
+              },
+              {
                 key: 'masterRefs',
                 title: 'Ссылки',
                 content: (
@@ -79,6 +93,8 @@ export function CharacterEditDialog({ open, onClose, editingId, onSave, readOnly
             dlg={dlg}
             pluginUI={pluginUI}
             rulesMode={readOnly ? 'view' : 'edit'}
+            scenarioId={scenarioId}
+            characterId={editingId}
           />
         ),
         onValidate: () => dlg.validate(),

@@ -14,6 +14,8 @@ from .story_beat import router as story_beat_router
 from .locations import router as location_router
 from .location_library import router as location_library_router
 from .scenario_search import router as scenario_search_router
+from .chronicle import router as chronicle_router
+from .mentions import router as mentions_router
 from .template_sets import routers as template_routers
 from .audio import router as audio_router
 from .scenario_todo import router as todo_router
@@ -31,6 +33,8 @@ from .fronts import router as fronts_router
 routers = [
     location_library_router,
     scenario_search_router,
+    chronicle_router,
+    mentions_router,
     location_router,
     auth_router,
     user_router,

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   isMapCanvasHelperElement,
   MAP_CANVAS_FRAME_ID,
@@ -17,6 +17,17 @@ export type ExcalidrawPreview = {
  * Export Excalidraw scene clipped to a fixed canvas (W×H), origin (0,0).
  * Text no longer moves canvas bounds.
  */
+function sceneSignature(json: any): string {
+  const elements = Array.isArray(json?.elements) ? json.elements : [];
+  const fileKeys =
+    json?.files && typeof json.files === 'object' ? Object.keys(json.files).sort() : [];
+  const els = elements.map(
+    (el: any) =>
+      `${el?.id}:${el?.version ?? ''}:${el?.versionNonce ?? ''}:${el?.isDeleted ? 1 : 0}`,
+  );
+  return `${els.join('|')}#${fileKeys.join(',')}`;
+}
+
 export function useExcalidrawPreview(
   excalidrawJson: any,
   enabled: boolean,
@@ -24,8 +35,12 @@ export function useExcalidrawPreview(
   canvasH?: number | null,
 ): ExcalidrawPreview | null {
   const [result, setResult] = useState<ExcalidrawPreview | null>(null);
+  const jsonRef = useRef(excalidrawJson);
+  jsonRef.current = excalidrawJson;
+  const signature = sceneSignature(excalidrawJson);
 
   useEffect(() => {
+    const excalidrawJson = jsonRef.current;
     if (!enabled || !excalidrawJson?.elements?.length) {
       setResult(null);
       return;
@@ -122,7 +137,7 @@ export function useExcalidrawPreview(
     return () => {
       cancelled = true;
     };
-  }, [excalidrawJson, enabled, canvasW, canvasH]);
+  }, [signature, enabled, canvasW, canvasH]);
 
   useEffect(
     () => () => {

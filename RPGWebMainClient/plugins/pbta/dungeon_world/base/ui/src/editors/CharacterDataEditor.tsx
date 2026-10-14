@@ -14,15 +14,18 @@ import { computeCharacterStats, pbtaModifier } from '../../../../../base/ui/src/
 import { DW_DEBILITIES, debilityPenalty } from '../shared/debilities';
 import { getPlaybookId, getStats } from '../../../../../base/ui/src/types/character';
 import { getResourceSpecs } from '../../../../../base/ui/src/types/pbta';
+import { EntityJournal } from '@/app/components/chronicle/EntityJournal';
 
 type Props = {
   data:     CharacterData;
   config:   DWCharacterConfig;
   issues?:  ValidationIssue[];
   onChange: CharacterDataChange<CharacterData>;
+  scenarioId?: string | null;
+  characterId?: string | null;
 };
 
-export default function DWCharacterDataEditor({ data, config, issues, onChange }: Props) {
+export default function DWCharacterDataEditor({ data, config, issues, onChange, scenarioId, characterId }: Props) {
   const playbooks  = config?.pbta?.playbooks ?? [];
   const stats      = getStats(data);
   const playbookId = getPlaybookId(data);
@@ -142,6 +145,16 @@ export default function DWCharacterDataEditor({ data, config, issues, onChange }
               onChange={(v) => setField('xp', v)}
             />
           </div>
+          {scenarioId && characterId ? (
+            <EntityJournal
+              scenarioId={scenarioId}
+              subjectKind="character"
+              subjectId={characterId}
+              kinds={['plugin:dw:xp']}
+              title="Получение опыта"
+              onXpDelta={(delta) => setField('xp', currentXp + delta)}
+            />
+          ) : null}
         </section>
 
         <CharacterResourcesPanel

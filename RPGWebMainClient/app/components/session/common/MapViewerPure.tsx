@@ -42,6 +42,11 @@ export interface MapViewerPureProps {
   maxZoom?: number;
   /** When false: no pan/zoom; click opens via onImageClick. */
   interactive?: boolean;
+  /** Master: hidden polygons stay on the map, pale. Player: hidden polygons are not drawn. */
+  dimHidden?: boolean;
+  isDrawing?: boolean;
+  draftPoints?: MapObjectPolygonPoint[];
+  onDraftPoint?: (point: MapObjectPolygonPoint) => void;
 }
 
 function getPolygonCenter(points: MapObjectPolygonPoint[]) {
@@ -79,7 +84,12 @@ export default function MapViewerPure({
   minZoom = 1,
   maxZoom = 6,
   interactive = true,
+  dimHidden = false,
+  isDrawing = false,
+  draftPoints = [],
+  onDraftPoint,
 }: MapViewerPureProps) {
+  const canPan = interactive && !isDrawing;
   const [zoom, setZoom] = useState(1);
   const [offset, setOffset] = useState<Pt>({ x: 0, y: 0 });
 
@@ -158,12 +168,15 @@ export default function MapViewerPure({
   }, [scenes, players]);
 
   // Canvas coords — no origin shift
-  const visiblePolygons = useMemo(
-    () => enabledPolygonIds.length === 0
-      ? location.map_objects
-      : location.map_objects.filter((p) => enabledPolygonIds.includes(p.id)),
-    [location.map_objects, enabledPolygonIds],
+  const shownIds = useMemo(
+    () => new Set(enabledPolygonIds.map((id) => String(id))),
+    [enabledPolygonIds],
   );
+  const visiblePolygons = useMemo(() => {
+    const objects = location.map_objects ?? [];
+    if (dimHidden) return objects;
+    return objects.filter((polygon) => shownIds.has(String(polygon.id)));
+  }, [location.map_objects, shownIds, dimHidden]);
 
   // ── zoom/pan ──────────────────────────────────────────────────────────────
   const transformStyle = useMemo(() => ({
@@ -172,15 +185,15 @@ export default function MapViewerPure({
   }) as React.CSSProperties, [offset, zoom]);
 
   const onWheel = useCallback((e: React.WheelEvent) => {
-    if (!interactive) return;
+    if (!canPan) return;
     e.preventDefault();
     const nextZoom = clamp(zoom + (e.deltaY < 0 ? 0.15 : -0.15), minZoom, maxZoom);
     setZoom(nextZoom);
     if (nextZoom === minZoom) setOffset({ x: 0, y: 0 });
-  }, [interactive, zoom, minZoom, maxZoom]);
+  }, [canPan, zoom, minZoom, maxZoom]);
 
   const onPointerDown = useCallback((e: React.PointerEvent) => {
-    if (!interactive) {
+    if (!canPan) {
       movedRef.current = false;
       return;
     }
@@ -196,10 +209,10 @@ export default function MapViewerPure({
       panStartRef.current = null;
       movedRef.current = true;
     }
-  }, [interactive, offset, zoom]);
+  }, [canPan, offset, zoom]);
 
   const onPointerMove = useCallback((e: React.PointerEvent) => {
-    if (!interactive) return;
+    if (!canPan) return;
     if (pointersRef.current.has(e.pointerId)) pointersRef.current.set(e.pointerId, e.nativeEvent);
     const pts = Array.from(pointersRef.current.values());
     if (pts.length === 2 && pinchStartRef.current) {
@@ -222,11 +235,11 @@ export default function MapViewerPure({
       });
       if (Math.abs(dx) + Math.abs(dy) > 4) movedRef.current = true;
     }
-  }, [interactive, zoom, minZoom, maxZoom]);
+  }, [canPan, zoom, minZoom, maxZoom]);
 
   const onPointerUp = useCallback((e: React.PointerEvent) => {
-    if (!interactive) {
-      onImageClick?.();
+    if (!canPan) {
+      if (!isDrawing) onImageClick?.();
       return;
     }
     pointersRef.current.delete(e.pointerId);
@@ -234,7 +247,7 @@ export default function MapViewerPure({
     if (pts.length < 2) pinchStartRef.current = null;
     if (pts.length === 0) panStartRef.current = null;
     if (!movedRef.current) onImageClick?.();
-  }, [interactive, onImageClick]);
+  }, [canPan, isDrawing, onImageClick]);
 
   const getIconComponent = useCallback((iconValue: string) =>
     availableIcons.find((icon) => icon.value === iconValue)?.icon ?? null,
@@ -244,6 +257,18 @@ export default function MapViewerPure({
     (polygon: MapObjectPolygon) => { onPolygonClicked?.(polygon); },
     [onPolygonClicked],
   );
+
+  const onCanvasClick = useCallback((event: React.MouseEvent<SVGSVGElement>) => {
+    if (!isDrawing || !onDraftPoint) return;
+    const svg = event.currentTarget;
+    const point = svg.createSVGPoint();
+    point.x = event.clientX;
+    point.y = event.clientY;
+    const matrix = svg.getScreenCTM();
+    if (!matrix) return;
+    const local = point.matrixTransform(matrix.inverse());
+    onDraftPoint({ x: local.x, y: local.y });
+  }, [isDrawing, onDraftPoint]);
 
   // ── render ────────────────────────────────────────────────────────────────
   return (
@@ -263,14 +288,17 @@ export default function MapViewerPure({
               rasterSrc={location.map_url ?? null}
               excalidrawPreviewUrl={overlayUrl}
               emptyText="Нет карты"
+              onClick={onCanvasClick}
             >
               {/* полигоны */}
               {visiblePolygons.map((polygon) => {
                 const IconComponent = getIconComponent(polygon.icon_url || '');
                 const center = getPolygonCenter(polygon.polygon_list);
                 const d = getPath(polygon.polygon_list, !polygon.is_line);
+                const revealed = shownIds.has(String(polygon.id));
+                const fade = dimHidden && !revealed ? 0.28 : 1;
                 return (
-                  <g key={polygon.id}>
+                  <g key={polygon.id} opacity={fade}>
                     <path
                       d={d}
                       fill={polygon.is_filled ? polygon.color : 'none'}
@@ -278,8 +306,8 @@ export default function MapViewerPure({
                       stroke={polygon.color}
                       strokeWidth="2"
                       strokeOpacity={polygon.alpha}
-                      className="cursor-pointer"
-                      onClick={(e) => { e.stopPropagation(); handlePolygonClick(polygon); }}
+                      className={isDrawing ? undefined : 'cursor-pointer'}
+                      onClick={isDrawing ? undefined : (e) => { e.stopPropagation(); handlePolygonClick(polygon); }}
                     />
                     {IconComponent && polygon.polygon_list.length > 0 && (
                       <foreignObject x={center.x - 12} y={center.y - 12} width="24" height="24" className="pointer-events-none">
@@ -362,6 +390,19 @@ export default function MapViewerPure({
                   </g>
                 );
               })}
+              {draftPoints.length > 0 && (
+                <g className="pointer-events-none">
+                  <polyline
+                    points={draftPoints.map((point) => `${point.x},${point.y}`).join(' ')}
+                    fill="none"
+                    stroke="#74c0fc"
+                    strokeWidth="2"
+                  />
+                  {draftPoints.map((point, index) => (
+                    <circle key={index} cx={point.x} cy={point.y} r="4" fill="#74c0fc" />
+                  ))}
+                </g>
+              )}
             </MapCanvas>
           </div>
         </div>
