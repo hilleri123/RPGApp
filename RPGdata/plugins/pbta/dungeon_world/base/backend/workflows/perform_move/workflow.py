@@ -537,10 +537,8 @@ class PerformMoveWorkflow(PerformMoveWorkflowBase):
         return None
 
     def _post_roll_wizard_steps(self, wf: Workflow, c: PerformMoveContext) -> list[str]:
-        steps: list[str] = []
-        if any(not x.resolved for x in c.entry.resolve.pending_choices):
-            steps.append("perform_move.choose")
-        steps.append("perform_move.change_manifest")
+        # Выбор не отдельный шаг: варианты 7–9 видны в заявке и ничего не требуют.
+        steps: list[str] = ["perform_move.change_manifest"]
         if claims_need_roll(c):
             steps.append("perform_move.damage_roll")
         return steps
@@ -551,8 +549,6 @@ class PerformMoveWorkflow(PerformMoveWorkflowBase):
 
     def _next_post_roll_substep(self, sub_key: str, wf: Workflow, c: PerformMoveContext) -> str | None:
         if sub_key == "perform_move.choose":
-            if any(not x.resolved for x in c.entry.resolve.pending_choices):
-                return "perform_move.choose"
             return "perform_move.change_manifest"
 
         if sub_key == "perform_move.change_manifest":
@@ -852,6 +848,8 @@ class PerformMoveWorkflow(PerformMoveWorkflowBase):
         elif phase == "perform_move.post_roll":
             substeps = self._post_roll_wizard_steps(wf, c)
             current = self._wizard_current_key(wf) or (substeps[0] if substeps else "")
+            if current not in substeps:
+                current = substeps[0] if substeps else ""
         elif phase == "perform_move.roll":
             substeps = ["perform_move.roll"]
             current = "perform_move.roll"

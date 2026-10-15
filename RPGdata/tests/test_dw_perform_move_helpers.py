@@ -486,16 +486,25 @@ def test_post_roll_includes_change_manifest():
             "scene_id": str(uuid4()),
             "entry": {
                 "actor_user_id": str(uid),
-                "roll": {"outcome": "hit_10_plus", "required": True},
+                "roll": {"outcome": "hit_7_9", "required": True},
                 "moves": [{"id": "bard_arcane_art", "title": "Тайное искусство", "kind": "class"}],
-                "resolve": {},
+                "resolve": {
+                    "pending_choices": [{
+                        "id": "c1",
+                        "kind": "player_choice",
+                        "prompt": "Выбери",
+                        "choose": 1,
+                        "options": [{"id": "a", "label": "А"}],
+                    }],
+                },
             },
         },
         stageData={},
     )
     c = PerformMoveContext.model_validate(wf.context)
     steps = PerformMoveWorkflow()._post_roll_wizard_steps(wf, c)
-    assert "perform_move.change_manifest" in steps
+    assert steps[0] == "perform_move.change_manifest"
+    assert "perform_move.choose" not in steps
     assert "perform_move.affected" not in steps
     assert "perform_move.resources_grant" not in steps
 

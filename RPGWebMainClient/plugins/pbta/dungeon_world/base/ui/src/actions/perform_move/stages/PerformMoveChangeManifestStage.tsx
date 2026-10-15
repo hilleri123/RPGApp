@@ -894,11 +894,11 @@ export function PerformMoveChangeManifestStage({
         <ClipboardList className="w-4 h-4 text-cyan-300" />
         {mode === 'review' ? 'Проверка заявки' : 'Заявка на изменения'}
       </div>
-      <p className="text-xs text-white/45 -mt-2">
-        {mode === 'review'
-          ? 'После бросков: проверьте итоги урона и ресурсы, затем примените.'
-          : 'Выберите участника, добавьте урон или ресурс. Потом продолжите.'}
-      </p>
+      {mode === 'review' ? (
+        <p className="text-xs text-white/45 -mt-2">
+          После бросков: проверьте итоги урона и ресурсы, затем примените.
+        </p>
+      ) : null}
 
       {mode === 'edit' && isGm && sentToGm ? (
         <div className="rounded border border-amber-400/40 bg-amber-500/10 px-3 py-2 text-sm text-amber-100">

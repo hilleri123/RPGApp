@@ -104,11 +104,12 @@ export function useSessionWebSocket(sessionId: string) {
     sendAction(action);
   }, [sendAction]);
 
-  const delScene = useCallback((sceneId: string) => {
+  const delScene = useCallback((sceneId: string, slot?: 'top' | 'subscene') => {
     const action: MasterDelScene = {
       user_role: MASTER_ROLE,
       msg_type: 'del_scene',
       scene_id: sceneId,
+      slot,
     };
     sendAction(action);
   }, [sendAction]);

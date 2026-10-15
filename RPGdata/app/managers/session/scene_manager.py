@@ -89,6 +89,8 @@ class SessionSceneManager(SessionDataManager):
             public=scheme.SceneElementsInner(npc_ids=[], item_ids=[]),
             private=elements_private,
             datetime=scene_time,
+            expanded=False,
+            in_top_row=True,
         )
         await self._recompute_available_actions_for_scene(inner, scene)
 
@@ -100,12 +102,25 @@ class SessionSceneManager(SessionDataManager):
 
         return True, ["scenes", "locations"]  # мастеру scenes достаточно; seen не шлешь апдейтом
 
-    async def del_scene(self, scene_id: UUID) -> Tuple[bool, list[str]]:
+    async def del_scene(self, scene_id: UUID, slot: str | None = None) -> Tuple[bool, list[str]]:
         inner = await self.get_inner()
-        scenes = inner.scenes
-        new_scenes = [s for s in scenes if s.id != scene_id]
-        if len(new_scenes) == len(scenes):
+        scenes = list(inner.scenes or [])
+        scene = next((s for s in scenes if s.id == scene_id), None)
+        if not scene:
             return False, []
+
+        # Один объект, два виджета: убираем только тот ряд, из которого удалили.
+        if slot == "top" and scene.parent_scene_id is not None and scene.in_top_row:
+            scene.in_top_row = False
+            scene.expanded = False
+            await self._save_scenes(scenes)
+            return True, ["scenes"]
+        if slot == "subscene" and scene.parent_scene_id is not None and scene.in_top_row:
+            scene.parent_scene_id = None
+            await self._save_scenes(scenes)
+            return True, ["scenes"]
+
+        new_scenes = [s for s in scenes if s.id != scene_id]
         await self._save_scenes(new_scenes)
 
         new_actions = [a for a in inner.actions if a.scene_id != scene_id]
@@ -154,39 +169,45 @@ class SessionSceneManager(SessionDataManager):
         return True, ["scenes", "locations"]
 
 
-    async def expand_scene(self, scene_id: UUID) -> Tuple[bool, list[str]]:
-        inner = await self.get_inner()
-        scenes = list(inner.scenes or [])
+    def _child_location_ids(self, parent_loc, locations) -> list[UUID]:
+        """Прямые подлокации и цели полигонов карты, без повторов."""
+        seen: set[UUID] = set()
+        ordered: list[UUID] = []
+        parent_id = getattr(parent_loc, "id", None)
+        for loc in locations or []:
+            if parent_id is not None and getattr(loc, "parent_location_id", None) == parent_id:
+                if loc.id not in seen:
+                    seen.add(loc.id)
+                    ordered.append(loc.id)
+        for mo in (getattr(parent_loc, "map_objects", None) or []):
+            target_id = getattr(mo, "target_location_id", None)
+            if target_id is not None and target_id not in seen:
+                seen.add(target_id)
+                ordered.append(target_id)
+        return ordered
 
-        parent_scene = next((s for s in scenes if s.id == scene_id), None)
-        if not parent_scene:
-            return False, []
-
-        already_has_children = any(s.parent_scene_id == scene_id for s in scenes)
-        if already_has_children:
-            return False, []
-
+    async def _append_missing_child_scenes(
+        self,
+        inner,
+        scenes: list[scheme.SceneInner],
+        parent_scene: scheme.SceneInner,
+    ) -> list[scheme.SceneInner]:
+        """Дописывает недостающие подсцены. Список scenes меняется на месте."""
         loc_index = {l.id: l for l in (inner.locations or [])}
-        parent_loc: scheme.LocationOut = loc_index.get(parent_scene.location_id)
+        parent_loc = loc_index.get(parent_scene.location_id)
         if not parent_loc:
-            return False, []
+            return []
 
-        # ключевое изменение: дочерние локации — через target_location_id полигонов
-        map_objects = parent_loc.map_objects
-        child_location_ids: list[UUID] = list({
-            mo.target_location_id
-            for mo in map_objects
-            if getattr(mo, "target_location_id", None) is not None
-        })
-
-        if not child_location_ids:
-            return False, []
-
+        existing_child_locs = {
+            s.location_id for s in scenes if s.parent_scene_id == parent_scene.id
+        }
         plugin = self._get_rules_factory(inner)
         existing_names = {s.name for s in scenes}
         new_scenes: list[scheme.SceneInner] = []
 
-        for child_loc_id in child_location_ids:
+        for child_loc_id in self._child_location_ids(parent_loc, inner.locations):
+            if child_loc_id == parent_scene.location_id or child_loc_id in existing_child_locs:
+                continue
             child_loc = loc_index.get(child_loc_id)
             if not child_loc:
                 continue
@@ -199,45 +220,73 @@ class SessionSceneManager(SessionDataManager):
                 counter += 1
             existing_names.add(scene_name)
 
-            npc_ids = list(getattr(child_loc, "npc_ids", None) or [])
-            item_ids: list[UUID] = [
-                it.id for it in (inner.items or [])
-                if hasattr(it, "location_id") and it.location_id == child_loc_id
-            ]
-
             scene_init_data = plugin.handle("init", "scene", {}, {})
             child_time = self.inherit_scene_game_time(inner, parent_scene=parent_scene)
-
             child_scene = scheme.SceneInner(
                 id=uuid4(),
                 name=scene_name,
                 data=scene_init_data,
                 location_id=child_loc_id,
                 character_ids=[],
-                parent_scene_id=scene_id,
+                parent_scene_id=parent_scene.id,
+                expanded=False,
+                in_top_row=False,
                 datetime=child_time,
                 public=scheme.SceneElementsInner(npc_ids=[], item_ids=[]),
                 private=scheme.SceneElementsInner(npc_ids=[], item_ids=[]),
             )
             await self._recompute_available_actions_for_scene(inner, child_scene)
             new_scenes.append(child_scene)
+            existing_child_locs.add(child_loc_id)
             inner.seen.add(child_loc_id)
-        logger.info(f'{new_scenes=} {child_location_ids=}')
-
-        if not new_scenes:
-            return False, []
 
         scenes.extend(new_scenes)
-        await self._save_scenes(scenes)
-        await self._save_seen(inner.seen, added=set(child_location_ids))
+        return new_scenes
 
+    async def sync_subscenes_from_locations(self) -> bool:
+        """Для уже существующих сцен дописывает подсцены новых подлокаций."""
+        inner = await self.get_inner()
+        scenes = list(inner.scenes or [])
+        created: list[scheme.SceneInner] = []
+        for scene in list(scenes):
+            created.extend(await self._append_missing_child_scenes(inner, scenes, scene))
+        if not created:
+            return False
+        await self._save_scenes(scenes)
+        await self._save_seen(inner.seen, added={s.location_id for s in created})
+        return True
+
+    async def expand_scene(self, scene_id: UUID) -> Tuple[bool, list[str]]:
+        inner = await self.get_inner()
+        scenes = list(inner.scenes or [])
+
+        scene = next((s for s in scenes if s.id == scene_id), None)
+        if not scene:
+            return False, []
+
+        changed = False
+        # Подсцена раскрывается в верхний ряд тем же объектом, без второй сцены.
+        if scene.parent_scene_id is not None and not scene.in_top_row:
+            scene.in_top_row = True
+            changed = True
+        if not scene.expanded:
+            scene.expanded = True
+            changed = True
+
+        new_scenes = await self._append_missing_child_scenes(inner, scenes, scene)
+        if not new_scenes and not changed:
+            return False, []
+
+        await self._save_scenes(scenes)
+        if new_scenes:
+            await self._save_seen(inner.seen, added={s.location_id for s in new_scenes})
         return True, ["scenes"]
 
     async def collapse_scene(self, scene_id: UUID) -> Tuple[bool, list[str]]:
         """
-        Схлопывает дочерние сцены обратно в родительскую:
-        - NPC/items/obstacles из дочерних переносятся в private родительской (без дублей)
-        - Дочерние сцены и их actions удаляются
+        Схлопывает прямых детей этой сцены.
+        Ребёнок, который виден ещё и в верхнем ряду, только перестаёт быть подсценой.
+        Остальные дети удаляются, их NPC и предметы переносятся родителю.
         """
         inner = await self.get_inner()
         scenes = list(inner.scenes or [])
@@ -262,9 +311,15 @@ class SessionSceneManager(SessionDataManager):
             for ob in (parent_scene.private.obstacles or [])
         }
 
-        child_ids = {s.id for s in child_scenes}
-
+        removable = [s for s in child_scenes if not s.in_top_row]
         for child in child_scenes:
+            if child.in_top_row:
+                child.parent_scene_id = None
+
+        child_ids = {s.id for s in removable}
+        parent_scene.expanded = False
+
+        for child in removable:
             child.public  = self._ensure_scene_elements(child.public)
             child.private = self._ensure_scene_elements(child.private)
 

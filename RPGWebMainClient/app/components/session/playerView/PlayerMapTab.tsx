@@ -34,6 +34,7 @@ export default function PlayerMapTab({ sessionId }: PlayerMapTabProps) {
         enabledPolygonIds={polygon_shown}
         setCurrentLocation={setCurrentLocation}
         scenes={scenes}
+        currentScene={scene}
         session={session}
         locationList={locations ?? [homeLocation]}
         characters={characters ?? []}

@@ -30,6 +30,7 @@ export function readActionWizard(action: SessionAction | null | undefined): Acti
 export function resolveActionViewKey(action: SessionAction | null | undefined): string {
   const stageKey = String(action?.workflow?.stageKey ?? '');
   const wizard = readActionWizard(action);
+  if (wizard?.currentKey === 'perform_move.choose') return 'perform_move.change_manifest';
   if (wizard?.currentKey) return wizard.currentKey;
   if (stageKey === 'perform_move.pre_roll') return 'perform_move.declare';
   if (stageKey === 'perform_move.post_roll') return 'perform_move.change_manifest';

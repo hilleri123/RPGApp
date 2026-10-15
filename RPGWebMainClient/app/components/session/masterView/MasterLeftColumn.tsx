@@ -75,6 +75,11 @@ export function MasterLeftColumn({ sessionId }: { sessionId: string }) {
 
   const mapLocation: Location | null = mapTab === 'scene' ? sceneLocation : currentLocation;
 
+  const currentScene = useMemo(
+    () => (scenes ?? []).find((s) => String(s.id) === String(currentSceneId)) ?? null,
+    [scenes, currentSceneId],
+  );
+
   const updateLocationPolygonVisibility = useCallback(
     (locationId: string, polygonId: string, value: boolean) => {
       setLocationCheck(locationId, polygonId, value);
@@ -221,6 +226,7 @@ export function MasterLeftColumn({ sessionId }: { sessionId: string }) {
                     locationList={locations}
                     enabledPolygonIds={polygon_shown}
                     scenes={scenes}
+                    currentScene={mapTab === 'scene' ? currentScene : null}
                     session={session}
                     characters={characters}
                     editable={true}

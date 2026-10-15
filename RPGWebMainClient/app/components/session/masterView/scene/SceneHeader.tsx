@@ -9,9 +9,36 @@ import { Button } from "@/components/ui/button";
 import { ArrowLeft, ArrowRight, ChevronDown, ChevronUp, ExternalLink } from "lucide-react";
 import { openScenePopout } from "./openScenePopout";
 
+type SceneSlot = "top" | "subscene";
+
 type SceneMenuState =
   | { open: false }
-  | { open: true; sceneId: string; x: number; y: number; title: string; hasChildren: boolean; hasSubLocations: boolean };
+  | {
+      open: true;
+      sceneId: string;
+      x: number;
+      y: number;
+      title: string;
+      hasChildren: boolean;
+      hasSubLocations: boolean;
+      slot: SceneSlot;
+    };
+
+function sceneInTopRow(scene: Scene): boolean {
+  if (typeof scene.in_top_row === "boolean") return scene.in_top_row;
+  return !scene.parent_scene_id;
+}
+
+/** Копия, которую прошлая версия создавала отдельной сценой. В рядах её не показываем. */
+function isLegacyPromotedCopy(scene: Scene, all: readonly Scene[]): boolean {
+  const marker = scene.sublocation_of_scene_id;
+  if (!marker || scene.parent_scene_id) return false;
+  return all.some((other) =>
+    other.id !== scene.id
+    && String(other.parent_scene_id ?? "") === String(marker)
+    && String(other.location?.id ?? "") === String(scene.location?.id ?? ""),
+  );
+}
 
 function normalizeColor(x: string | undefined): string {
   return x && x.trim().length ? x : '#94a3b8';
@@ -56,12 +83,17 @@ export default function SceneHeader({
   const params = useParams<{ id: string }>();
   const sessionId = params.id;
   const [menu, setMenu] = useState<SceneMenuState>({ open: false });
+  const [focusSlot, setFocusSlot] = useState<SceneSlot>("top");
   const menuRef = useRef<HTMLDivElement | null>(null);
+  const pinnedFocus = useRef<{ id: string; slot: SceneSlot } | null>(null);
 
-  const { scenes, session, delScene, expandScene, collapseScene } = useSessionWebSocket(sessionId);
+  const { scenes, locations, session, delScene, expandScene, collapseScene } = useSessionWebSocket(sessionId);
   const setCurrentSceneId = useMasterUiStore((s) => s.setCurrentSceneId);
 
-  const rootScenes = useMemo(() => scenes.filter((s: Scene) => !s.parent_scene_id), [scenes]);
+  const rootScenes = useMemo(
+    () => (scenes ?? []).filter((s: Scene) => sceneInTopRow(s) && !isLegacyPromotedCopy(s, scenes ?? [])),
+    [scenes],
+  );
 
   const childrenOf = useMemo(() => {
     const map = new Map<string, Scene[]>();
@@ -75,14 +107,15 @@ export default function SceneHeader({
     return (id: string) => map.get(id) ?? [];
   }, [scenes]);
 
-  // активная корневая сцена — либо currentSceneId если она root, либо родитель дочерней
+  // Полоса «↳ подсцены» остаётся у родителя, если фокус на нижнем виджете.
   const activeRootId = useMemo(() => {
     if (!currentSceneId) return null;
-    const scene = scenes.find((s: Scene) => s.id === currentSceneId);
+    const scene = (scenes ?? []).find((s: Scene) => s.id === currentSceneId);
     if (!scene) return null;
-    if (!scene.parent_scene_id) return scene.id;           // сама корневая
-    return String(scene.parent_scene_id);                  // её родитель
-  }, [currentSceneId, scenes]);
+    if (focusSlot === "subscene" && scene.parent_scene_id) return String(scene.parent_scene_id);
+    if (sceneInTopRow(scene)) return scene.id;
+    return scene.parent_scene_id ? String(scene.parent_scene_id) : scene.id;
+  }, [currentSceneId, focusSlot, scenes]);
 
   // подсцены показываем только для активной корневой сцены
   const visibleChildren = useMemo(
@@ -113,16 +146,54 @@ export default function SceneHeader({
   }, [scenes, players]);
 
   const subLocationCountOf = useMemo(() => {
+    const childrenOfLocation = new Map<string, Set<string>>();
+    const addChild = (parentId: string | null | undefined, childId: string | null | undefined) => {
+      if (!parentId || !childId || String(parentId) === String(childId)) return;
+      const key = String(parentId);
+      if (!childrenOfLocation.has(key)) childrenOfLocation.set(key, new Set());
+      childrenOfLocation.get(key)!.add(String(childId));
+    };
+    for (const loc of locations ?? []) {
+      addChild((loc as any).parent_location_id, loc.id);
+      for (const polygon of (loc as any).map_objects ?? []) {
+        addChild(loc.id, polygon?.target_location_id);
+      }
+    }
     const map = new Map<string, number>();
     for (const s of scenes) {
-      const mapObjects = (s as any).location?.map_objects ?? [];
-      const targets = new Set<string>(
-        mapObjects.map((p: any) => p.target_location_id).filter(Boolean)
-      );
-      map.set(s.id, targets.size);
+      const locationId = s.location?.id ? String(s.location.id) : "";
+      map.set(s.id, childrenOfLocation.get(locationId)?.size ?? 0);
     }
     return (sceneId: string) => map.get(sceneId) ?? 0;
-  }, [scenes]);
+  }, [locations, scenes]);
+
+  const selectWidget = (sceneId: string, slot: SceneSlot) => {
+    pinnedFocus.current = { id: sceneId, slot };
+    setFocusSlot(slot);
+    onSelectSceneId(sceneId);
+    setCurrentSceneId(sceneId);
+  };
+
+  useEffect(() => {
+    if (!currentSceneId) return;
+    const scene = (scenes ?? []).find((s: Scene) => s.id === currentSceneId);
+    if (!scene) return;
+    if (pinnedFocus.current?.id === currentSceneId) {
+      if (pinnedFocus.current.slot === "subscene" && !scene.parent_scene_id) {
+        pinnedFocus.current = { id: currentSceneId, slot: "top" };
+        setFocusSlot("top");
+      }
+      return;
+    }
+    const slot: SceneSlot = scene.parent_scene_id ? "subscene" : "top";
+    pinnedFocus.current = { id: currentSceneId, slot };
+    setFocusSlot(slot);
+  }, [currentSceneId, scenes]);
+
+  const showInTopRow = (scene: Scene) => {
+    expandScene(scene.id);
+    selectWidget(scene.id, "subscene");
+  };
 
   useEffect(() => {
     if (!menu.open) return;
@@ -143,10 +214,17 @@ export default function SceneHeader({
   }, [menu.open]);
 
   const renderSceneButton = (s: Scene, idx: number, isChild = false) => {
-    const active = s.id === currentSceneId;
+    const slot: SceneSlot = isChild ? "subscene" : "top";
+    const active = s.id === currentSceneId && slot === focusSlot;
     // у дочерней — подсвечиваем родителя если она активна
     const parentActive = !isChild && s.id === activeRootId && s.id !== currentSceneId;
     const title = s.name ?? (isChild ? `Подсцена ${idx + 1}` : `Сцена ${idx + 1}`);
+    const parentSceneName = s.parent_scene_id
+      ? scenes.find((other: Scene) => other.id === s.parent_scene_id)?.name
+      : undefined;
+    const sublocationMark = !isChild && s.parent_scene_id
+      ? `подлокация «${parentSceneName || "другой сцены"}»`
+      : "";
     const colors = colorsForSceneId(s.id);
     const children = childrenOf(s.id);
     const hasChildren = children.length > 0;
@@ -154,12 +232,12 @@ export default function SceneHeader({
     const hasSubLocations = subLocCount > 0;
 
     return (
-      <div key={s.id} className="inline-flex items-center gap-0.5">
+      <div key={`${slot}-${s.id}`} className="inline-flex items-center gap-0.5">
         <Button
-          onClick={() => { onSelectSceneId(s.id); setCurrentSceneId(s.id); }}
+          onClick={() => selectWidget(s.id, slot)}
           onContextMenu={(e: React.MouseEvent<HTMLButtonElement>) => {
             e.preventDefault();
-            setMenu({ open: true, sceneId: s.id, x: e.clientX, y: e.clientY, title, hasChildren, hasSubLocations });
+            setMenu({ open: true, sceneId: s.id, x: e.clientX, y: e.clientY, title, hasChildren, hasSubLocations, slot });
           }}
           className={[
             "relative px-3 py-1 border text-sm whitespace-nowrap",
@@ -171,21 +249,31 @@ export default function SceneHeader({
                 : "bg-gray-900 border-gray-800 hover:bg-gray-800",
             hasChildren || active ? "rounded-l rounded-r-none border-r-0" : "rounded",
           ].join(" ")}
-          title={title}
+          title={sublocationMark ? `${title} · ${sublocationMark}` : title}
         >
           {title}
+          {!isChild && sublocationMark && (
+            <span className="ml-1.5 text-[10px] text-amber-300/80">{sublocationMark}</span>
+          )}
           {!isChild && !hasChildren && hasSubLocations && (
             <span className="ml-1.5 text-[10px] text-gray-500 font-mono">+{subLocCount}</span>
           )}
           <PlayerDots colors={colors} />
         </Button>
 
+        {isChild && (
+          <Button
+            onClick={() => showInTopRow(s)}
+            className="px-1.5 py-0.5 rounded border text-xs bg-gray-900 border-gray-800 hover:bg-gray-800"
+            title="Раскрыть в верхнем ряду"
+          >
+            <ChevronDown className="w-3 h-3" />
+          </Button>
+        )}
+
         {!isChild && hasChildren && (
           <Button
-            onClick={() => {
-              onSelectSceneId(s.id);
-              setCurrentSceneId(s.id);
-            }}
+            onClick={() => selectWidget(s.id, "top")}
             className={[
               "px-1.5 py-1 border border-l-0 text-sm",
               active ? "rounded-none" : "rounded-r",
@@ -282,7 +370,18 @@ export default function SceneHeader({
               Открыть в отдельном окне
             </button>
 
-            {!menu.hasChildren && menu.hasSubLocations && (
+            {menu.slot === "subscene" && (
+              <button type="button" className="w-full text-left px-2 py-1.5 text-sm rounded hover:bg-gray-800 text-blue-300 hover:text-blue-200"
+                onClick={() => {
+                  const child = scenes.find((s: Scene) => s.id === menu.sceneId);
+                  setMenu({ open: false });
+                  if (child) showInTopRow(child);
+                }}>
+                Раскрыть в верхнем ряду
+              </button>
+            )}
+
+            {menu.slot === "top" && menu.hasSubLocations && (
               <button type="button" className="w-full text-left px-2 py-1.5 text-sm rounded hover:bg-gray-800 text-blue-300 hover:text-blue-200"
                 onClick={() => { const id = menu.sceneId; setMenu({ open: false }); expandScene(id); }}>
                 Раскрыть по локациям
@@ -297,8 +396,19 @@ export default function SceneHeader({
             )}
 
             <button type="button" className="w-full text-left px-2 py-1.5 text-sm rounded hover:bg-gray-900 text-red-400 hover:text-red-300"
-              onClick={() => { const id = menu.sceneId; setMenu({ open: false }); delScene(id); }}>
-              Удалить
+              onClick={() => {
+                const id = menu.sceneId;
+                const slot = menu.slot;
+                setMenu({ open: false });
+                delScene(id, slot);
+              }}>
+              {(() => {
+                const target = scenes.find((s: Scene) => s.id === menu.sceneId);
+                const both = !!target?.parent_scene_id && sceneInTopRow(target);
+                if (both && menu.slot === "top") return "Убрать из верхнего ряда";
+                if (both && menu.slot === "subscene") return "Убрать из подсцен";
+                return "Удалить";
+              })()}
             </button>
           </div>
         </div>

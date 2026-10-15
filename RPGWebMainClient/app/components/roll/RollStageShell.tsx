@@ -69,17 +69,20 @@ export function RollStageShell({
         {title}
       </div>
 
-      {summary}
-
-      {modifiers.length > 0 && (
-        <div className="rounded border border-white10 bg-zinc-950/20 p-3 text-sm space-y-1 font-mono">
-          <div className="text-white40 text-xs uppercase tracking-wide">Модификаторы</div>
-          {modifiers.map((mod) => (
-            <div key={mod.id} className="flex justify-between gap-3">
-              <span className="text-white70">{mod.label}</span>
-              <span className="text-white">{mod.value >= 0 ? "+" : ""}{mod.value}</span>
+      {(summary || modifiers.length > 0) && (
+        <div className="flex flex-wrap items-start gap-3">
+          {summary ? <div className="min-w-[12rem] flex-1">{summary}</div> : null}
+          {modifiers.length > 0 && (
+            <div className="min-w-[12rem] flex-1 rounded border border-white10 bg-zinc-950/20 p-3 text-sm space-y-1 font-mono">
+              <div className="text-white40 text-xs uppercase tracking-wide">Модификаторы</div>
+              {modifiers.map((mod) => (
+                <div key={mod.id} className="flex justify-between gap-3">
+                  <span className="text-white70">{mod.label}</span>
+                  <span className="text-white">{mod.value >= 0 ? "+" : ""}{mod.value}</span>
+                </div>
+              ))}
             </div>
-          ))}
+          )}
         </div>
       )}
 

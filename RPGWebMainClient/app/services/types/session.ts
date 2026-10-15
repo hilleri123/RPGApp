@@ -83,6 +83,12 @@ export interface Scene {
   datetime: string | null;
 
   parent_scene_id?: string;
+  /** Раскрыта: подсцены этой сцены заведены. */
+  expanded?: boolean;
+  /** Виджет в верхнем ряду. Подсцена без флага видна только в нижнем ряду. */
+  in_top_row?: boolean;
+  /** Старое поле копии. Новые сцены его не ставят. */
+  sublocation_of_scene_id?: string;
 
   data: Record<string, any>;
 
@@ -281,6 +287,8 @@ export interface MasterUpdateSceneData extends MasterSessionActionBase {
 export interface MasterDelScene extends MasterSessionActionBase {
   msg_type: 'del_scene';
   scene_id: string;
+  /** Какой виджет убирают. Если сцена в обоих рядах, снимается только он. */
+  slot?: 'top' | 'subscene';
 }
 
 export interface MasterMergeScene extends MasterSessionActionBase {

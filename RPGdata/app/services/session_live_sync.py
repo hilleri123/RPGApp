@@ -48,8 +48,11 @@ async def notify_session_snapshot_entity_change(
                 continue
             await sm.invalidate_entity_cache()
             extra: list[str] = []
+            if "locations" in fields and hasattr(sm, "sync_subscenes_from_locations"):
+                if await sm.sync_subscenes_from_locations():
+                    extra.append("scenes")
             if "notes" in fields and hasattr(sm, "sync_dispatches_after_notes_change"):
-                extra = await sm.sync_dispatches_after_notes_change()
+                extra.extend(await sm.sync_dispatches_after_notes_change())
             # Scenes embed location snapshots — refresh them whenever locations change.
             merged = list(fields)
             if "locations" in fields and "scenes" not in fields:

@@ -2,10 +2,19 @@
 
 import { v4 as uuidv4 } from 'uuid';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import dynamic from 'next/dynamic';
 import { Button } from '@/components/ui/button';
 import { Check, Eye, EyeOff, MapPin, Plus, X } from 'lucide-react';
 import type { LocationList, MapObjectPolygonCreate, SubLocationRef } from '@/app/services/types2';
 import type { LocationSublocTabProps } from './types';
+import { useScenario } from '@/app/components/scenarios/ScenarioContext';
+import { ScenarioScopedApiService } from '@/app/services/api/scenario_scoped';
+import { listenLocationMapSaved } from '../../locationMapSaved';
+
+const LocationMapDialog = dynamic(
+  () => import('../../LocationMapDialog').then((mod) => mod.LocationMapDialog),
+  { ssr: false },
+);
 import { MapCanvas } from '@/app/components/common/map/MapCanvas';
 import { useMapBackground } from '@/app/components/common/map/useMapBackground';
 import { useExcalidrawPreview } from '@/app/components/common/map/useExcalidrawPreview';
@@ -116,8 +125,12 @@ function SublocationKindSelect({
 // ─── компонент ────────────────────────────────────────────────────────────────
 
 export default function SublocationsTab({ dlg, editingId }: LocationSublocTabProps) {
+  const { scenarioId } = useScenario();
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [success, setSuccess] = useState<string | null>(null);
+  const [adding, setAdding] = useState(false);
+  const [addError, setAddError] = useState<string | null>(null);
+  const [mapLocationId, setMapLocationId] = useState<string | null>(null);
 
   // ── инициализация sublocations ────────────────────────────────────────────
   const initializedRef = useRef(false);
@@ -146,6 +159,60 @@ export default function SublocationsTab({ dlg, editingId }: LocationSublocTabPro
     },
     [dlg],
   );
+
+  const patchSublocationsRef = useRef(patchSublocations);
+  patchSublocationsRef.current = patchSublocations;
+  const reloadLookupsRef = useRef(dlg.reloadLookups);
+  reloadLookupsRef.current = dlg.reloadLookups;
+
+  useEffect(() => {
+    return listenLocationMapSaved((message) => {
+      if (message.scenarioId !== scenarioId) return;
+      patchSublocationsRef.current((prev) =>
+        prev.map((row) =>
+          String(row.id) === String(message.locationId) ? { ...row, name: message.name } : row,
+        ),
+      );
+      void reloadLookupsRef.current?.();
+    });
+  }, [scenarioId]);
+
+  const createChildLocation = useCallback(async () => {
+    setAddError(null);
+    if (!editingId) return;
+    setAdding(true);
+    try {
+      const api = new ScenarioScopedApiService(scenarioId);
+      const res = await api.createLocation({
+        force: false,
+        name: 'Новая локация',
+        description_for_master: '',
+        description_for_players: '',
+        parent_location_id: editingId,
+        tags: [],
+        data: {},
+        map_objects: [],
+        sublocations: [],
+        scene_exposures: [],
+      });
+      const createdId = res.location?.id;
+      if (!res.ok || !createdId) {
+        setAddError(res.issues?.[0]?.message ?? 'Не удалось создать подлокацию');
+        return;
+      }
+      patchSublocations((prev) => [
+        ...prev,
+        { id: String(createdId), name: res.location?.name || 'Новая локация' },
+      ]);
+      await dlg.reloadLookups?.();
+      setMapLocationId(String(createdId));
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Не удалось создать подлокацию';
+      setAddError(message);
+    } finally {
+      setAdding(false);
+    }
+  }, [dlg, editingId, patchSublocations, scenarioId]);
 
   // Вид текущей (родительской) локации — от него зависит, какие виды можно дать подлокациям.
   const parentKindId = kindOfTags((dlg.form as any).tags)?.id ?? null;
@@ -386,18 +453,18 @@ export default function SublocationsTab({ dlg, editingId }: LocationSublocTabPro
               </span>
               <button
                 type="button"
-                className="text-xs text-indigo-400 hover:text-indigo-300 flex items-center gap-0.5"
-                onClick={() => {
-                  patchSublocations((prev) => [
-                    ...prev,
-                    { id: undefined, name: 'Новая локация', _new: true },
-                  ]);
-                }}
+                className="text-xs text-indigo-400 hover:text-indigo-300 flex items-center gap-0.5 disabled:opacity-40"
+                disabled={adding}
+                onClick={() => { void createChildLocation(); }}
               >
                 <Plus className="w-3 h-3" />
                 Добавить
               </button>
             </div>
+            {!editingId ? (
+              <div className="text-[10px] text-amber-400">Сначала сохраните локацию</div>
+            ) : null}
+            {addError ? <div className="text-[10px] text-red-400">{addError}</div> : null}
 
             {parentKind && (
               <div className="flex flex-wrap items-center gap-1 text-[10px] text-gray-500">
@@ -597,6 +664,20 @@ export default function SublocationsTab({ dlg, editingId }: LocationSublocTabPro
           )}
         </div>
       </div>
+      {mapLocationId ? (
+        <LocationMapDialog
+          open
+          scenarioId={scenarioId}
+          locationId={mapLocationId}
+          onClose={() => setMapLocationId(null)}
+          onSaved={(id, name) => {
+            patchSublocations((prev) =>
+              prev.map((row) => (String(row.id) === id ? { ...row, name } : row)),
+            );
+            void dlg.reloadLookups?.();
+          }}
+        />
+      ) : null}
     </div>
   );
 }

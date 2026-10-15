@@ -10,7 +10,6 @@ import {
   asNum,
   type MoveLite,
   type SkillConfig,
-  type PerformMoveAction,
   type PerformMoveEntry,
 } from '../../../../../../../base/ui/src/actions/perform_move/types';
 import { MoveCard } from '../../../../../../../base/ui/src/actions/perform_move/components/MoveCard';
@@ -26,11 +25,17 @@ import {
 } from '../../../shared/moveContexts';
 
 export type DeclareStageProps = {
-  action: PerformMoveAction;
+  action: {
+    scene?: any;
+    workflow: {
+      stageData?: { moves?: unknown; sceneContextTags?: unknown; preparedSpells?: unknown } | null;
+      context: { entry: unknown };
+    };
+  };
   value: Record<string, unknown>;
   patch: (next: Record<string, unknown>) => void;
   onPatch?: (next: Record<string, unknown>) => void;
-  onSubmit: (payload: Record<string, unknown>) => void;
+  onSubmit: (payload?: Record<string, unknown>) => void;
   setSubmitEnabled: (e: boolean) => void;
   readOnly?: boolean;
 };
@@ -50,7 +55,7 @@ type PreparedSpellLite = {
   prepared?: boolean;
 };
 
-function parseDwMoves(action: PerformMoveAction): DwMoveLite[] {
+function parseDwMoves(action: { workflow?: { stageData?: { moves?: unknown } | null } }): DwMoveLite[] {
   const raw = action?.workflow?.stageData?.moves;
   if (!Array.isArray(raw)) return [];
   return raw

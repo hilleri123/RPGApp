@@ -236,7 +236,7 @@ async def websocket_endpoint(
                 elif isinstance(action, scheme.UpdateSceneData):
                     ok, fields = await session_m.update_scene_data(action.scene_id, action.data)
                 elif isinstance(action, scheme.DelScene):
-                    ok, fields = await session_m.del_scene(action.scene_id)
+                    ok, fields = await session_m.del_scene(action.scene_id, action.slot)
                 elif isinstance(action, scheme.ExpandScene):
                     ok, fields = await session_m.expand_scene(action.scene_id)
                 elif isinstance(action, scheme.CollapseScene):

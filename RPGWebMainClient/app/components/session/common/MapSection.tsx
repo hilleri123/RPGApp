@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { List, MapPin, Plus, Pencil } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -16,9 +16,11 @@ import { GameSessionBase, Scene } from "@/app/services/types/session";
 import { useMapUiStore } from "@/app/services/stores/mapUi";
 import { resolveSceneMapLocation } from "./SceneMiniMap";
 import { locationWithDisplayPolygons } from "./mapPolygons";
-import { SessionMapDrawBar } from "./SessionMapDrawBar";
 import { useSessionScenarioApi } from "@/app/services/hooks/session/useSessionScenarioApi";
-import type { MapObjectPolygonPoint } from "@/app/services/types2";
+import { ScenarioProvider } from "@/app/components/scenarios/ScenarioContext";
+import { LocationMapDialog } from "@/app/components/scenarios/dialogs/LocationMapDialog";
+import { listenLocationMapSaved } from "@/app/components/scenarios/dialogs/locationMapSaved";
+import { clearMapBaseline } from "@/app/components/scenarios/dialogs/locationMapBaseline";
 
 type CheckedState = boolean | "indeterminate";
 
@@ -32,6 +34,8 @@ interface MapSectionProps {
   setCurrentLocation: (location: Location) => void;
 
   scenes?: Scene[];
+  /** Сцена, чью локацию сейчас смотрят. Для подсцены даёт чекбокс карты родительской сцены. */
+  currentScene?: Scene | null;
   session?: GameSessionBase;
 
   editable: boolean;
@@ -61,6 +65,7 @@ export default function MapSection({
   updateLocationPolygonVisibility,
   setCurrentLocation,
   scenes,
+  currentScene,
   session,
   editable,
   className,
@@ -75,31 +80,41 @@ export default function MapSection({
   const [fullscreenMap, setFullscreenMap] = useState(false);
   const showParentMapIfNoImage = useMapUiStore((s) => s.showParentMapIfNoImage);
   const setShowParentMapIfNoImage = useMapUiStore((s) => s.setShowParentMapIfNoImage);
+  const showParentSceneMap = useMapUiStore((s) => s.showParentSceneMap);
+  const setShowParentSceneMap = useMapUiStore((s) => s.setShowParentSceneMap);
   const [locationsOpen, setLocationsOpen] = useState(false);
   const [textOpen, setTextOpen] = useState(false);
-  const [drawing, setDrawing] = useState(false);
-  const [draftPoints, setDraftPoints] = useState<MapObjectPolygonPoint[]>([]);
-  const [areaName, setAreaName] = useState("");
-  const [savingArea, setSavingArea] = useState(false);
-  const [drawError, setDrawError] = useState<string | null>(null);
-  const { api, reloadSessionFields } = useSessionScenarioApi();
+  const [mapEditorId, setMapEditorId] = useState<string | null>(null);
+  const { scenarioId, reloadSessionFields } = useSessionScenarioApi();
 
   const visibleLocations = useMemo(
     () => filterVisibleForPlayer(locationList, isMaster),
     [locationList, isMaster]
   );
 
+  const parentSceneLocation = useMemo(() => {
+    const parentId = currentScene?.parent_scene_id;
+    if (!parentId || !currentLocation) return null;
+    const sceneLocId = currentScene.location?.id;
+    if (!sceneLocId || String(sceneLocId) !== String(currentLocation.id)) return null;
+    const parentScene = (scenes ?? []).find((s) => String(s.id) === String(parentId));
+    const parentLocId = parentScene?.location?.id;
+    if (!parentLocId) return null;
+    return visibleLocations.find((l) => String(l.id) === String(parentLocId)) ?? parentScene?.location ?? null;
+  }, [currentLocation, currentScene, scenes, visibleLocations]);
+
   const mapLocation = useMemo(() => {
     if (!currentLocation) return null;
+    const base = showParentSceneMap && parentSceneLocation ? parentSceneLocation : currentLocation;
     // Prefer parent map when checkbox is on and current location has no map;
     // otherwise keep current location so the viewer can show "Нет карты".
     const resolved = resolveSceneMapLocation(
-      currentLocation,
+      base,
       visibleLocations,
       showParentMapIfNoImage,
     );
-    return resolved ?? currentLocation;
-  }, [currentLocation, visibleLocations, showParentMapIfNoImage]);
+    return resolved ?? base;
+  }, [currentLocation, parentSceneLocation, showParentSceneMap, visibleLocations, showParentMapIfNoImage]);
 
   const mapTitleSuffix =
     mapLocation && currentLocation && mapLocation.id !== currentLocation.id
@@ -111,81 +126,27 @@ export default function MapSection({
     [mapLocation, visibleLocations],
   );
 
-  const cancelDraw = () => {
-    setDrawing(false);
-    setDraftPoints([]);
-    setAreaName("");
-    setDrawError(null);
-  };
-
-  const saveArea = async () => {
-    if (!mapLocation || draftPoints.length < 3 || !areaName.trim()) return;
-    if (!api) {
-      setDrawError("Нет сценария сессии");
-      return;
-    }
-    setSavingArea(true);
-    setDrawError(null);
-    try {
-      const result = await api.createLocation({
-        name: areaName.trim(),
-        description_for_master: "",
-        description_for_players: "",
-        parent_location_id: mapLocation.id,
-        force: true,
-        data: {},
-        tags: [],
-        sublocations: [],
-        scene_exposures: [],
-        map_objects: [
-          {
-            name: areaName.trim(),
-            source_location_id: mapLocation.id,
-            target_location_id: null,
-            is_shown: true,
-            is_filled: true,
-            is_line: false,
-            alpha: 0.35,
-            color: "#74c0fc",
-            polygon_list: draftPoints,
-          },
-        ],
-      });
-      if (!result.location) {
-        setDrawError(result.issues?.[0]?.message || "Не удалось сохранить область");
-        return;
-      }
-      const polygonId = result.location.map_objects?.[0]?.id;
-      if (polygonId) {
-        updateLocationPolygonVisibility?.(mapLocation.id, String(polygonId), true);
-      }
+  useEffect(() => {
+    if (!scenarioId) return;
+    return listenLocationMapSaved((message) => {
+      if (message.scenarioId !== scenarioId) return;
       reloadSessionFields(["locations"]);
-      cancelDraw();
-    } catch (err) {
-      setDrawError(err instanceof Error ? err.message : "Не удалось сохранить область");
-    } finally {
-      setSavingArea(false);
-    }
-  };
+    });
+  }, [reloadSessionFields, scenarioId]);
 
-  const drawBar = isMaster && mapLocation ? (
-    <SessionMapDrawBar
-      drawing={drawing}
-      pointCount={draftPoints.length}
-      name={areaName}
-      saving={savingArea}
-      error={drawError}
-      onName={setAreaName}
-      onStart={() => {
-        setDrawing(true);
-        setDraftPoints([]);
-        setAreaName("");
-        setDrawError(null);
+  const childMapButton = isMaster && mapLocation ? (
+    <Button
+      size="sm"
+      variant="secondary"
+      onClick={() => {
+        const id = String(mapLocation.id);
+        if (scenarioId) clearMapBaseline(scenarioId, id);
+        setMapEditorId(id);
       }}
-      onUndo={() => setDraftPoints((points) => points.slice(0, -1))}
-      onCancel={cancelDraw}
-      onSave={() => void saveArea()}
-    />
+      title={mapLocation.name ? `Редактировать карту «${mapLocation.name}»` : "Редактировать карту"}
+    >
+      Карта
+    </Button>
   ) : null;
 
   const onToggleShown = (polygonId: string, value: boolean) => {
@@ -265,7 +226,7 @@ export default function MapSection({
             </Button>
           )}
 
-          {drawBar}
+          {childMapButton}
 
           {homeLocation && (
             <Button
@@ -282,7 +243,7 @@ export default function MapSection({
       {currentLocation && mapLocation && mapForView && (
         <>
           {/* Controls */}
-          <div className="flex items-center justify-between gap-3">
+          <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
             <label className="flex items-center gap-2 text-sm text-gray-200">
               <Checkbox
                 checked={showParentMapIfNoImage as CheckedState}
@@ -290,6 +251,15 @@ export default function MapSection({
               />
               Показывать карту родителя, если у локации нет карты
             </label>
+            {parentSceneLocation && (
+              <label className="flex items-center gap-2 text-sm text-gray-200">
+                <Checkbox
+                  checked={showParentSceneMap as CheckedState}
+                  onCheckedChange={(v: CheckedState) => setShowParentSceneMap(Boolean(v))}
+                />
+                Показывать карту родительской сцены
+              </label>
+            )}
           </div>
 
           {/* Map */}
@@ -301,10 +271,7 @@ export default function MapSection({
                 session={session}
                 enabledPolygonIds={enabledPolygonIds}
                 dimHidden={isMaster}
-                isDrawing={drawing}
-                draftPoints={draftPoints}
-                onDraftPoint={(point) => setDraftPoints((points) => [...points, point])}
-                onImageClick={drawing ? undefined : () => setFullscreenMap(true)}
+                onImageClick={() => setFullscreenMap(true)}
               />
             </div>
           </div>
@@ -348,10 +315,7 @@ export default function MapSection({
           onClose={() => setFullscreenMap(false)}
           isMaster={isMaster}
           dimHidden={isMaster}
-          isDrawing={drawing}
-          draftPoints={draftPoints}
-          onDraftPoint={(point) => setDraftPoints((points) => [...points, point])}
-          drawBar={drawBar}
+          drawBar={childMapButton}
         />
       )}
 
@@ -373,6 +337,20 @@ export default function MapSection({
           </div>
         </DialogContent>
       </Dialog>
+
+      {mapEditorId && scenarioId ? (
+        <ScenarioProvider scenarioId={scenarioId}>
+          <LocationMapDialog
+            open
+            live
+            initialTab="map-excalidraw"
+            scenarioId={scenarioId}
+            locationId={mapEditorId}
+            onClose={() => setMapEditorId(null)}
+            onSaved={() => reloadSessionFields(["locations"])}
+          />
+        </ScenarioProvider>
+      ) : null}
 
       {/* Text dialog */}
       <Dialog open={textOpen} onOpenChange={setTextOpen}>

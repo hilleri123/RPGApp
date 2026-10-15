@@ -41,6 +41,8 @@ class UpdateSceneData(MasterSessionActionBase):
 class DelScene(MasterSessionActionBase):
     msg_type: Literal['del_scene'] = 'del_scene'
     scene_id: UUID
+    # Какой виджет убирают. Если сцена видна и там, и там, снимается только этот виджет.
+    slot: Optional[Literal['top', 'subscene']] = None
 
 class MergeScene(MasterSessionActionBase):
     msg_type: Literal['merge_scene'] = 'merge_scene'
