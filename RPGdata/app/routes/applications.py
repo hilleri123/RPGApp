@@ -19,8 +19,12 @@ from app import models
 from app.infrastructure.database import get_async_session as get_db
 from app.infrastructure import s3_service
 from app.scheme import application as scheme
+from pydantic import BaseModel
+
 from app.services.application_entity_service import (
     create_player_character_for_application,
+    next_photo_url,
+    propagate_character_photos,
     sync_application_character_from_application,
 )
 
@@ -152,7 +156,137 @@ async def update_application(
 
     obj.updated_at = datetime.now(timezone.utc)
     await sync_application_character_from_application(db, obj)
-    await db.commit()
+    await propagate_character_photos(
+        db,
+        icon_url=str(obj.icon_url) if obj.icon_url else None,
+        img_url=str(obj.img_url) if obj.img_url else None,
+        source_character_id=obj.player_character_id,
+        application=obj,
+    )
+    return await _own_or_404(db, obj.id, current_user.id)
+
+
+class _PhotosPayload(BaseModel):
+    icon_url: Optional[str] = None
+    img_url: Optional[str] = None
+    clear_icon: bool = False
+    clear_img: bool = False
+
+
+async def _stored_photos(
+    owner_id: str,
+    current_icon: str | None,
+    current_img: str | None,
+    payload: _PhotosPayload,
+    icon_file: UploadFile | None,
+    img_file: UploadFile | None,
+) -> tuple[str | None, str | None]:
+    uploaded_icon = (
+        await s3_service.upload_file(icon_file, "application/icon", owner_id) if icon_file else None
+    )
+    uploaded_img = (
+        await s3_service.upload_file(img_file, "application/img", owner_id) if img_file else None
+    )
+    return (
+        next_photo_url(
+            current=current_icon,
+            uploaded=uploaded_icon,
+            url=str(payload.icon_url) if payload.icon_url else None,
+            clear=payload.clear_icon,
+        ),
+        next_photo_url(
+            current=current_img,
+            uploaded=uploaded_img,
+            url=str(payload.img_url) if payload.img_url else None,
+            clear=payload.clear_img,
+        ),
+    )
+
+
+@router.put("/by-character/{character_id}/photos")
+async def update_photos_by_character(
+    character_id: UUID,
+    data: str = Form("{}"),
+    icon_file: Optional[UploadFile] = File(None),
+    img_file: Optional[UploadFile] = File(None),
+    current_user: models.User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Иконка и портрет своего персонажа, в том числе после одобрения заявки."""
+    character = await db.get(models.PlayerCharacter, character_id)
+    if character is None:
+        raise HTTPException(404, detail="Персонаж не найден")
+
+    source_ids = [
+        value
+        for value in (character.id, character.source_entity_id, character.copied_from)
+        if value is not None
+    ]
+    application = (
+        await db.execute(
+            select(models.CharacterApplication).where(
+                models.CharacterApplication.user_id == current_user.id,
+                models.CharacterApplication.player_character_id.in_(source_ids),
+            )
+        )
+    ).scalars().first()
+    if application is None and character.bound_user_id != current_user.id:
+        raise HTTPException(403, detail="Менять фото можно только у своего персонажа")
+
+    payload = _PhotosPayload.model_validate_json(data or "{}")
+    owner_id = str(application.id if application is not None else character.id)
+    current_icon = str(application.icon_url) if application and application.icon_url else (
+        str(character.icon_url) if character.icon_url else None
+    )
+    current_img = str(application.img_url) if application and application.img_url else (
+        str(character.img_url) if character.img_url else None
+    )
+    icon_url, img_url = await _stored_photos(owner_id, current_icon, current_img, payload, icon_file, img_file)
+    source_id = (
+        application.player_character_id
+        if application is not None and application.player_character_id
+        else (character.source_entity_id or character.id)
+    )
+    if application is not None:
+        application.updated_at = datetime.now(timezone.utc)
+    await propagate_character_photos(
+        db,
+        icon_url=icon_url,
+        img_url=img_url,
+        source_character_id=source_id,
+        application=application,
+    )
+    return {"icon_url": icon_url, "img_url": img_url}
+
+
+@router.put("/{application_id}/photos", response_model=scheme.ApplicationOut)
+async def update_application_photos(
+    application_id: UUID,
+    data: str = Form("{}"),
+    icon_file: Optional[UploadFile] = File(None),
+    img_file: Optional[UploadFile] = File(None),
+    current_user: models.User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Только иконка и портрет. Статус заявки не мешает, в том числе «approved»."""
+    obj = await _own_or_404(db, application_id, current_user.id)
+    payload = _PhotosPayload.model_validate_json(data or "{}")
+    icon_url, img_url = await _stored_photos(
+        str(obj.id),
+        str(obj.icon_url) if obj.icon_url else None,
+        str(obj.img_url) if obj.img_url else None,
+        payload,
+        icon_file,
+        img_file,
+    )
+    obj.updated_at = datetime.now(timezone.utc)
+    await propagate_character_photos(
+        db,
+        icon_url=icon_url,
+        img_url=img_url,
+        source_character_id=obj.player_character_id,
+        application=obj,
+    )
     return await _own_or_404(db, obj.id, current_user.id)
 
 

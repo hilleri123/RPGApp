@@ -7,7 +7,7 @@ import uuid
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -45,6 +45,85 @@ async def create_player_character_for_application(
     await db.flush()
     app.player_character_id = pc.id
     return pc
+
+
+def next_photo_url(*, current: str | None, uploaded: str | None, url: str | None, clear: bool) -> str | None:
+    """Новый адрес картинки. Загрузка файла важнее ссылки, пустой патч поле не трогает."""
+    if uploaded is not None:
+        return uploaded
+    if clear:
+        return None
+    if url:
+        return url
+    return current
+
+
+async def propagate_character_photos(
+    db: AsyncSession,
+    *,
+    icon_url: str | None,
+    img_url: str | None,
+    source_character_id: UUID | None,
+    application: models.CharacterApplication | None = None,
+) -> None:
+    """Пишет иконку и портрет в заявку, исходного персонажа и копии в сессиях."""
+    if application is not None:
+        application.icon_url = icon_url
+        application.img_url = img_url
+        if source_character_id is None:
+            source_character_id = application.player_character_id
+
+    if source_character_id is None:
+        await db.commit()
+        return
+
+    rows = list(
+        (
+            await db.execute(
+                select(models.PlayerCharacter).where(
+                    or_(
+                        models.PlayerCharacter.id == source_character_id,
+                        models.PlayerCharacter.source_entity_id == source_character_id,
+                        models.PlayerCharacter.copied_from == source_character_id,
+                    )
+                )
+            )
+        ).scalars().all()
+    )
+    row_ids = []
+    scenario_ids: set[UUID] = set()
+    for row in rows:
+        row.icon_url = icon_url
+        row.img_url = img_url
+        row_ids.append(row.id)
+        if row.scenario_id:
+            scenario_ids.add(row.scenario_id)
+
+    if row_ids:
+        players = list(
+            (
+                await db.execute(
+                    select(models.Player).where(models.Player.character_id.in_(row_ids))
+                )
+            ).scalars().all()
+        )
+        for player in players:
+            snapshot = dict(player.character_snapshot or {})
+            snapshot["icon_url"] = icon_url
+            snapshot["img_url"] = img_url
+            player.character_snapshot = snapshot
+
+    await db.commit()
+
+    if not scenario_ids:
+        return
+    from app.routes._helpers import notify_active_sessions_for_scenario
+
+    for scenario_id in scenario_ids:
+        scenario = await db.get(models.Scenario, scenario_id)
+        if scenario is None:
+            continue
+        await notify_active_sessions_for_scenario(db, scenario, ["characters"])
 
 
 async def sync_application_character_from_application(

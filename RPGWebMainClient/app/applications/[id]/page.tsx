@@ -10,6 +10,9 @@ import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { applicationApiService } from '@/app/services/api/application';
 import { ApplicationEditDialog } from '@/app/components/applications/ApplicationEditDialog';
+import { CharacterMainTab } from '@/app/components/scenarios/dialogs/tabs/character';
+import { DialogModeProvider } from '@/app/components/scenarios/dialogs/common/DialogModeContext';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import type { Application } from '@/app/services/types2';
 import { formatDistanceToNow, format } from 'date-fns';
 import { ru } from 'date-fns/locale';
@@ -111,6 +114,8 @@ export default function ApplicationDetailPage() {
   const [app, setApp]         = useState<Application | null>(null);
   const [loading, setLoading] = useState(true);
   const [editOpen, setEditOpen] = useState(false);
+  const [photosOpen, setPhotosOpen] = useState(false);
+  const [photoError, setPhotoError] = useState('');
   const [actionLoading, setActionLoading] = useState(false);
 
   async function load() {
@@ -192,6 +197,15 @@ export default function ApplicationDetailPage() {
               onClick={() => setEditOpen(true)}
             >
               <Edit2 className="w-4 h-4" /> Редактировать
+            </Button>
+          )}
+          {!canEdit && (
+            <Button
+              size="sm" variant="secondary"
+              className="gap-1.5"
+              onClick={() => setPhotosOpen(true)}
+            >
+              <Edit2 className="w-4 h-4" /> Сменить фото
             </Button>
           )}
           {canSubmit && (
@@ -311,6 +325,37 @@ export default function ApplicationDetailPage() {
         onClose={() => setEditOpen(false)}
         onSaved={() => { setEditOpen(false); void load(); }}
       />
+
+      <Dialog open={photosOpen} onOpenChange={setPhotosOpen}>
+        <DialogContent className="max-w-lg bg-gray-900 border-gray-700 text-white">
+          <DialogHeader>
+            <DialogTitle>Фото персонажа</DialogTitle>
+          </DialogHeader>
+          <DialogModeProvider readOnly>
+            <CharacterMainTab
+              dlg={{
+                form: app,
+                assets: {},
+                lookups: [],
+                data: app.data,
+                config: null,
+                issues: [],
+              }}
+              allowPhotoEdit
+              onChangePhoto={async (patch) => {
+                setPhotoError('');
+                try {
+                  setApp(await applicationApiService.updatePhotos(app.id, patch));
+                } catch (e: any) {
+                  setPhotoError(e?.message ?? 'Не удалось сменить фото');
+                  throw e;
+                }
+              }}
+            />
+          </DialogModeProvider>
+          {photoError ? <p className="text-xs text-red-300">{photoError}</p> : null}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

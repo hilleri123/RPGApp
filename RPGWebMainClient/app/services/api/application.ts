@@ -10,6 +10,24 @@ import {
   MasterReviewPayload,
 } from '../types2';
 
+function photosForm(patch: {
+  iconFile?: File;
+  imgFile?: File;
+  iconUrl?: string | null;
+  imgUrl?: string | null;
+}): FormData {
+  const form = new FormData();
+  form.append('data', JSON.stringify({
+    icon_url: patch.iconUrl || null,
+    img_url: patch.imgUrl || null,
+    clear_icon: patch.iconUrl === null && !patch.iconFile,
+    clear_img: patch.imgUrl === null && !patch.imgFile,
+  }));
+  if (patch.iconFile) form.append('icon_file', patch.iconFile);
+  if (patch.imgFile) form.append('img_file', patch.imgFile);
+  return form;
+}
+
 
 // ── Игрок ─────────────────────────────────────────────────────────────────────
 
@@ -39,6 +57,20 @@ export class ApplicationApiService extends BaseApiClient {
     if (iconFile) form.append('icon_file', iconFile);
     if (imgFile)  form.append('img_file', imgFile);
     return this.putMultipart<Application>(`${this.ep}/${id}`, form);
+  }
+
+  async updatePhotos(
+    id: string,
+    patch: { iconFile?: File; imgFile?: File; iconUrl?: string | null; imgUrl?: string | null },
+  ): Promise<Application> {
+    return this.putMultipart<Application>(`${this.ep}/${id}/photos`, photosForm(patch));
+  }
+
+  async updateCharacterPhotos(
+    characterId: string,
+    patch: { iconFile?: File; imgFile?: File; iconUrl?: string | null; imgUrl?: string | null },
+  ): Promise<{ icon_url: string | null; img_url: string | null }> {
+    return this.putMultipart(`${this.ep}/by-character/${characterId}/photos`, photosForm(patch));
   }
 
   async submit(id: string): Promise<Application> {

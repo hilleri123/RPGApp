@@ -8,6 +8,7 @@ import { usePlayerSessionWebSocket } from "@/app/services/hooks/usePlayerSession
 import { ScenarioScopedApiService } from "@/app/services/api/scenario_scoped";
 import { loadPluginEditorConfigForEntity } from "@/app/services/loadPluginEditorConfigs";
 import { CharacterMainTab, CharacterRulesTab } from "@/app/components/scenarios/dialogs/tabs/character";
+import { applicationApiService } from "@/app/services/api/application";
 import { DialogModeProvider } from "@/app/components/scenarios/dialogs/common/DialogModeContext";
 
 import { ItemDraggableSquare } from "@/app/components/common/squares/ItemDraggableSquare";
@@ -37,6 +38,7 @@ export default function PlayerCharacterTab({ sessionId }: PlayerCharacterTabProp
   const [rulesConfig, setRulesConfig] = useState<any>(null);
   const [rulesLoading, setRulesLoading] = useState(false);
   const [rulesError, setRulesError] = useState<string | null>(null);
+  const [photoError, setPhotoError] = useState<string | null>(null);
 
   const scenarioId = session?.scenario_id ? String(session.scenario_id) : null;
   const api = useMemo(
@@ -144,7 +146,20 @@ export default function PlayerCharacterTab({ sessionId }: PlayerCharacterTabProp
 
         <TabsContent value="story" className="flex-1 min-h-0 overflow-y-auto overscroll-contain mt-0 pr-1">
           <DialogModeProvider readOnly={true}>
-            <CharacterMainTab dlg={dlg as any} />
+            <CharacterMainTab
+              dlg={dlg as any}
+              allowPhotoEdit
+              onChangePhoto={async (patch) => {
+                setPhotoError(null);
+                try {
+                  await applicationApiService.updateCharacterPhotos(String(characterId), patch);
+                } catch (e: any) {
+                  setPhotoError(e?.message ?? "Не удалось сменить фото");
+                  throw e;
+                }
+              }}
+            />
+            {photoError ? <p className="mt-2 text-xs text-red-300">{photoError}</p> : null}
           </DialogModeProvider>
         </TabsContent>
 

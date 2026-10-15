@@ -40,16 +40,32 @@ export type CharacterDlg = {
   reloadLookups?: () => Promise<void>;
 };
 
-export function CharacterMainTab({ dlg }: { dlg: CharacterDlg }) {
+export function CharacterMainTab({
+  dlg,
+  allowPhotoEdit = false,
+  onChangePhoto,
+}: {
+  dlg: CharacterDlg;
+  /** Иконка и портрет остаются доступны, когда остальное досье уже только для чтения. */
+  allowPhotoEdit?: boolean;
+  onChangePhoto?: (patch: { iconFile?: File; imgFile?: File; iconUrl?: string | null; imgUrl?: string | null }) => Promise<void>;
+}) {
   const { readOnly } = useDialogMode();
+  const photosOpen = !readOnly || allowPhotoEdit;
+  const [liveImg, setLiveImg] = useState<string | null | undefined>(undefined);
+  const [liveIcon, setLiveIcon] = useState<string | null | undefined>(undefined);
 
-  const avatarSrc = dlg.assets?.imgFile
-    ? URL.createObjectURL(dlg.assets.imgFile)
-    : dlg.form?.img_url || FALLBACK_AVATAR;
+  const avatarSrc = liveImg !== undefined
+    ? (liveImg || FALLBACK_AVATAR)
+    : dlg.assets?.imgFile
+      ? URL.createObjectURL(dlg.assets.imgFile)
+      : dlg.form?.img_url || FALLBACK_AVATAR;
 
-  const iconSrc = dlg.assets?.iconFile
-    ? URL.createObjectURL(dlg.assets.iconFile)
-    : dlg.form?.icon_url || FALLBACK_ICON;
+  const iconSrc = liveIcon !== undefined
+    ? (liveIcon || FALLBACK_ICON)
+    : dlg.assets?.iconFile
+      ? URL.createObjectURL(dlg.assets.iconFile)
+      : dlg.form?.icon_url || FALLBACK_ICON;
 
   return (
     <div className="rounded-lg border border-gray-700 overflow-hidden bg-gray-950">
@@ -57,7 +73,7 @@ export function CharacterMainTab({ dlg }: { dlg: CharacterDlg }) {
         <img src={avatarSrc} alt="Фото персонажа" className="w-full h-full object-cover opacity-90" />
         <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
 
-        {!readOnly && (
+        {photosOpen && (
           <div className="absolute right-3 top-3">
             <ImagePicker
               icon={UserIcon}
@@ -65,10 +81,21 @@ export function CharacterMainTab({ dlg }: { dlg: CharacterDlg }) {
               title="Фото персонажа"
               buttonText="Фото"
               onSelect={async (url: string) => {
-                dlg.setForm?.((p: any) => ({ ...p, img_url: url === '' ? null : url }));
+                const next = url === '' ? null : url;
+                if (readOnly) {
+                  await onChangePhoto?.({ imgUrl: next });
+                  setLiveImg(next);
+                  return;
+                }
+                dlg.setForm?.((p: any) => ({ ...p, img_url: next }));
                 dlg.setAssets?.((a: any) => ({ ...a, imgFile: null }));
               }}
               onUpload={async (file: File) => {
+                if (readOnly) {
+                  await onChangePhoto?.({ imgFile: file });
+                  setLiveImg(URL.createObjectURL(file));
+                  return;
+                }
                 dlg.setAssets?.((a: any) => ({ ...a, imgFile: file }));
                 dlg.setForm?.((p: any) => ({ ...p, img_url: null }));
               }}
@@ -84,7 +111,7 @@ export function CharacterMainTab({ dlg }: { dlg: CharacterDlg }) {
               className="w-14 h-14 rounded-md border border-gray-700 bg-gray-900 object-cover"
             />
 
-            {!readOnly && (
+            {photosOpen && (
               <div className="absolute -right-2 -bottom-2">
                 <ImagePicker
                   icon={UserIcon}
@@ -92,13 +119,21 @@ export function CharacterMainTab({ dlg }: { dlg: CharacterDlg }) {
                   title="Иконка персонажа"
                   buttonText="Иконка"
                   onSelect={async (url: string) => {
-                    dlg.setForm?.((p: any) => ({
-                      ...p,
-                      icon_url: url === '' ? null : url,
-                    }));
+                    const next = url === '' ? null : url;
+                    if (readOnly) {
+                      await onChangePhoto?.({ iconUrl: next });
+                      setLiveIcon(next);
+                      return;
+                    }
+                    dlg.setForm?.((p: any) => ({ ...p, icon_url: next }));
                     dlg.setAssets?.((a: any) => ({ ...a, iconFile: null }));
                   }}
                   onUpload={async (file: File) => {
+                    if (readOnly) {
+                      await onChangePhoto?.({ iconFile: file });
+                      setLiveIcon(URL.createObjectURL(file));
+                      return;
+                    }
                     dlg.setAssets?.((a: any) => ({ ...a, iconFile: file }));
                     dlg.setForm?.((p: any) => ({ ...p, icon_url: null }));
                   }}
