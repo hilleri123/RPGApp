@@ -1,6 +1,8 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { useParams } from 'next/navigation';
+import { usePreparedSeeds } from '@/app/services/hooks/usePreparedSeeds';
 import { CanvasSeed, DiceRollDisplay, SeedTooltip, neutralDiceInterpreter, seedImageUrl } from '@/plugins/common/ui';
 import { Dices as DicesIcon } from 'lucide-react';
 import type { ActionHandlerProps } from '@/app/plugins/pluginTypes';
@@ -53,7 +55,20 @@ function RollPhase(props: ActionHandlerProps) {
 
   const [seed, setSeed] = useState<string | null>(null);
   const [canvasKey, setCanvasKey] = useState(0);
+  const params = useParams<{ id?: string }>();
+  const sessionId = typeof params?.id === 'string' ? params.id : undefined;
+  const { count: stock } = usePreparedSeeds(sessionId);
+  const autoFired = useRef<string | null>(null);
   const seedReady = Boolean(seed);
+  const autoKey = `${action?.id ?? ''}:initiative.roll`;
+
+  useEffect(() => {
+    if (isGm || !canRoll || stock < 1 || seed) return;
+    if (autoFired.current === autoKey) return;
+    autoFired.current = autoKey;
+    onSubmit({ op: 'roll', usePreparedSeed: true });
+  }, [isGm, canRoll, stock, seed, autoKey, onSubmit]);
+
   const fire = (op: 'roll' | 'roll_npcs' | 'proceed') => {
     if (!seed) return;
     onSubmit({ op, roll_seed: seed });
@@ -74,7 +89,15 @@ function RollPhase(props: ActionHandlerProps) {
           onChange={setSeed}
           hint={`Бросок инициативы: 2d6 + ЛОВ за ${minePending.map((e) => e.name || '—').join(', ')}`}
         />
-        <button type="button" className={primary} disabled={!seedReady} onClick={() => fire('roll')}>
+        <button
+          type="button"
+          className={primary}
+          disabled={!seedReady && stock < 1}
+          onClick={() => {
+            if (seed) fire('roll');
+            else if (stock > 0) onSubmit({ op: 'roll', usePreparedSeed: true });
+          }}
+        >
           <DicesIcon size={16} /> Бросить
         </button>
       </div>

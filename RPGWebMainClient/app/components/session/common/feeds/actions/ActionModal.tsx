@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import type { SessionAction } from '@/app/services/types/session';
 import { PluginActionHandlerStub } from '@/app/plugins/mock';
 import type { ActionHandlerProps } from '@/app/plugins/pluginTypes';
@@ -18,6 +18,8 @@ import {
   canUserCancelAction,
 } from './actionWizard';
 import FreeDiceRollStage from 'plugins/common/ui/actions/free_dice_roll/FreeDiceRollStage';
+import { notifyPreparedSeedsChanged, usePreparedSeeds } from '@/app/services/hooks/usePreparedSeeds';
+import { preparedRollAutoPayload } from './preparedRollAuto';
 
 const FREE_DICE_ACTION_KEY = 'common.free_dice_roll';
 
@@ -39,6 +41,7 @@ export function ActionModal({
 }) {
   const params = useParams<{ id: string }>();
   const sessionId = params.id;
+  const seedSessionId = typeof params.id === 'string' ? params.id : undefined;
 
   const { state } = useAuth();
   const { session, pluginUI, submitActionStep, patchActionStep, cancelSceneAction, isMaster } = useCommonSessionWebSocket(sessionId);
@@ -91,6 +94,48 @@ export function ActionModal({
     setSubmitEnabled(canSubmit);
   }, [canSubmit]);
 
+  const { count: seedStock } = usePreparedSeeds(seedSessionId);
+  const autoFired = useRef('');
+
+  useEffect(() => {
+    if (!open || !action || !state.user || mirrorReadOnly || !canSubmit || readOnly) return;
+    const viewerId = String(state.user.id);
+    const blocked =
+      Array.isArray(action.participantIds) &&
+      action.participantIds.length > 0 &&
+      !action.participantIds.map(String).includes(viewerId);
+    if (blocked) return;
+    const payload = preparedRollAutoPayload({
+      stageKey: viewKey,
+      workflow: action.workflow,
+      stock: seedStock,
+      viewerId,
+    });
+    if (!payload) return;
+    const key = `${action.id}:${viewKey}`;
+    if (autoFired.current === key) return;
+    autoFired.current = key;
+    void (async () => {
+      try {
+        setSubmitting(true);
+        await submitActionStep(action.id, { ...payload, _stageKey: viewKey });
+      } finally {
+        notifyPreparedSeedsChanged();
+        setSubmitting(false);
+      }
+    })();
+  }, [
+    open,
+    action,
+    viewKey,
+    canSubmit,
+    readOnly,
+    mirrorReadOnly,
+    seedStock,
+    state.user,
+    submitActionStep,
+  ]);
+
   if (!open || !action || !state.user) return null;
   const a = action;
   const isFreeDiceRoll = String(a.actionKey ?? '') === FREE_DICE_ACTION_KEY;
@@ -104,6 +149,7 @@ export function ActionModal({
     try {
       setSubmitting(true);
       await submitActionStep(a.id, { ...(overrideValue ?? draft), _stageKey: viewKey });
+      notifyPreparedSeedsChanged();
       if (closeOnSubmit) onClose();
     } finally {
       setSubmitting(false);
@@ -112,7 +158,7 @@ export function ActionModal({
 
   function handlePatch(patch: Record<string, unknown>) {
     if (!canEdit) return;
-    const { _stageKey: _, ...local } = patch;
+    const { _stageKey: _, usePreparedSeed: _seedFlag, ...local } = patch;
     setDraft((prev: Record<string, unknown>) => ({ ...(prev ?? {}), ...local }));
     if (patchActionStep) {
       void patchActionStep(a.id, { ...patch, _stageKey: viewKey });

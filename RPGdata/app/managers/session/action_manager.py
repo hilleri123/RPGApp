@@ -20,6 +20,7 @@ from plugins.common.types import *
 
 from app.scheme import ActionRecord, Scene, Player
 from app.services.action_cancel_policy import user_may_cancel_action
+from app.services.prepared_seeds import fill_prepared_seeds, restore_for_user
 
 
 def _serialized(method):
@@ -489,6 +490,22 @@ class SessionActionManager(SessionSceneManager):
 
         return True, ["actions"], action.model_dump(mode="json")
 
+    async def _take_prepared_seeds(self, user: models.User, workflow: Any, input_data: dict) -> list[str]:
+        wf = workflow if isinstance(workflow, dict) else {}
+        return await fill_prepared_seeds(
+            session_id=self.session_id,
+            user_id=user.id,
+            workflow=wf,
+            input_data=input_data,
+        )
+
+    async def _give_back_prepared_seeds(self, user: models.User, images: list[str]) -> None:
+        if not images:
+            return
+        try:
+            await restore_for_user(self.session_id, user.id, images)
+        except Exception:
+            logger.exception("prepared seed restore failed session=%s", self.session_id)
 
     @_serialized
     async def submit_action(
@@ -508,23 +525,29 @@ class SessionActionManager(SessionSceneManager):
 
         action = actions[idx]
         prev_status = action.status or ""
-        payload = await self._build_action_context(
-            action_key=action.actionKey,
-            scene_id=action.scene_id,
-            actor_user_id=user.id,
-            participants=action.participants,
-            workflow=action.workflow or {},
-            input_data=input_data or {},
-            inner=inner,
-        )
+        input_data = dict(input_data or {})
+        claimed = await self._take_prepared_seeds(user, action.workflow or {}, input_data)
+        try:
+            payload = await self._build_action_context(
+                action_key=action.actionKey,
+                scene_id=action.scene_id,
+                actor_user_id=user.id,
+                participants=action.participants,
+                workflow=action.workflow or {},
+                input_data=input_data,
+                inner=inner,
+            )
 
-        res = factory.handle(
-            kind="workflow.submit",
-            entity="action",
-            payload=payload.model_dump(mode="json"),
-            context={},
-        )
-        submit_result = SubmitResult.model_validate(_dump_json(res))
+            res = factory.handle(
+                kind="workflow.submit",
+                entity="action",
+                payload=payload.model_dump(mode="json"),
+                context={},
+            )
+            submit_result = SubmitResult.model_validate(_dump_json(res))
+        except Exception:
+            await self._give_back_prepared_seeds(user, claimed)
+            raise
         log_events = list(submit_result.logEvents or [])
         wf = submit_result.workflow
         logger.info(
@@ -545,11 +568,13 @@ class SessionActionManager(SessionSceneManager):
         action.issues = submit_result.issues or []
 
         if not submit_result.ok:
+            await self._give_back_prepared_seeds(user, claimed)
             action.lastError = {"at": "submit", "issues": action.issues}
             actions[idx] = action
             await self._save_actions(actions)
             return True, ["actions"], action.model_dump(mode="json"), None
 
+        claimed = []
         # ok=True
         new_wf = submit_result.workflow
         action.workflow = new_wf.model_dump()
@@ -625,23 +650,29 @@ class SessionActionManager(SessionSceneManager):
             return False, [], None
 
         action = actions[idx]
-        payload = await self._build_action_context(
-            action_key=action.actionKey,
-            scene_id=action.scene_id,
-            actor_user_id=user.id,
-            participants=action.participants,
-            workflow=action.workflow or {},
-            input_data=input_data or {},
-            inner=inner,
-        )
+        input_data = dict(input_data or {})
+        claimed = await self._take_prepared_seeds(user, action.workflow or {}, input_data)
+        try:
+            payload = await self._build_action_context(
+                action_key=action.actionKey,
+                scene_id=action.scene_id,
+                actor_user_id=user.id,
+                participants=action.participants,
+                workflow=action.workflow or {},
+                input_data=input_data,
+                inner=inner,
+            )
 
-        res = factory.handle(
-            kind="workflow.patch",
-            entity="action",
-            payload=payload.model_dump(mode="json"),
-            context={},
-        )
-        patch_result = SubmitResult.model_validate(_dump_json(res))
+            res = factory.handle(
+                kind="workflow.patch",
+                entity="action",
+                payload=payload.model_dump(mode="json"),
+                context={},
+            )
+            patch_result = SubmitResult.model_validate(_dump_json(res))
+        except Exception:
+            await self._give_back_prepared_seeds(user, claimed)
+            raise
         wf = patch_result.workflow
         logger.info(
             "workflow.patch action_id=%s key=%s ok=%s stage=%s issues=%s",
@@ -657,10 +688,13 @@ class SessionActionManager(SessionSceneManager):
         action.issues = patch_result.issues or []
 
         if not patch_result.ok:
+            await self._give_back_prepared_seeds(user, claimed)
             action.lastError = {"at": "patch", "issues": action.issues}
             actions[idx] = action
             await self._save_actions(actions)
             return True, ["actions"], action.model_dump(mode="json")
+
+        claimed = []
 
         prev_stage = (action.workflow or {}).get("stageKey")
         new_wf = patch_result.workflow.model_dump()

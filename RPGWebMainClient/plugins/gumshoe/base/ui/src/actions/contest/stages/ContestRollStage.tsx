@@ -1,7 +1,9 @@
 // plugins/gumshoe/contest/stages/ContestRollStage.tsx
 'use client';
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { useParams } from 'next/navigation';
+import { usePreparedSeeds } from '@/app/services/hooks/usePreparedSeeds';
 import { Dice6, User, Bot } from 'lucide-react';
 import { CanvasSeed, DiceRollDisplay, DiceInterpreter } from '@/plugins/common/ui';
 
@@ -50,6 +52,18 @@ export function ContestRollStage({ user_id, action, value, patch, onSubmit, setS
   }, [isGm, sideA, sideB, user_id]);
 
   const [seed, setSeed] = useState<string | null>(null);
+  const params = useParams<{ id?: string }>();
+  const sessionId = typeof params?.id === 'string' ? params.id : undefined;
+  const { count: stock } = usePreparedSeeds(sessionId);
+  const autoFired = useRef<string | null>(null);
+  const autoKey = `${action?.id ?? ''}:gumshoe.contest.roll`;
+
+  useEffect(() => {
+    if (!mySideKey || bothRolled || seed || stock < 1 || isGm) return;
+    if (autoFired.current === autoKey) return;
+    autoFired.current = autoKey;
+    onSubmit({ usePreparedSeed: true });
+  }, [mySideKey, bothRolled, seed, stock, isGm, autoKey, onSubmit]);
 
   useEffect(() => {
     setSubmitEnabled(!!seed && !!mySideKey);
@@ -61,8 +75,9 @@ export function ContestRollStage({ user_id, action, value, patch, onSubmit, setS
   };
 
   const handleSubmit = () => {
-    if (!seed || !mySideKey) return;
-    onSubmit({ canvas_seed: seed });
+    if (!mySideKey) return;
+    if (seed) onSubmit({ canvas_seed: seed });
+    else if (stock > 0) onSubmit({ usePreparedSeed: true });
   };
 
   return (
@@ -100,11 +115,11 @@ export function ContestRollStage({ user_id, action, value, patch, onSubmit, setS
 
           <button
             type="button"
-            disabled={!seed}
+            disabled={!seed && stock < 1}
             onClick={handleSubmit}
             className={`
               rounded border px-3 py-2 text-sm font-semibold
-              ${seed
+              ${seed || stock > 0
                 ? 'border-orange-400/70 text-orange-200 hover:bg-orange-500/10'
                 : 'border-white/10 text-white/30 cursor-not-allowed'}
             `}

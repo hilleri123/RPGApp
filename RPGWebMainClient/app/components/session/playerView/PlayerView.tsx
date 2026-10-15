@@ -1,7 +1,7 @@
 "use client";
 
 import { useUrlTab } from "@/app/services/hooks/useUrlTab";
-import { Logs, Map, MapPin, SearchCheck, User } from "lucide-react";
+import { Dices, Logs, Map, MapPin, SearchCheck, User } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 import PlayerSceneTab from "./PlayerSceneTab";
@@ -10,11 +10,13 @@ import PlayerSeenTab from "./PlayerSeenTab";
 import { usePlayerSessionWebSocket } from "@/app/services/hooks/usePlayerSessionWebSocket";
 import PlayerLogTab from "./PlayerLogTab";
 import PlayerMapTab from "./PlayerMapTab";
+import PlayerDiceTab from "./PlayerDiceTab";
+import { usePreparedSeeds } from "@/app/services/hooks/usePreparedSeeds";
 import { GameItem, Location } from "@/app/services/types2";
 
-type Tab = "map" | "scene" | "character" | "log" | "seen";
+type Tab = "map" | "scene" | "character" | "log" | "seen" | "dice";
 
-const PLAYER_TABS: readonly Tab[] = ["scene", "map", "character", "log", "seen"];
+const PLAYER_TABS: readonly Tab[] = ["scene", "map", "character", "log", "seen", "dice"];
 
 const TABS: { id: Tab; label: string; Icon: typeof Map }[] = [
   { id: "scene", label: "Сцена", Icon: MapPin },
@@ -22,6 +24,7 @@ const TABS: { id: Tab; label: string; Icon: typeof Map }[] = [
   { id: "character", label: "Герой", Icon: User },
   { id: "log", label: "Лог", Icon: Logs },
   { id: "seen", label: "Мир", Icon: SearchCheck },
+  { id: "dice", label: "Кубы", Icon: Dices },
 ];
 
 interface PlayerPageProps {
@@ -37,6 +40,7 @@ export default function PlayerPage({
   setCurrentLocation,
 }: PlayerPageProps) {
   const { selfPlayer } = usePlayerSessionWebSocket(sessionId);
+  const { count: seedCount } = usePreparedSeeds(sessionId);
   const [activeTab, setActiveTab] = useUrlTab<Tab>(PLAYER_TABS, "scene");
 
   // Это основной экран роли, а не необязательный виджет: return null оставлял
@@ -68,6 +72,7 @@ export default function PlayerPage({
             setCurrentLocation={setCurrentLocation}
           />
         )}
+        {activeTab === "dice" && <PlayerDiceTab sessionId={sessionId} />}
       </div>
 
       <nav
@@ -75,7 +80,7 @@ export default function PlayerPage({
         style={{ paddingBottom: "max(0.25rem, env(safe-area-inset-bottom))" }}
         aria-label="Навигация сессии"
       >
-        <div className="grid grid-cols-5 gap-0.5 px-1 pt-1">
+        <div className="grid grid-cols-6 gap-0.5 px-1 pt-1">
           {TABS.map(({ id, label, Icon }) => {
             const active = activeTab === id;
             return (
@@ -91,7 +96,14 @@ export default function PlayerPage({
                 )}
                 aria-current={active ? "page" : undefined}
               >
-                <Icon className="h-5 w-5 shrink-0" aria-hidden />
+                <span className="relative">
+                  <Icon className="h-5 w-5 shrink-0" aria-hidden />
+                  {id === "dice" && seedCount > 0 ? (
+                    <span className="absolute -right-2 -top-1 min-w-[14px] rounded-full bg-violet-500 px-0.5 text-center text-[9px] leading-3 text-white">
+                      {seedCount}
+                    </span>
+                  ) : null}
+                </span>
                 <span className="text-[10px] leading-tight font-medium truncate max-w-full">
                   {label}
                 </span>

@@ -2,7 +2,9 @@
 // Бэк: pbta.perform_move.roll
 // Input: roll_seed
 "use client";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
+import { useParams } from "next/navigation";
+import { usePreparedSeeds } from "@/app/services/hooks/usePreparedSeeds";
 import type { DiceInterpreter } from "plugins/common/ui";
 import { RollStageShell } from "@/app/components/roll/RollStageShell";
 import { getSceneBundle } from "plugins/common/types/actionSelectors";
@@ -26,7 +28,7 @@ export const pbtaRollInterpreter: DiceInterpreter = ({ total }) => {
   return { dieColors: ["bad", "bad"], outcome: { label: "6−", color: "bad" } };
 };
 
-export function PerformMoveRollStage({ action, value, patch, onSubmit, setSubmitEnabled, readOnly }: Props & { readOnly?: boolean }) {
+export function PerformMoveRollStage({ action, value, patch, onSubmit, setSubmitEnabled, readOnly, user_id }: Props & { readOnly?: boolean; user_id?: string }) {
   const wf = action?.workflow ?? {};
   const entry = wf?.context?.entry ?? {};
   const roll = entry?.roll ?? {};
@@ -35,6 +37,10 @@ export function PerformMoveRollStage({ action, value, patch, onSubmit, setSubmit
 
   const [seed, setSeed] = useState<string | null>(null);
   const [appetite, setAppetite] = useState(false);
+  const params = useParams<{ id?: string }>();
+  const sessionId = typeof params?.id === "string" ? params.id : undefined;
+  const { count: stock } = usePreparedSeeds(sessionId);
+  const autoFired = useRef<string | null>(null);
 
   const scene = getSceneBundle(action)?.scene;
   const actorId = String(entry?.actor_character_id || "");
@@ -62,6 +68,15 @@ export function PerformMoveRollStage({ action, value, patch, onSubmit, setSubmit
   const move = allMoves.find((m) => m.id === primary?.id) ?? null;
 
   const alreadyRolled = Array.isArray(roll?.dice) && roll.dice.length === 2;
+  const viewerIsActor = String(user_id ?? "") !== "" && String(user_id) === String(entry?.actor_user_id ?? "");
+  const autoKey = `${action?.id ?? ""}:perform_move.roll`;
+
+  useEffect(() => {
+    if (readOnly || alreadyRolled || canAppetite || stock < 1 || seed || !viewerIsActor) return;
+    if (autoFired.current === autoKey) return;
+    autoFired.current = autoKey;
+    onSubmit({ usePreparedSeed: true, appetite_dice: false });
+  }, [readOnly, alreadyRolled, canAppetite, stock, seed, autoKey, onSubmit, viewerIsActor]);
 
   const summary = (
     <div className="rounded border border-white10 bg-zinc-950/20 p-3 text-sm space-y-1 font-mono">
@@ -94,7 +109,12 @@ export function PerformMoveRollStage({ action, value, patch, onSubmit, setSubmit
       interpreter={pbtaRollInterpreter}
       seed={seed}
       onSeedChange={handleSeedChange}
-      onRoll={() => !readOnly && seed && onSubmit({ roll_seed: seed, appetite_dice: canAppetite && appetite })}
+      onRoll={() => {
+        if (readOnly || alreadyRolled) return;
+        if (seed) onSubmit({ roll_seed: seed, appetite_dice: canAppetite && appetite });
+        else if (stock > 0) onSubmit({ usePreparedSeed: true, appetite_dice: canAppetite && appetite });
+      }}
+      allowEmptySeed={stock > 0 && !seed}
       rollDisabled={alreadyRolled || !!readOnly}
       rolled={
         alreadyRolled

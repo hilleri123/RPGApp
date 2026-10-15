@@ -16,6 +16,7 @@ from .location_library import router as location_library_router
 from .scenario_search import router as scenario_search_router
 from .chronicle import router as chronicle_router
 from .mentions import router as mentions_router
+from .prepared_seeds import router as prepared_seeds_router
 from .template_sets import routers as template_routers
 from .audio import router as audio_router
 from .scenario_todo import router as todo_router
@@ -35,6 +36,7 @@ routers = [
     scenario_search_router,
     chronicle_router,
     mentions_router,
+    prepared_seeds_router,
     location_router,
     auth_router,
     user_router,

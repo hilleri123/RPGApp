@@ -1,6 +1,8 @@
 'use client';
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { useParams } from 'next/navigation';
+import { usePreparedSeeds } from '@/app/services/hooks/usePreparedSeeds';
 import { Dices, Zap } from 'lucide-react';
 import { CanvasSeed, EntitySquare } from '@/plugins/common/ui';
 import { contextEntities, orderParticipants, readInitiative, type SceneEntityRef } from '../../../shared/initiative';
@@ -66,6 +68,10 @@ export function PerformMoveDamageStage({
   const isRollerOnly = Boolean(myId && !isOwner);
 
   const rollsById: Record<string, RollState> = value?.rollsById ?? {};
+  const params = useParams<{ id?: string }>();
+  const sessionId = typeof params?.id === 'string' ? params.id : undefined;
+  const { count: stock } = usePreparedSeeds(sessionId);
+  const askedStock = useRef(new Set<string>());
   const entities = useMemo(() => buildEntities(scene, players), [scene, players]);
   const moveInfo = useMemo(() => extractMoveResolution(action), [action]);
   const [dragDie, setDragDie] = useState<DieChip | null>(null);
@@ -115,16 +121,44 @@ export function PerformMoveDamageStage({
   const commitRoll = (claimId: string, claim: any) => {
     if (!canEditClaim(claim)) return;
     const prev = rollsById[claimId] ?? { roll_seed: '', dice: [], allocations: [] };
-    if (prev.committed || !prev.roll_seed) return;
-    // Dice are computed on the server from seed — do not preview locally.
-    writeRoll(claimId, {
-      roll_seed: prev.roll_seed,
-      dice: [],
-      allocations: [],
-      flatBonus: 0,
-      committed: true,
-    });
+    if (prev.committed || (!prev.roll_seed && stock < 1)) return;
+    const payload = {
+      rollsById: {
+        ...rollsById,
+        [claimId]: {
+          roll_seed: prev.roll_seed,
+          dice: [],
+          allocations: [],
+          flatBonus: 0,
+          committed: true,
+        },
+      },
+      ...(prev.roll_seed ? {} : { usePreparedSeed: true }),
+    };
+    if (onPatch) onPatch(payload);
+    else patch(payload);
   };
+
+  useEffect(() => {
+    if (readOnly || stock < 1 || (myId && myId === gmUserId)) return;
+    const pending = claims.filter((claim) => {
+      const roller = String(claim.roller_user_id ?? '');
+      const mine = roller ? roller === myId : myId === actorUserId;
+      if (!mine) return false;
+      const roll = rollsById[claim.id];
+      if (roll?.committed || roll?.roll_seed) return false;
+      return !askedStock.current.has(String(claim.id));
+    });
+    if (!pending.length) return;
+    const next: Record<string, RollState> = { ...rollsById };
+    for (const claim of pending) {
+      askedStock.current.add(String(claim.id));
+      next[claim.id] = { roll_seed: '', dice: [], allocations: [], flatBonus: 0, committed: true };
+    }
+    const payload = { rollsById: next, usePreparedSeed: true };
+    if (onPatch) onPatch(payload);
+    else patch(payload);
+  }, [readOnly, stock, claims, rollsById, onPatch, patch, myId, gmUserId, actorUserId]);
 
   const updateAllocations = (claimId: string, claim: any, allocations: Allocation[]) => {
     if (!canEditClaim(claim)) return;
@@ -203,7 +237,7 @@ export function PerformMoveDamageStage({
         const committed = Boolean(roll.committed && roll.dice?.length);
         const pool = committed ? unallocatedDice(roll.dice ?? [], roll.allocations ?? []) : [];
         const totalAssigned = (roll.allocations ?? []).reduce((s, a) => s + Number(a.value || 0), 0);
-        const seedReady = Boolean(roll.roll_seed) && !committed;
+        const seedReady = (Boolean(roll.roll_seed) || stock > 0) && !committed && !roll.committed;
 
         return (
           <div key={claim.id} className={`rounded border p-3 space-y-3 ${isHeal ? 'border-emerald-400/20' : 'border-white/10'}`}>

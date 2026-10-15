@@ -36,6 +36,8 @@ type Props = {
   onSeedChange: (seed: string | null) => void;
   onRoll: () => void;
   rollDisabled?: boolean;
+  /** Кнопка «Бросить» доступна и без рисунка — картинку возьмут из запаса. */
+  allowEmptySeed?: boolean;
   hint?: string;
   footer?: React.ReactNode;
 };
@@ -51,12 +53,14 @@ export function RollStageShell({
   onSeedChange,
   onRoll,
   rollDisabled = false,
+  allowEmptySeed = false,
   hint,
   footer,
 }: Props) {
   const expression = rollSpec?.expression ?? "2d6";
   const modifiers = rollSpec?.modifiers ?? [];
   const hasRolled = Boolean(rolled?.dice?.length);
+  const rollReady = Boolean(seed) || allowEmptySeed;
 
   return (
     <div className="rounded border p-3 flex flex-col gap-4">
@@ -90,10 +94,10 @@ export function RollStageShell({
           />
           <button
             type="button"
-            disabled={rollDisabled || !seed}
+            disabled={rollDisabled || !rollReady}
             onClick={onRoll}
             className={`rounded border px-3 py-2 text-sm font-semibold ${
-              seed && !rollDisabled
+              rollReady && !rollDisabled
                 ? "border-violet-400/70 text-violet-200 hover:bg-violet-500/10"
                 : "border-white10 text-white30 cursor-not-allowed"
             }`}

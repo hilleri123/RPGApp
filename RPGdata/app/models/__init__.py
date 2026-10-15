@@ -5,6 +5,7 @@ from .campaign import Campaign, CampaignScenario
 from .launched_scenario import ScenarioParty, ScenarioPartyMember, PlayerSeenState, PlayerSeen
 from .character_application import *
 from .roll import RollRecord
+from .prepared_seed import PreparedRollSeed
 
 from .entity_pack import *
 from .name_pack import *

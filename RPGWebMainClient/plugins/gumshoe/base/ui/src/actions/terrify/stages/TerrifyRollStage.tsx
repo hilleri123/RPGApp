@@ -43,10 +43,15 @@ export function TerrifyRollStage({ user_id, action, value, onSubmit, setSubmitEn
   const handleSubmit = () => {
     if (isDone || isGm) return;
 
+    const seedsOut = Object.fromEntries(
+      Object.entries(seeds).map(([charId, value]) => [charId, value || '']),
+    );
+    const needsStock = Object.values(seedsOut).some((value) => !value);
     onSubmit({
       user_id,
-      seeds,
+      seeds: seedsOut,
       spentStability,
+      ...(needsStock ? { usePreparedSeed: true } : {}),
     });
   };
 
