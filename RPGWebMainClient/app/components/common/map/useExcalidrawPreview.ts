@@ -94,7 +94,7 @@ export function useExcalidrawPreview(
           elements: framed as any,
           appState: {
             ...(excalidrawJson.appState ?? {}),
-            exportWithDarkMode: true,
+            exportWithDarkMode: false,
             exportBackground: false,
             viewBackgroundColor: 'transparent',
           },

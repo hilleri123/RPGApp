@@ -87,6 +87,10 @@ export interface Scene {
   expanded?: boolean;
   /** Виджет в верхнем ряду. Подсцена без флага видна только в нижнем ряду. */
   in_top_row?: boolean;
+  /** Подсцена показывает карту локации родительской сцены. */
+  show_parent_scene_map?: boolean;
+  /** Локация родительской сцены, когда показ её карты включён. */
+  parent_scene_location?: Location | null;
   /** Старое поле копии. Новые сцены его не ставят. */
   sublocation_of_scene_id?: string;
 
@@ -153,8 +157,6 @@ export interface GameSession extends GameSessionBase, ScenarioSessionBase {
   notifications: SessionNotification[];
   scenes: Scene[];
   observers: Observer[];
-
-  polygon_shown: string[];
 
   factories: Factory[];
   audio: AudioTrack[];
@@ -305,6 +307,12 @@ export interface MasterSetMainScene extends MasterSessionActionBase {
 export interface MasterExpandScene extends MasterSessionActionBase {
   msg_type: 'scene_expand';
   scene_id: string;
+}
+
+export interface MasterSetShowParentSceneMap extends MasterSessionActionBase {
+  msg_type: 'set_show_parent_scene_map';
+  scene_id: string;
+  value: boolean;
 }
 
 export interface MasterCollapseScene extends MasterSessionActionBase {

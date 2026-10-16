@@ -291,7 +291,7 @@ export default function MapViewer({
                 />
               )}
               {location.map_objects
-                .filter((polygon) => polygon.is_shown)
+                .filter((polygon) => polygon.is_shown !== false)
                 .map((polygon) => {
                   const IconComponent = getIconComponent(polygon.icon_url || "");
                   const center = getPolygonCenter(polygon.polygon_list);
@@ -395,7 +395,6 @@ export default function MapViewer({
         <div>
           <PolygonListViewer
             location={location}
-            enabledPolygonIds={location.map_objects.map(p => p.id)}
             onToggleShown={onToggleShown}
             onEditPolygon={onEditPolygon}
             onDeletePolygon={onDeletePolygon}

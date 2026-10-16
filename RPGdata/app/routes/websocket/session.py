@@ -239,6 +239,8 @@ async def websocket_endpoint(
                     ok, fields = await session_m.del_scene(action.scene_id, action.slot)
                 elif isinstance(action, scheme.ExpandScene):
                     ok, fields = await session_m.expand_scene(action.scene_id)
+                elif isinstance(action, scheme.SetShowParentSceneMap):
+                    ok, fields = await session_m.set_show_parent_scene_map(action.scene_id, action.value)
                 elif isinstance(action, scheme.CollapseScene):
                     ok, fields = await session_m.collapse_scene(action.scene_id)
                 elif isinstance(action, scheme.SetSceneLocation):

@@ -8,7 +8,6 @@ import { Location, MapObjectPolygon } from "@/app/services/types2";
 
 interface PolygonListViewerProps {
   location: Location;
-  enabledPolygonIds: string[];
   onToggleShown?: (polygonId: string, value: boolean) => void;
   onEditPolygon?: (polygon: MapObjectPolygon) => void;
   onDeletePolygon?: (polygonId: string) => void;
@@ -18,7 +17,6 @@ interface PolygonListViewerProps {
 
 export function PolygonListViewer({
   location,
-  enabledPolygonIds,
   onToggleShown,
   onEditPolygon,
   onDeletePolygon,
@@ -50,8 +48,8 @@ export function PolygonListViewer({
       </div>
       <div className="space-y-2">
         {sortedPolygons.map((polygon) => {
-          console.debug(polygon)
-          if (!enabledPolygonIds.includes(polygon.id) && !isMaster)
+          const shown = polygon.is_shown !== false;
+          if (!shown && !isMaster)
             return ;
           return (
           <div
@@ -60,7 +58,7 @@ export function PolygonListViewer({
           >
             {onToggleShown &&
               <Checkbox
-                checked={enabledPolygonIds.includes(polygon.id)}
+                checked={shown}
                 onCheckedChange={(checked) =>
                   onToggleShown && onToggleShown(polygon.id, !!checked)
                 }

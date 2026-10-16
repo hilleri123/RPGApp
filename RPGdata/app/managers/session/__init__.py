@@ -50,11 +50,11 @@ from app.services.entity_seen import canonical_seen_id
 
 
 MASTER_ALWAYS_FIELDS = {
-    "locations", "notes", "counters", "items", "characters", "npcs", "scenes", "notifications", "logs", "actions", "observers", "players", "polygon_shown", "settings", "audio", "audio_queue", "dispatches", "message_replies", "timeline", "presented_entity", "data_revealed_entities",
+    "locations", "notes", "counters", "items", "characters", "npcs", "scenes", "notifications", "logs", "actions", "observers", "players", "settings", "audio", "audio_queue", "dispatches", "message_replies", "timeline", "presented_entity", "data_revealed_entities",
 }
 MASTER_INIT_ONLY_FIELDS = {"story_beats", "factories"}
 
-PLAYER_ALWAYS_FIELDS = {"locations", "characters", "scenes", "notifications", "logs", "polygon_shown", "actions", "settings", "audio_queue", "npcs", "items", "dispatches", "notes", "message_replies", "presented_entity", "self_player", "players", "player_seen"}
+PLAYER_ALWAYS_FIELDS = {"locations", "characters", "scenes", "notifications", "logs", "actions", "settings", "audio_queue", "npcs", "items", "dispatches", "notes", "message_replies", "presented_entity", "self_player", "players", "player_seen"}
 
 # Сущности встроены в другие payload'ы: сцены содержат персонажей, NPC и предметы,
 # игрок видит своего персонажа ещё и в self_player. Поэтому правка сущности должна
@@ -77,7 +77,7 @@ def expand_dependent_fields(fields: list[str]) -> list[str]:
     return out
 
 
-OBSERVER_ALWAYS_FIELDS = {"locations", "scenes", "observers", "players", "polygon_shown", "characters", "settings", "audio_queue", "presented_entity"}
+OBSERVER_ALWAYS_FIELDS = {"locations", "scenes", "observers", "players", "characters", "settings", "audio_queue", "presented_entity"}
 
 
 
@@ -227,6 +227,17 @@ class CurrentSessionManager(
                     for ch in scene_characters
                 ]
 
+            parent_map_location = None
+            if si.show_parent_scene_map and si.parent_scene_id:
+                parent_inner = next(
+                    (p for p in (inner.scenes or []) if p.id == si.parent_scene_id),
+                    None,
+                )
+                if parent_inner is not None:
+                    parent_map_location = loc_by_id.get(parent_inner.location_id)
+                    if parent_map_location is not None and role == "player":
+                        parent_map_location = self._strip_tags_for_player(parent_map_location)
+
             scene = scheme.Scene(
                 **si.model_dump(
                     exclude={
@@ -238,11 +249,16 @@ class CurrentSessionManager(
                     }
                 ),
                 location=loc,
+                parent_scene_location=parent_map_location,
                 characters=scene_characters,
                 public=_build_elements(si.public, is_public=True),
                 private=_build_elements(si.private, is_public=False),
                 available_actions=si.available_actions_by_role[role],
             )
+            if role == "player" and scene.parent_scene_location is not None:
+                scene.parent_scene_location = scene.parent_scene_location.model_copy(
+                    update={"description_for_master": ""}
+                )
 
             add_scene = role == "gm" or inner.settings.merge_scenes_for_players or scene.id == observer_scene_id
             if not add_scene:
@@ -704,7 +720,6 @@ class CurrentSessionManager(
             players=inner.players,
             observers=inner.observers,
             settings=inner.settings,
-            polygon_shown=inner.polygon_shown,
             audio=inner.audio,
             audio_queue=inner.audio_queue or [],
             audio_player=inner.audio_player,
@@ -724,7 +739,6 @@ class CurrentSessionManager(
 
         # только always-поля
         if "locations" in fields: msg.locations = self._enrich_locations(inner)
-        if "polygon_shown" in fields: msg.polygon_shown=inner.polygon_shown
         if "story_beats" in fields: msg.story_beats = self._enrich_story_beats(inner)
         if "actions" in fields: msg.actions = self._enrich_actions_for_user(inner, master_id)
         if "notes" in fields: msg.notes = inner.notes
@@ -759,7 +773,7 @@ class CurrentSessionManager(
 
     async def build_player_init(self, current_user_id: uuid.UUID) -> scheme.PlayerSessionInit:
         inner = await self.get_inner()
-        player_seen_ids, player_poly, player_seen_records = await self.get_player_seen_sets(current_user_id)
+        player_seen_ids, player_seen_records = await self.get_player_seen_sets(current_user_id)
         access_map = self._seen_access_map(player_seen_records)
         scenes_denorm = self._build_scene_objects(inner, current_user_id, access_map=access_map)
         party_tags = await self.get_party_filter_tags() if self.launched_scenario_id else []
@@ -784,7 +798,6 @@ class CurrentSessionManager(
             notes=self._notes_for_user(inner, current_user_id, is_master=False),
             message_replies=self._replies_for_user(inner, current_user_id, is_master=False),
             notifications=self._build_notifications_for_user(inner, current_user_id),
-            polygon_shown=player_poly,
             logs=inner.logs,
             players=self._player_payload_players(inner, current_user_id, access_map),
             actions=self._enrich_actions_for_user(inner, current_user_id),
@@ -800,7 +813,7 @@ class CurrentSessionManager(
     async def build_player_update(self, current_user_id: uuid.UUID, fields: list[str]) -> scheme.PlayerSessionUpdate:
         inner = await self.get_inner()
         msg = scheme.PlayerSessionUpdate(fields=fields)
-        player_seen_ids, player_poly, player_seen_records = await self.get_player_seen_sets(current_user_id)
+        player_seen_ids, player_seen_records = await self.get_player_seen_sets(current_user_id)
         access_map = self._seen_access_map(player_seen_records)
         party_tags = await self.get_party_filter_tags() if self.launched_scenario_id else []
 
@@ -814,7 +827,6 @@ class CurrentSessionManager(
                 and entity_visible_for_party(getattr(loc, "tags", None), party_tags or None)
             ]
             msg.player_seen = player_seen_records
-        if "polygon_shown" in fields: msg.polygon_shown = player_poly
         if "characters" in fields:
             msg.characters = self._player_payload_characters(inner, access_map, current_user_id)
             msg.player_seen = player_seen_records
@@ -913,7 +925,6 @@ class CurrentSessionManager(
         return scheme.ObserverSessionInit(
             code=str(code),
             location=[loc] if loc else [],
-            polygon_shown=inner.polygon_shown,
             characters=inner.characters,  # если надо - позже добавишь
             players=inner.players,
             locations = self._enrich_locations(inner),
@@ -973,7 +984,6 @@ class CurrentSessionManager(
                 "observers",        # update_observer
                 "scenes",           # сцена могла сменить location_id
                 "locations",        # локации/полигоны могли обновиться
-                "polygon_shown",    # если ты так называешь поле в fields
             )
         )
 
@@ -982,7 +992,6 @@ class CurrentSessionManager(
             msg.location = [loc] if loc else []
             msg.locations = self._enrich_locations(inner)
             msg.scenes = self._build_scene_objects(inner, observer_scene_id=obs.scene_id)
-            msg.polygon_shown = inner.polygon_shown
             msg.audio_queue=self._audio_for_observer(inner)
 
         if "presented_entity" in fields:

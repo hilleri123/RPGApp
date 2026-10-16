@@ -148,14 +148,28 @@ class SessionLocationManager(SessionTODOManager):
         is_visible: bool,
     ) -> Tuple[bool, list[str]]:
         inner = await self.get_inner()
-        ids = reveal_polygon_ids(inner.locations, polygon_id)
-        if is_visible:
-            inner.polygon_shown.update(ids)
-        else:
-            for pid in ids:
-                inner.polygon_shown.discard(pid)
-        await self.persist_polygon_shown(set(inner.polygon_shown))
-        return True, ["polygon_shown"]
+        found = False
+        for loc in inner.locations or []:
+            for poly in getattr(loc, "map_objects", None) or []:
+                if getattr(poly, "id", None) == polygon_id:
+                    found = True
+                    break
+            if found:
+                break
+        if not found:
+            return False, []
+
+        from app.infrastructure.database import AsyncSessionLocal
+
+        async with AsyncSessionLocal() as db:
+            row = await db.get(models.MapObjectPolygon, polygon_id)
+            if row is None:
+                return False, []
+            row.is_shown = is_visible
+            await db.commit()
+
+        await self.invalidate_entity_cache()
+        return True, ["locations", "scenes"]
 
     # ── sublocations sync (Redis) ─────────────────────────────────────────────
 

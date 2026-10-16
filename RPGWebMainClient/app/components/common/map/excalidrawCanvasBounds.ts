@@ -1,11 +1,58 @@
 /** Locked visual frame + helpers to keep Excalidraw content inside the map canvas. */
 
 export const MAP_CANVAS_FRAME_ID = '__map_canvas_frame__';
+export const MAP_CANVAS_BOARD_ID = '__map_canvas_board__';
+export const MAP_CANVAS_UNDERLAY_ID = '__map_canvas_underlay__';
+export const MAP_CANVAS_UNDERLAY_FILE_ID = 'map_canvas_underlay';
 export const MAP_CANVAS_ELEMENT_PREFIX = '__map_canvas_';
 const MASK_PAD = 50_000;
 
 export function isMapCanvasHelperElement(el: { id?: string } | null | undefined): boolean {
   return Boolean(el?.id?.startsWith(MAP_CANVAS_ELEMENT_PREFIX));
+}
+
+export function createCanvasBoardElement(width: number, height: number) {
+  return {
+    id: MAP_CANVAS_BOARD_ID,
+    type: 'rectangle' as const,
+    x: 0,
+    y: 0,
+    width,
+    height,
+    angle: 0,
+    strokeColor: 'transparent',
+    backgroundColor: '#ffffff',
+    fillStyle: 'solid' as const,
+    strokeWidth: 0,
+    strokeStyle: 'solid' as const,
+    roughness: 0,
+    opacity: 100,
+    groupIds: [] as string[],
+    frameId: null,
+    roundness: null,
+    seed: 2,
+    versionNonce: 2,
+    isDeleted: false,
+    boundElements: null,
+    updated: 1,
+    link: null,
+    locked: true,
+  };
+}
+
+export function createCanvasUnderlayElement(width: number, height: number, fileId: string) {
+  return {
+    ...createCanvasBoardElement(width, height),
+    id: MAP_CANVAS_UNDERLAY_ID,
+    type: 'image' as const,
+    backgroundColor: 'transparent',
+    status: 'saved' as const,
+    fileId,
+    scale: [1, 1] as [number, number],
+    crop: null,
+    seed: 3,
+    versionNonce: 3,
+  };
 }
 
 export function createCanvasFrameElement(width: number, height: number) {
@@ -198,32 +245,55 @@ export function clampElementsToCanvas<T extends Record<string, any>>(
   return { elements: next, changed };
 }
 
+function coversCanvas(
+  el: { x?: number; y?: number; width?: number; height?: number; isDeleted?: boolean } | undefined,
+  canvasW: number,
+  canvasH: number,
+) {
+  return Boolean(
+    el &&
+      !el.isDeleted &&
+      nearlyEqual(Number(el.width), canvasW) &&
+      nearlyEqual(Number(el.height), canvasH) &&
+      nearlyEqual(Number(el.x), 0) &&
+      nearlyEqual(Number(el.y), 0),
+  );
+}
+
 /** Ensure helpers exist and user content stays inside the canvas. */
 export function constrainSceneToCanvas<T extends Record<string, any>>(
   elements: readonly T[],
   canvasW: number,
   canvasH: number,
+  underlayFileId?: string | null,
 ): { elements: T[]; changed: boolean } {
   const user = elements.filter((el) => !isMapCanvasHelperElement(el));
   const helpers = [
     ...createCanvasMaskElements(canvasW, canvasH),
+    createCanvasBoardElement(canvasW, canvasH),
+    ...(underlayFileId
+      ? [createCanvasUnderlayElement(canvasW, canvasH, underlayFileId)]
+      : []),
     createCanvasFrameElement(canvasW, canvasH),
   ] as unknown as T[];
 
   const hadAllHelpers =
     elements.some((el) => el.id === MAP_CANVAS_FRAME_ID) &&
+    elements.some((el) => el.id === MAP_CANVAS_BOARD_ID) &&
     elements.some((el) => el.id === `${MAP_CANVAS_ELEMENT_PREFIX}mask_n`) &&
     elements.some((el) => el.id === `${MAP_CANVAS_ELEMENT_PREFIX}mask_e`) &&
     elements.some((el) => el.id === `${MAP_CANVAS_ELEMENT_PREFIX}mask_s`) &&
     elements.some((el) => el.id === `${MAP_CANVAS_ELEMENT_PREFIX}mask_w`);
 
   const framePrev = elements.find((el) => el.id === MAP_CANVAS_FRAME_ID);
-  const frameSizeOk =
-    framePrev &&
-    nearlyEqual(Number(framePrev.width), canvasW) &&
-    nearlyEqual(Number(framePrev.height), canvasH) &&
-    nearlyEqual(Number(framePrev.x), 0) &&
-    nearlyEqual(Number(framePrev.y), 0);
+  const boardPrev = elements.find((el) => el.id === MAP_CANVAS_BOARD_ID);
+  const imagePrev = elements.find((el) => el.id === MAP_CANVAS_UNDERLAY_ID);
+  const frameSizeOk = coversCanvas(framePrev, canvasW, canvasH);
+  const boardOk =
+    coversCanvas(boardPrev, canvasW, canvasH) && boardPrev?.backgroundColor === '#ffffff';
+  const imageOk = underlayFileId
+    ? coversCanvas(imagePrev, canvasW, canvasH) && imagePrev?.fileId === underlayFileId
+    : !imagePrev || imagePrev.isDeleted;
 
   const { elements: clampedUser, changed: contentChanged } = clampElementsToCanvas(
     user,
@@ -231,7 +301,7 @@ export function constrainSceneToCanvas<T extends Record<string, any>>(
     canvasH,
   );
 
-  const helpersChanged = !hadAllHelpers || !frameSizeOk;
+  const helpersChanged = !hadAllHelpers || !frameSizeOk || !boardOk || !imageOk;
   const changed = helpersChanged || contentChanged;
 
   return {

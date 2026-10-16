@@ -48,7 +48,6 @@ type EnrichedSession = {
 
   storyBeats: StoryBeatOut[];
   factories: Factory[];
-  polygon_shown: string[];
 
   locations: Location[];
   characters: PlayerCharacter[];
@@ -118,7 +117,6 @@ function buildGameSessionFromWsInit(msg: SessionInitMessage): GameSession {
     message_replies: (msg as any).message_replies ?? [],
     logs:          msg.logs          ?? [],
     settings:      msg.settings      ?? null,
-    polygon_shown: msg.polygon_shown ?? [],
     actions:       (msg as any).actions ?? [],
 
     audio_queue:   (msg as any).audio_queue  ?? [],
@@ -165,7 +163,6 @@ function mergeWsUpdate(base: GameSession, patch: SessionUpdateMessage): GameSess
   if (next.message_replies == null) next.message_replies = [];
   if (next.actions       == null) next.actions       = [];
   if (next.locations     == null) next.locations     = [];
-  if (next.polygon_shown == null) next.polygon_shown = [];
   if (next.characters    == null) next.characters    = [];
   if (next.npcs          == null) next.npcs          = [];
   if (next.items         == null) next.items         = [];
@@ -257,7 +254,6 @@ function toEnrichedSession(
 
     storyBeats:    sessionData.story_beats  ?? [],
     factories:     sessionData.factories    ?? [],
-    polygon_shown: sessionData.polygon_shown ?? [],
 
     locations:     sessionData.locations    ?? [],
     characters:    sessionData.characters   ?? [],

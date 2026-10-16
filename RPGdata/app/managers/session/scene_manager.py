@@ -39,9 +39,6 @@ class SessionSceneManager(SessionDataManager):
         if not self.launched_scenario_id:
             await self.set_field("seen", [str(x) for x in seen_set])
 
-    async def _save_polygon_shown(self, poly_set) -> None:
-        await self.persist_polygon_shown(set(poly_set))
-
     def _ensure_scene_elements(self, el):
         return el or scheme.SceneElementsInner(npc_ids=[], item_ids=[], obstacles=[])
 
@@ -280,6 +277,19 @@ class SessionSceneManager(SessionDataManager):
         await self._save_scenes(scenes)
         if new_scenes:
             await self._save_seen(inner.seen, added={s.location_id for s in new_scenes})
+        return True, ["scenes"]
+
+    async def set_show_parent_scene_map(self, scene_id: UUID, value: bool) -> Tuple[bool, list[str]]:
+        """Подсцена показывает карту локации родительской сцены всем, кто её видит."""
+        inner = await self.get_inner()
+        scenes = list(inner.scenes or [])
+        scene = next((s for s in scenes if s.id == scene_id), None)
+        if not scene or scene.parent_scene_id is None:
+            return False, []
+        if bool(scene.show_parent_scene_map) == bool(value):
+            return False, []
+        scene.show_parent_scene_map = bool(value)
+        await self._save_scenes(scenes)
         return True, ["scenes"]
 
     async def collapse_scene(self, scene_id: UUID) -> Tuple[bool, list[str]]:

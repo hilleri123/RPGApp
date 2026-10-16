@@ -34,7 +34,6 @@ export function ObserverView() {
   const locations = useObserverStore((s) => s.locations);
   const session = useObserverStore((s) => s.session);
   const scenes = useObserverStore((s) => s.scenes);
-  const visiblePolygonIds = useObserverStore((s) => s.visiblePolygonIds);
   const presentedEntity = useObserverStore((s) => s.presentedEntity);
 
   const mapLocation = useMemo(() => {
@@ -101,7 +100,6 @@ export function ObserverView() {
                   location={locationWithDisplayPolygons(mapLocation, locations)}
                   session={session ?? undefined}
                   scenes={scenes}
-                  enabledPolygonIds={visiblePolygonIds}
                   className="w-full h-full"
                   onImageClick={undefined}
                 />

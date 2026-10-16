@@ -34,7 +34,6 @@ export interface MapViewerPureProps {
   location: Location;
   scenes?: Scene[];
   session?: GameSessionBase;
-  enabledPolygonIds: string[];
   onPolygonClicked?: (polygon: MapObjectPolygon) => void;
   onImageClick?: () => void;
   className?: string;
@@ -77,7 +76,6 @@ export default function MapViewerPure({
   location,
   scenes,
   session,
-  enabledPolygonIds,
   onPolygonClicked,
   onImageClick,
   className,
@@ -168,15 +166,11 @@ export default function MapViewerPure({
   }, [scenes, players]);
 
   // Canvas coords — no origin shift
-  const shownIds = useMemo(
-    () => new Set(enabledPolygonIds.map((id) => String(id))),
-    [enabledPolygonIds],
-  );
   const visiblePolygons = useMemo(() => {
     const objects = location.map_objects ?? [];
     if (dimHidden) return objects;
-    return objects.filter((polygon) => shownIds.has(String(polygon.id)));
-  }, [location.map_objects, shownIds, dimHidden]);
+    return objects.filter((polygon) => polygon.is_shown !== false);
+  }, [location.map_objects, dimHidden]);
 
   // ── zoom/pan ──────────────────────────────────────────────────────────────
   const transformStyle = useMemo(() => ({
@@ -295,7 +289,7 @@ export default function MapViewerPure({
                 const IconComponent = getIconComponent(polygon.icon_url || '');
                 const center = getPolygonCenter(polygon.polygon_list);
                 const d = getPath(polygon.polygon_list, !polygon.is_line);
-                const revealed = shownIds.has(String(polygon.id));
+                const revealed = polygon.is_shown !== false;
                 const fade = dimHidden && !revealed ? 0.28 : 1;
                 return (
                   <g key={polygon.id} opacity={fade}>

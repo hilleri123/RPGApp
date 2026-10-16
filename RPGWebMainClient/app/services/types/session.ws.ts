@@ -42,7 +42,6 @@ export type SessionInitMessage = {
   audio?: AudioTrack[];
   settings?: SessionSettings;
 
-  polygon_shown?: string[];
   dispatches?: SessionDispatch[];
   message_replies?: SessionMessageReply[];
   player_seen?: PlayerSeenEntry[];
@@ -83,7 +82,6 @@ export type SessionUpdateMessage = {
   items?: GameItem[];
   npcs?: NPC[];
 
-  polygon_shown?: string[];
   dispatches?: SessionDispatch[];
   message_replies?: SessionMessageReply[];
   player_seen?: PlayerSeenEntry[];

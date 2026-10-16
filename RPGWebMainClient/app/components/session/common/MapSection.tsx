@@ -14,7 +14,7 @@ import MapViewerPure from "./MapViewerPure";
 import FullscreenMap from "./FullscreenMap";
 import { GameSessionBase, Scene } from "@/app/services/types/session";
 import { useMapUiStore } from "@/app/services/stores/mapUi";
-import { resolveSceneMapLocation } from "./SceneMiniMap";
+import { parentSceneMapLocation, resolveSceneMapLocation } from "./SceneMiniMap";
 import { locationWithDisplayPolygons } from "./mapPolygons";
 import { useSessionScenarioApi } from "@/app/services/hooks/session/useSessionScenarioApi";
 import { ScenarioProvider } from "@/app/components/scenarios/ScenarioContext";
@@ -28,7 +28,6 @@ interface MapSectionProps {
   currentLocation: Location | null;
   locationList: Location[];
   characters: PlayerCharacter[];
-  enabledPolygonIds: string[];
 
   updateLocationPolygonVisibility?: (locationId: string, polygonId: string, value: boolean) => void;
   setCurrentLocation: (location: Location) => void;
@@ -50,6 +49,8 @@ interface MapSectionProps {
 
   onToggleHidden?: (locationId: string, hidden: boolean) => void;
   onAddTODO?: (locationId: string, text: string) => void;
+  /** Мастер включает показ карты родительской сцены. Параметр хранится на сцене. */
+  onToggleShowParentSceneMap?: (value: boolean) => void;
 }
 
 function filterVisibleForPlayer(locations: Location[], isMaster?: boolean) {
@@ -61,7 +62,6 @@ export default function MapSection({
   currentLocation,
   locationList,
   characters,
-  enabledPolygonIds,
   updateLocationPolygonVisibility,
   setCurrentLocation,
   scenes,
@@ -76,12 +76,12 @@ export default function MapSection({
   onEditLocation,
   onToggleHidden,
   onAddTODO,
+  onToggleShowParentSceneMap,
 }: MapSectionProps) {
   const [fullscreenMap, setFullscreenMap] = useState(false);
   const showParentMapIfNoImage = useMapUiStore((s) => s.showParentMapIfNoImage);
   const setShowParentMapIfNoImage = useMapUiStore((s) => s.setShowParentMapIfNoImage);
-  const showParentSceneMap = useMapUiStore((s) => s.showParentSceneMap);
-  const setShowParentSceneMap = useMapUiStore((s) => s.setShowParentSceneMap);
+  const showParentSceneMap = Boolean(currentScene?.show_parent_scene_map);
   const [locationsOpen, setLocationsOpen] = useState(false);
   const [textOpen, setTextOpen] = useState(false);
   const [mapEditorId, setMapEditorId] = useState<string | null>(null);
@@ -92,16 +92,17 @@ export default function MapSection({
     [locationList, isMaster]
   );
 
-  const parentSceneLocation = useMemo(() => {
-    const parentId = currentScene?.parent_scene_id;
-    if (!parentId || !currentLocation) return null;
-    const sceneLocId = currentScene.location?.id;
-    if (!sceneLocId || String(sceneLocId) !== String(currentLocation.id)) return null;
-    const parentScene = (scenes ?? []).find((s) => String(s.id) === String(parentId));
-    const parentLocId = parentScene?.location?.id;
-    if (!parentLocId) return null;
-    return visibleLocations.find((l) => String(l.id) === String(parentLocId)) ?? parentScene?.location ?? null;
-  }, [currentLocation, currentScene, scenes, visibleLocations]);
+  const parentSceneLocation = useMemo(
+    () => parentSceneMapLocation(currentScene, currentLocation, scenes, visibleLocations),
+    [currentScene, currentLocation, scenes, visibleLocations],
+  );
+
+  const viewingSceneLocation = Boolean(
+    currentScene?.parent_scene_id &&
+    currentLocation?.id &&
+    currentScene.location?.id &&
+    String(currentScene.location.id) === String(currentLocation.id),
+  );
 
   const mapLocation = useMemo(() => {
     if (!currentLocation) return null;
@@ -116,8 +117,22 @@ export default function MapSection({
     return resolved ?? base;
   }, [currentLocation, parentSceneLocation, showParentSceneMap, visibleLocations, showParentMapIfNoImage]);
 
+  const showingParentSceneMap = Boolean(
+    parentSceneLocation &&
+    mapLocation &&
+    currentLocation &&
+    String(mapLocation.id) !== String(currentLocation.id),
+  );
+
+  const parentSceneCaption = showingParentSceneMap
+    ? `Карта родительской локации${parentSceneLocation?.name ? ` «${parentSceneLocation.name}»` : ""}`
+    : "";
+
   const mapTitleSuffix =
-    mapLocation && currentLocation && mapLocation.id !== currentLocation.id
+    mapLocation &&
+    currentLocation &&
+    mapLocation.id !== currentLocation.id &&
+    !(parentSceneLocation && String(mapLocation.id) === String(parentSceneLocation.id))
       ? ` (карта: ${mapLocation.name})`
       : "";
 
@@ -186,12 +201,17 @@ export default function MapSection({
         }
       >
         {/* Заголовок + кнопка редактирования */}
-        <div className="flex items-center gap-2 min-w-0">
-          <h2 className={`${compact ? "text-base" : "text-xl"} font-bold flex items-center gap-2 truncate`}>
-            <MapPin className="w-5 h-5 shrink-0" />
-            {currentLocation?.name ?? "Локация не выбрана"}
-            {mapTitleSuffix}
-          </h2>
+        <div className="flex items-start gap-2 min-w-0">
+          <div className="min-w-0">
+            <h2 className={`${compact ? "text-base" : "text-xl"} font-bold flex items-center gap-2 truncate`}>
+              <MapPin className="w-5 h-5 shrink-0" />
+              {currentLocation?.name ?? "Локация не выбрана"}
+              {mapTitleSuffix}
+            </h2>
+            {parentSceneCaption ? (
+              <p className="text-xs text-amber-200/90 truncate pl-7">{parentSceneCaption}</p>
+            ) : null}
+          </div>
 
           {isMaster && currentLocation && onEditLocation && (
             <Button
@@ -251,11 +271,11 @@ export default function MapSection({
               />
               Показывать карту родителя, если у локации нет карты
             </label>
-            {parentSceneLocation && (
+            {isMaster && viewingSceneLocation && onToggleShowParentSceneMap && (
               <label className="flex items-center gap-2 text-sm text-gray-200">
                 <Checkbox
                   checked={showParentSceneMap as CheckedState}
-                  onCheckedChange={(v: CheckedState) => setShowParentSceneMap(Boolean(v))}
+                  onCheckedChange={(v: CheckedState) => onToggleShowParentSceneMap(Boolean(v))}
                 />
                 Показывать карту родительской сцены
               </label>
@@ -269,7 +289,6 @@ export default function MapSection({
                 location={mapForView}
                 scenes={scenes}
                 session={session}
-                enabledPolygonIds={enabledPolygonIds}
                 dimHidden={isMaster}
                 onImageClick={() => setFullscreenMap(true)}
               />
@@ -304,7 +323,6 @@ export default function MapSection({
       {fullscreenMap && mapForView && (
         <FullscreenMap
           currentLocation={mapForView}
-          enabledPolygonIds={enabledPolygonIds}
           setCurrentLocation={setCurrentLocation}
           locationList={visibleLocations}
           characters={characters}
@@ -316,6 +334,7 @@ export default function MapSection({
           isMaster={isMaster}
           dimHidden={isMaster}
           drawBar={childMapButton}
+          subtitle={parentSceneCaption || undefined}
         />
       )}
 

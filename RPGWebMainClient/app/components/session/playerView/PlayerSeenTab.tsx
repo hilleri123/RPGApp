@@ -29,7 +29,7 @@ export default function PlayerSeenTab({
   setCurrentLocation,
 }: PlayerSeenTabProps) {
   const {
-    locations, npcs, items, characters, scenes, polygon_shown, session, playerSeen,
+    locations, npcs, items, characters, scenes, session, playerSeen,
   } = usePlayerSessionWebSocket(sessionId);
 
   const [activeElementTab, setActiveElementTab] = useState("locations");
@@ -81,7 +81,6 @@ export default function PlayerSeenTab({
             <div className="pt-2 border-t border-gray-800">
               <MapSection
                 currentLocation={currentLocation}
-                enabledPolygonIds={polygon_shown}
                 locationList={locations}
                 scenes={scenes}
                 session={session}

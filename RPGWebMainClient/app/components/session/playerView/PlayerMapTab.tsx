@@ -10,7 +10,7 @@ interface PlayerMapTabProps {
 }
 
 export default function PlayerMapTab({ sessionId }: PlayerMapTabProps) {
-  const { scene, characters, locations, scenes, polygon_shown, session } = usePlayerSessionWebSocket(sessionId);
+  const { scene, characters, locations, scenes, session } = usePlayerSessionWebSocket(sessionId);
 
   const homeLocation: Location | null = scene?.location ?? null;
   const [currentLocation, setCurrentLocation] = useState<Location | null>(homeLocation);
@@ -31,7 +31,6 @@ export default function PlayerMapTab({ sessionId }: PlayerMapTabProps) {
     <div className="h-full min-h-0 overflow-y-auto overscroll-contain">
       <MapSection
         currentLocation={currentLocation}
-        enabledPolygonIds={polygon_shown}
         setCurrentLocation={setCurrentLocation}
         scenes={scenes}
         currentScene={scene}

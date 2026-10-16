@@ -40,8 +40,12 @@ class Scene(BaseModel):
     expanded: bool = False
     # Верхний ряд. Подсцена без этого флага видна только в нижнем ряду родителя.
     in_top_row: bool = False
+    # Подсцена показывает карту локации родительской сцены. Видят и мастер, и игроки.
+    show_parent_scene_map: bool = False
     # Старые сессии: копия, которую больше не создаём. Поле оставлено, чтобы Redis читался.
     sublocation_of_scene_id: Optional[UUID] = None
+    # Локация родительской сцены, если включён показ её карты. В Redis не хранится.
+    parent_scene_location: Optional[Location] = None
 
     datetime: Optional[str] = None
 
@@ -61,6 +65,7 @@ class SceneInner(BaseModel):
     parent_scene_id: Optional[UUID] = None
     expanded: bool = False
     in_top_row: bool = False
+    show_parent_scene_map: bool = False
     sublocation_of_scene_id: Optional[UUID] = None
 
     datetime: Optional[str] = None

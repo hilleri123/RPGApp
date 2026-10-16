@@ -57,6 +57,11 @@ class ExpandScene(MasterSessionActionBase):
     msg_type: Literal['scene_expand'] = 'scene_expand'
     scene_id: UUID
 
+class SetShowParentSceneMap(MasterSessionActionBase):
+    msg_type: Literal['set_show_parent_scene_map'] = 'set_show_parent_scene_map'
+    scene_id: UUID
+    value: bool
+
 class CollapseScene(MasterSessionActionBase):
     msg_type: Literal['scene_collapse'] = 'scene_collapse'
     scene_id: UUID

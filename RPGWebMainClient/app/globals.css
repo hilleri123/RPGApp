@@ -126,6 +126,11 @@ body {
   }
 }
 
+/* Dark theme inverts the whole canvas, so a white sheet renders black. */
+.map-excalidraw-editor .excalidraw.theme--dark canvas {
+  filter: none;
+}
+
 /* ── Excalidraw compact ──────────────────────────────── */
 .excalidraw-compact .App-toolbar .ToolIcon {
   width: 32px !important;

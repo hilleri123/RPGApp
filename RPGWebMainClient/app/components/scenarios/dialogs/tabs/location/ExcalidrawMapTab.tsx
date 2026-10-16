@@ -18,6 +18,7 @@ import {
   constrainSceneToCanvas,
   isMapCanvasHelperElement,
   MAP_CANVAS_FRAME_ID,
+  MAP_CANVAS_UNDERLAY_FILE_ID,
 } from '@/app/components/common/map/excalidrawCanvasBounds';
 import { useLocationCanvasExpand } from './useLocationCanvasExpand';
 
@@ -32,6 +33,22 @@ function stableSerialize(value: any): string {
 }
 
 const SHAPE_TYPES = new Set(['rectangle', 'ellipse', 'diamond', 'freedraw', 'line', 'arrow']);
+
+const UNDERLAY_MIME_TYPES = new Set([
+  'image/png',
+  'image/jpeg',
+  'image/gif',
+  'image/webp',
+  'image/svg+xml',
+  'image/bmp',
+  'image/x-icon',
+  'image/avif',
+]);
+
+function normalizeUnderlayMime(raw: string): string | null {
+  const mime = raw.trim().toLowerCase() === 'image/jpg' ? 'image/jpeg' : raw.trim().toLowerCase();
+  return UNDERLAY_MIME_TYPES.has(mime) ? mime : null;
+}
 
 function isShape(el: ExcalidrawElement) {
   return SHAPE_TYPES.has(el.type) && !el.isDeleted;
@@ -226,21 +243,36 @@ export default function ExcalidrawMapTab({ dlg, editingId }: LocationTabCommonPr
   const canvasKeyRef = useRef(`${canvasW}x${canvasH}`);
   const apiRef = useRef<ExcalidrawImperativeAPI | null>(null);
   const constrainingRef = useRef(false);
+  const underlayFileRef = useRef<{ dataURL: string; mimeType: string; created: number } | null>(
+    null,
+  );
+
+  const underlayFileId = () =>
+    underlayFileRef.current ? MAP_CANVAS_UNDERLAY_FILE_ID : null;
+
+  const persistFiles = (files: any) => {
+    if (!files || typeof files !== 'object') return {};
+    if (!Object.prototype.hasOwnProperty.call(files, MAP_CANVAS_UNDERLAY_FILE_ID)) return files;
+    const next = { ...files };
+    delete next[MAP_CANVAS_UNDERLAY_FILE_ID];
+    return next;
+  };
 
   const buildEditorScene = useCallback(
     (rawElements: readonly any[] | undefined, appState?: any, files?: any) => {
       const user = (rawElements ?? []).filter((el) => !isMapCanvasHelperElement(el));
-      const { elements } = constrainSceneToCanvas(user, canvasW, canvasH);
+      const { elements } = constrainSceneToCanvas(user, canvasW, canvasH, underlayFileId());
       return {
         elements,
         appState: {
-          viewBackgroundColor: mapPreviewUrl ? 'transparent' : '#ffffff',
           ...(appState ?? {}),
+          theme: 'light',
+          viewBackgroundColor: '#ffffff',
         },
-        files: files ?? {},
+        files: persistFiles(files),
       };
     },
-    [canvasW, canvasH, mapPreviewUrl],
+    [canvasW, canvasH],
   );
 
   // Remount Excalidraw when canvas expand shifts elements so initialData picks up new scene.
@@ -335,6 +367,7 @@ export default function ExcalidrawMapTab({ dlg, editingId }: LocationTabCommonPr
         els,
         canvasW,
         canvasH,
+        underlayFileId(),
       );
 
       if (changed && apiRef.current) {
@@ -349,23 +382,58 @@ export default function ExcalidrawMapTab({ dlg, editingId }: LocationTabCommonPr
       latestSceneRef.current = {
         elements: constrained,
         appState: {
-          viewBackgroundColor: appState?.viewBackgroundColor,
+          viewBackgroundColor: '#ffffff',
           gridSize: appState?.gridSize,
           zoom: appState?.zoom,
           scrollX: appState?.scrollX,
           scrollY: appState?.scrollY,
-          theme: appState?.theme,
+          theme: 'light',
         },
-        files: files ?? {},
+        files: persistFiles(files),
       };
       scheduleFlush();
     },
     [scheduleFlush, canvasW, canvasH],
   );
 
+  const pushUnderlay = useCallback(
+    (api: ExcalidrawImperativeAPI) => {
+      try {
+        const file = underlayFileRef.current;
+        if (file) {
+          api.addFiles([
+            {
+              id: MAP_CANVAS_UNDERLAY_FILE_ID as any,
+              dataURL: file.dataURL as any,
+              mimeType: file.mimeType as any,
+              created: file.created,
+            },
+          ]);
+        }
+        const { elements, changed } = constrainSceneToCanvas(
+          api.getSceneElements() as any[],
+          canvasW,
+          canvasH,
+          file ? MAP_CANVAS_UNDERLAY_FILE_ID : null,
+        );
+        constrainingRef.current = true;
+        api.updateScene({
+          ...(changed ? { elements: elements as any } : {}),
+          appState: { viewBackgroundColor: '#ffffff', theme: 'light' },
+          captureUpdate: CaptureUpdateAction.NEVER,
+        });
+        constrainingRef.current = false;
+      } catch {
+        constrainingRef.current = false;
+      }
+    },
+    [canvasW, canvasH],
+  );
+
   const handleApi = useCallback(
     (api: ExcalidrawImperativeAPI) => {
       apiRef.current = api;
+      pushUnderlay(api);
       void toponymLibrary()
         .then((items) =>
           api.updateLibrary({
@@ -389,8 +457,47 @@ export default function ExcalidrawMapTab({ dlg, editingId }: LocationTabCommonPr
         /* ignore */
       }
     },
-    [],
+    [pushUnderlay],
   );
+
+  useEffect(() => {
+    let cancelled = false;
+    const apply = () => {
+      if (apiRef.current) pushUnderlay(apiRef.current);
+    };
+    if (!mapPreviewUrl) {
+      underlayFileRef.current = null;
+      apply();
+      return;
+    }
+    void (async () => {
+      try {
+        const response = await fetch(mapPreviewUrl);
+        if (!response.ok) throw new Error('map');
+        const blob = await response.blob();
+        const dataURL = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(String(reader.result || ''));
+          reader.onerror = () => reject(reader.error);
+          reader.readAsDataURL(blob);
+        });
+        if (cancelled || !dataURL.startsWith('data:image/')) return;
+        const mime = normalizeUnderlayMime(
+          blob.type || dataURL.slice(5, dataURL.indexOf(';')),
+        );
+        if (!mime) return;
+        underlayFileRef.current = { dataURL, mimeType: mime, created: Date.now() };
+        apply();
+      } catch {
+        if (cancelled) return;
+        underlayFileRef.current = null;
+        apply();
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [mapPreviewUrl, pushUnderlay]);
 
   useEffect(() => {
     return () => {
@@ -413,21 +520,13 @@ export default function ExcalidrawMapTab({ dlg, editingId }: LocationTabCommonPr
         Рисование только внутри фиолетовой рамки.
       </div>
       <div
-        className="rounded-xl overflow-hidden border border-white/10 relative"
+        className="map-excalidraw-editor rounded-xl overflow-hidden border border-white/10 relative bg-white"
         style={{ height: 560 }}
       >
-        {mapPreviewUrl && (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={mapPreviewUrl}
-            alt=""
-            className="absolute inset-0 w-full h-full object-contain pointer-events-none opacity-40"
-          />
-        )}
         <div className="relative z-10 h-full">
           <ExcalidrawDynamic
             key={sceneKey}
-            theme="dark"
+            theme="light"
             initialData={initialDataRef.current}
             onChange={handleChange}
             excalidrawAPI={handleApi}

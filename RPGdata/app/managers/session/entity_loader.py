@@ -29,7 +29,6 @@ class ScenarioEntitiesSnapshot:
     factories: list[scheme.Factory] = field(default_factory=list)
     todos: list[scheme.ScenarioTodoOut] = field(default_factory=list)
     obstacles: list[scheme.ObstacleOut] = field(default_factory=list)
-    polygon_shown: set[UUID] = field(default_factory=set)
 
     def as_inner_scenario_fields(self, scenario: models.Scenario | None = None) -> dict[str, Any]:
         sc = scenario or self.scenario
@@ -54,7 +53,6 @@ class ScenarioEntitiesSnapshot:
             "audio": self.audio,
             "factories": self.factories,
             "seen": set(),
-            "polygon_shown": self.polygon_shown,
         }
 
 
@@ -73,7 +71,7 @@ class SessionEntityLoader:
         if not scenario:
             raise ValueError(f"scenario not found: {scenario_id}")
 
-        from app.managers._helper import _collect_audio_tracks, _convert_exposure, _convert_character, _free_items, _visible_polygon_ids
+        from app.managers._helper import _collect_audio_tracks, _convert_exposure, _convert_character, _free_items
         from app.managers.fabric_helpers import build_factories_payload_for_scenario
 
         all_raw_audios: list[dict] = []
@@ -140,7 +138,6 @@ class SessionEntityLoader:
             factories=[scheme.Factory.model_validate(f) for f in factories_payload],
             todos=todos,
             obstacles=obstacles,
-            polygon_shown=_visible_polygon_ids(locations),
         )
         self._cache[scenario_id] = snapshot
         return snapshot

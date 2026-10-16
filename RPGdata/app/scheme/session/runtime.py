@@ -56,7 +56,6 @@ class SessionRuntimeState(BaseModel):
     errors: list[SessionErrorEntry] = Field(default_factory=list)
 
     seen: Set[UUID] = Field(default_factory=set)
-    polygon_shown: Set[UUID] = Field(default_factory=set)
 
     dispatches: List[Any] = Field(default_factory=list)
     message_replies: List[Any] = Field(default_factory=list)

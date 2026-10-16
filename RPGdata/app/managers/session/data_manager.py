@@ -98,14 +98,12 @@ class SessionDataManager:
         runtime = await self.get_runtime()
         entities = await self._load_entities(runtime.scenario_id)
 
-        polygon_shown = runtime.polygon_shown or entities.polygon_shown
         scenario_fields = entities.as_inner_scenario_fields()
         scenario_fields.pop("id", None)
 
         return scheme.GameSessionInner.model_validate({
             **runtime.model_dump(mode="json"),
             **scenario_fields,
-            "polygon_shown": polygon_shown,
             "todos": entities.todos,
             "obstacles": entities.obstacles,
         })
@@ -267,21 +265,6 @@ class SessionDataManager:
         inner.seen.update(entry[1] for entry in entries)
         await self.set_field("seen", [str(x) for x in inner.seen])
 
-    async def persist_polygon_shown(self, polygon_ids: set[UUID]) -> None:
-        if self.launched_scenario_id:
-            from app.services.player_seen_service import add_seen_for_users
-
-            async with AsyncSessionLocal() as db:
-                user_ids = await self._approach_user_ids()
-                await add_seen_for_users(
-                    db,
-                    launched_scenario_id=UUID(self.launched_scenario_id),
-                    user_ids=user_ids,
-                    polygon_shown_ids=polygon_ids,
-                )
-                await db.commit()
-        await self.set_field("polygon_shown", [str(x) for x in polygon_ids])
-
     async def _approach_user_ids(self) -> list[UUID]:
         inner = await self.get_inner()
         ids: list[UUID] = []
@@ -293,7 +276,7 @@ class SessionDataManager:
 
     async def get_player_seen_sets(
         self, user_id: UUID
-    ) -> tuple[set[UUID], set[UUID], list]:
+    ) -> tuple[set[UUID], list]:
         if self.launched_scenario_id:
             from app.services.player_seen_service import get_player_seen
 
@@ -304,7 +287,7 @@ class SessionDataManager:
                     user_id=user_id,
                 )
         inner = await self.get_inner()
-        return set(inner.seen or []), set(inner.polygon_shown or []), []
+        return set(inner.seen or []), []
 
     async def get_party_filter_tags(self) -> list[str]:
         runtime = await self.get_runtime()

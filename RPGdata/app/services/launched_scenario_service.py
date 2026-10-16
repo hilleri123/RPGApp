@@ -281,7 +281,6 @@ async def _init_launched_redis(
         created_at=approach.created_at,
         master=scheme.User.model_validate(approach.master),
         players=[scheme.PlayerWithCharacter.model_validate(_convert_player(p)) for p in players],
-        polygon_shown=set(),
         seen=set(),
         timeline=SessionTimelineInner(
             scenario_started_at=in_game_start,

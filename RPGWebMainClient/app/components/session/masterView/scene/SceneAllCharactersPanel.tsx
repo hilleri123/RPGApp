@@ -32,7 +32,6 @@ export default function SceneAllCharactersPanel({
     moveCharacterToScene,
     locations,
     scenes,
-    polygon_shown,
   } = useSessionWebSocket(sessionId) as any;
 
   const players: Player[] = session?.players ?? [];
@@ -136,11 +135,11 @@ export default function SceneAllCharactersPanel({
         </div>
 
         <SceneMiniMap
+          scene={scene}
           location={sceneLocation}
           locations={locations ?? (sceneLocation ? [sceneLocation] : [])}
           scenes={scenes}
           session={session}
-          enabledPolygonIds={polygon_shown ?? []}
           dimHidden={isMaster}
         />
       </div>

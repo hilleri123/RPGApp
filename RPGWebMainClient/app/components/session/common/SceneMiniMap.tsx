@@ -25,6 +25,22 @@ function getParent(loc: Location | null, all: Location[]): Location | null {
   return all.find((x) => x.id === loc.parent_location_id) ?? null;
 }
 
+/** Карта локации родительской сцены, если у подсцены включён этот параметр и смотрят её собственную локацию. */
+export function parentSceneMapLocation(
+  scene: Scene | null | undefined,
+  currentLocation: Location | null | undefined,
+  scenes: Scene[] | null | undefined,
+  locations: Location[] | null | undefined,
+): Location | null {
+  if (!scene?.show_parent_scene_map || !scene.parent_scene_id || !currentLocation) return null;
+  const sceneLocId = scene.location?.id;
+  if (!sceneLocId || String(sceneLocId) !== String(currentLocation.id)) return null;
+  const parent = (scenes ?? []).find((s) => String(s.id) === String(scene.parent_scene_id));
+  const embedded = parent?.location ?? scene.parent_scene_location ?? null;
+  if (!embedded) return null;
+  return (locations ?? []).find((l) => String(l.id) === String(embedded.id)) ?? embedded;
+}
+
 export function resolveSceneMapLocation(
   currentLocation: Location | null,
   locations: Location[],
@@ -43,19 +59,19 @@ export default function SceneMiniMap({
   locations,
   scenes,
   session,
-  enabledPolygonIds,
   className,
   showParentCheckbox = true,
   dimHidden = false,
+  scene = null,
 }: {
   location: Location | null | undefined;
   locations: Location[];
   scenes?: Scene[];
   session?: GameSessionBase | null;
-  enabledPolygonIds: string[];
   className?: string;
   showParentCheckbox?: boolean;
   dimHidden?: boolean;
+  scene?: Scene | null;
 }) {
   const showParentMapIfNoImage = useMapUiStore((s) => s.showParentMapIfNoImage);
   const setShowParentMapIfNoImage = useMapUiStore((s) => s.setShowParentMapIfNoImage);
@@ -72,10 +88,16 @@ export default function SceneMiniMap({
     [currentLocation, locations],
   );
 
-  const mapLocation = useMemo(
-    () => resolveSceneMapLocation(currentLocation, locations, showParentMapIfNoImage),
-    [currentLocation, locations, showParentMapIfNoImage],
+  const parentSceneLocation = useMemo(
+    () => parentSceneMapLocation(scene, currentLocation, scenes, locations),
+    [scene, currentLocation, scenes, locations],
   );
+
+  const mapLocation = useMemo(() => {
+    const base = parentSceneLocation ?? currentLocation;
+    if (!base) return null;
+    return resolveSceneMapLocation(base, locations, showParentMapIfNoImage) ?? base;
+  }, [parentSceneLocation, currentLocation, locations, showParentMapIfNoImage]);
 
   useEffect(() => {
     if (!fullscreen) return;
@@ -92,6 +114,10 @@ export default function SceneMiniMap({
     Boolean(mapLocation) &&
     Boolean(currentLocation) &&
     mapLocation!.id !== currentLocation.id;
+
+  const parentSceneCaption = parentSceneLocation && usingParent
+    ? `Карта родительской локации${parentSceneLocation.name ? ` «${parentSceneLocation.name}»` : ''}`
+    : null;
 
   return (
     <>
@@ -110,7 +136,7 @@ export default function SceneMiniMap({
         {mapLocation ? (
           <button
             type="button"
-            title={usingParent ? `Карта: ${mapLocation.name}` : 'Открыть карту'}
+            title={parentSceneCaption ?? (usingParent ? `Карта: ${mapLocation.name}` : 'Открыть карту')}
             onClick={() => setFullscreen(true)}
             className="relative h-28 w-full overflow-hidden rounded-md border border-gray-700 bg-gray-900 text-left hover:border-gray-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
@@ -119,7 +145,6 @@ export default function SceneMiniMap({
                 location={locationWithDisplayPolygons(mapLocation, locations)}
                 scenes={scenes}
                 session={session ?? undefined}
-                enabledPolygonIds={enabledPolygonIds}
                 dimHidden={dimHidden}
                 interactive={false}
                 className="h-full w-full"
@@ -127,7 +152,9 @@ export default function SceneMiniMap({
             </div>
             <div className="absolute inset-x-0 bottom-0 flex items-center gap-1 bg-black/55 px-1.5 py-0.5 text-[10px] text-white/80">
               <MapIcon className="h-3 w-3 shrink-0" />
-              <span className="truncate">{usingParent ? mapLocation.name : 'Карта'}</span>
+              <span className="truncate">
+                {parentSceneCaption ? 'Карта родительской локации' : usingParent ? mapLocation.name : 'Карта'}
+              </span>
             </div>
           </button>
         ) : (
@@ -151,7 +178,11 @@ export default function SceneMiniMap({
           >
             <div className="min-w-0 text-sm font-semibold text-white truncate">
               {mapLocation.name}
-              {usingParent ? (
+              {parentSceneCaption ? (
+                <span className="ml-2 text-xs font-normal text-amber-200/90">
+                  {parentSceneCaption}
+                </span>
+              ) : usingParent ? (
                 <span className="ml-2 text-xs font-normal text-gray-400">
                   (для {currentLocation.name})
                 </span>
@@ -176,7 +207,6 @@ export default function SceneMiniMap({
               location={locationWithDisplayPolygons(mapLocation, locations)}
               scenes={scenes}
               session={session ?? undefined}
-              enabledPolygonIds={enabledPolygonIds}
               dimHidden={dimHidden}
               className="h-full w-full"
             />

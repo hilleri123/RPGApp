@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from typing import Literal, Optional
 from pydantic import BaseModel, Field
-from uuid import UUID
 
 from app.scheme.audio import AudioTrackOut
 from app.scheme.location import Location, LocationBase, LocationOut  # если у тебя другой импорт — поправь
@@ -32,8 +31,6 @@ class MasterSessionInit(WsBase):
     locations: list[LocationOut] = Field(default_factory=list)
     story_beats: list[StoryBeatOut] = Field(default_factory=list)  # или InnerStoryBeat, как у тебя называется
     factories: list[Factory] = Field(default_factory=list)
-
-    polygon_shown: list[UUID] = Field(default_factory=list)
 
     # always:
     notes: list[Note] = Field(default_factory=list)
@@ -88,7 +85,6 @@ class MasterSessionUpdate(WsBase):
     logs: Optional[list] = None
     actions: Optional[list] = None
     settings: Optional[Settings] = None
-    polygon_shown: list[UUID] = Field(default_factory=list)
 
     timeline: Optional[SessionTimeline] = None
 
@@ -121,7 +117,6 @@ class PlayerSessionInit(WsBase):
     session: GameSession
     self_player: Optional[dict] = None
     settings: Optional[Settings] = None
-    polygon_shown: list[UUID] = Field(default_factory=list)
 
     audio_queue: list[AudioQueueEntry] = Field(default_factory=list)
     audio_player: AudioPlayerState = Field(default_factory=AudioPlayerState)
@@ -147,7 +142,6 @@ class PlayerSessionUpdate(WsBase):
     logs: Optional[list] = None
     actions: Optional[list] = None
     settings: Optional[Settings] = None
-    polygon_shown: list[UUID] = Field(default_factory=list)
 
     audio_queue: list[AudioQueueEntry] = Field(default_factory=list)
     audio_player: AudioPlayerState = Field(default_factory=AudioPlayerState)
@@ -162,7 +156,6 @@ class ObserverSessionInit(BaseModel):
     session: GameSession
     
     location: list[Location] = Field(default_factory=list)
-    polygon_shown: list[UUID] = Field(default_factory=list)
     characters: list[InnerCharacter] = Field(default_factory=list)
     players: list = Field(default_factory=list)
 
@@ -179,7 +172,6 @@ class ObserverSessionUpdate(BaseModel):
     fields: list[str] = Field(default_factory=list)
 
     location: list[Location] = Field(default_factory=list)
-    polygon_shown: list[UUID] = Field(default_factory=list)
 
     locations: list[LocationOut] = Field(default_factory=list)
     scenes: list[Scene] = Field(default_factory=list)

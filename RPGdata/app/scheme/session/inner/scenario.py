@@ -98,6 +98,5 @@ class InnerSecenario(Scenario):
 
     # seen
     seen: Set[UUID] = Field(default_factory=set)
-    polygon_shown: Set[UUID] = Field(default_factory=set)
 
 

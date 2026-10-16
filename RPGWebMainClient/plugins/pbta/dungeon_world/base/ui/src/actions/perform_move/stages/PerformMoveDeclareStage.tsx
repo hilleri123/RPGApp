@@ -5,8 +5,6 @@ import { Sparkles, X, Plus, Minus } from 'lucide-react';
 import { getSceneBundle } from 'plugins/common/types/actionSelectors';
 import {
   parseMovesFromStageData,
-  getActorName,
-  getTargetName,
   asNum,
   type MoveLite,
   type SkillConfig,
@@ -522,15 +520,6 @@ export function PerformMoveDeclareStage({ action, value, patch, onPatch, onSubmi
         <span className={`text-[10px] px-2 py-0.5 rounded-full border ${MODE_BADGE_CLASS[sceneMode]}`}>
           {modeLabel}
         </span>
-      </div>
-
-      <p className="text-xs text-white/40 -mt-2">
-        Доступны только ходы, подходящие к типу сцены ({modeLabel.toLowerCase()}).
-      </p>
-
-      <div className="rounded border border-white/10 bg-zinc-950/20 p-3 text-sm space-y-1">
-        <div className="text-white">{getActorName(scene, entry)}</div>
-        {entry.target_kind !== 'none' && <div className="text-white/60">{getTargetName(scene, entry)}</div>}
       </div>
 
       <div className="space-y-1">

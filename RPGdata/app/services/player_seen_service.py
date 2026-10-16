@@ -40,7 +40,7 @@ async def get_player_seen(
     *,
     launched_scenario_id: UUID,
     user_id: UUID,
-) -> tuple[Set[UUID], Set[UUID], list[PlayerSeenEntry]]:
+) -> tuple[Set[UUID], list[PlayerSeenEntry]]:
     seen_stmt = select(models.PlayerSeen).where(
         models.PlayerSeen.launched_scenario_id == launched_scenario_id,
         models.PlayerSeen.user_id == user_id,
@@ -56,37 +56,7 @@ async def get_player_seen(
         for row in seen_rows
     ]
 
-    poly_stmt = select(models.PlayerSeenState).where(
-        models.PlayerSeenState.launched_scenario_id == launched_scenario_id,
-        models.PlayerSeenState.user_id == user_id,
-    )
-    poly_row = (await db.execute(poly_stmt)).scalars().first()
-    polygon_ids = _to_uuid_set(poly_row.polygon_shown_ids if poly_row else [])
-
-    return seen_ids, polygon_ids, records
-
-
-async def _ensure_polygon_state_row(
-    db: AsyncSession,
-    *,
-    launched_scenario_id: UUID,
-    user_id: UUID,
-) -> models.PlayerSeenState:
-    stmt = select(models.PlayerSeenState).where(
-        models.PlayerSeenState.launched_scenario_id == launched_scenario_id,
-        models.PlayerSeenState.user_id == user_id,
-    )
-    row = (await db.execute(stmt)).scalars().first()
-    if row is None:
-        row = models.PlayerSeenState(
-            launched_scenario_id=launched_scenario_id,
-            user_id=user_id,
-            seen_ids=[],
-            polygon_shown_ids=[],
-        )
-        db.add(row)
-        await db.flush()
-    return row
+    return seen_ids, records
 
 
 async def revoke_entity_data_access(
@@ -211,7 +181,6 @@ async def add_player_seen(
     launched_scenario_id: UUID,
     user_id: UUID,
     seen_ids: Iterable[UUID] | None = None,
-    polygon_shown_ids: Iterable[UUID] | None = None,
     inner=None,
     data_access: SeenDataAccess = SeenDataAccess.NONE,
 ) -> None:
@@ -225,17 +194,6 @@ async def add_player_seen(
             entries=entries,
         )
 
-    if polygon_shown_ids:
-        row = await _ensure_polygon_state_row(
-            db,
-            launched_scenario_id=launched_scenario_id,
-            user_id=user_id,
-        )
-        poly = _to_uuid_set(row.polygon_shown_ids)
-        poly.update(polygon_shown_ids)
-        row.polygon_shown_ids = [str(x) for x in poly]
-        await db.flush()
-
 
 async def add_seen_for_users(
     db: AsyncSession,
@@ -243,7 +201,6 @@ async def add_seen_for_users(
     launched_scenario_id: UUID,
     user_ids: Iterable[UUID],
     seen_ids: Iterable[UUID] | None = None,
-    polygon_shown_ids: Iterable[UUID] | None = None,
     inner=None,
     data_access: SeenDataAccess = SeenDataAccess.NONE,
 ) -> None:
@@ -253,7 +210,6 @@ async def add_seen_for_users(
             launched_scenario_id=launched_scenario_id,
             user_id=uid,
             seen_ids=seen_ids,
-            polygon_shown_ids=polygon_shown_ids,
             inner=inner,
             data_access=data_access,
         )

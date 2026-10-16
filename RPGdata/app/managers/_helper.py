@@ -166,15 +166,6 @@ def _free_items(items: list) -> list:
     ]
 
 
-def _visible_polygon_ids(locations: list[scheme.InnerLocation]) -> set[SAUUID]:
-    ids: set[SAUUID] = set()
-    for loc in locations:
-        for p in (loc.map_objects or []):
-            if p.is_shown:
-                ids.add(p.id)
-    return ids
-
-
 def _convert_player(p: models.Player) -> dict:
     snapshot = p.character_snapshot or None
     character_id = p.character_id
@@ -246,7 +237,6 @@ async def build_session_inner(
         "audio":       audio_tracks,   # ← все треки сценария одним списком
 
         "seen":           _as_uuid_set(getattr(gs, "seen", None)),
-        "polygon_shown":  _as_uuid_set(getattr(gs, "polygon_shown", None)),
         "factories":      factories_payload,
     })
 
@@ -263,7 +253,6 @@ async def build_session_inner(
         "scenes": getattr(gs, "scenes", None) or [],
         "settings": scheme.Settings(),
         "obstacles": [],
-        "polygon_shown": _visible_polygon_ids(inner_scenario.locations),
     })
 
 

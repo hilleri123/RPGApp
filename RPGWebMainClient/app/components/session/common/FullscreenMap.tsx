@@ -16,7 +16,6 @@ import { GameSessionBase, Scene } from '@/app/services/types/session';
 
 interface FullscreenMapProps {
   currentLocation: Location;
-  enabledPolygonIds: string[];
   setCurrentLocation?: (location: Location) => void;
   locationList?: Location[];
   characters: PlayerCharacter[]; // сейчас не используется, оставил чтобы не ломать API
@@ -31,11 +30,11 @@ interface FullscreenMapProps {
   draftPoints?: MapObjectPolygonPoint[];
   onDraftPoint?: (point: MapObjectPolygonPoint) => void;
   drawBar?: ReactNode;
+  subtitle?: string;
 }
 
 export default function FullscreenMap({
   currentLocation,
-  enabledPolygonIds,
   setCurrentLocation,
   locationList,
   characters,
@@ -50,6 +49,7 @@ export default function FullscreenMap({
   draftPoints = [],
   onDraftPoint,
   drawBar,
+  subtitle,
 }: FullscreenMapProps) {
   const showLocationsPanel = Boolean(isMaster && locationList && setCurrentLocation);
   const showPolygonPanel = Boolean(isMaster);
@@ -77,6 +77,9 @@ export default function FullscreenMap({
               <h1 className={['font-bold truncate', isMaster ? 'text-xl md:text-2xl' : 'text-lg'].join(' ')}>
                 {currentLocation.name}
               </h1>
+              {subtitle ? (
+                <p className="text-xs text-amber-200/90 truncate">{subtitle}</p>
+              ) : null}
             </div>
           </div>
 
@@ -100,7 +103,6 @@ export default function FullscreenMap({
                 location={currentLocation}
                 scenes={scenes}
                 session={session}
-                enabledPolygonIds={enabledPolygonIds}
                 onPolygonClicked={onPolygonClicked}
                 className="h-full w-full"
               />
@@ -114,7 +116,6 @@ export default function FullscreenMap({
                     location={currentLocation}
                     scenes={scenes}
                     session={session}
-                    enabledPolygonIds={enabledPolygonIds}
                     onPolygonClicked={onPolygonClicked}
                     dimHidden={dimHidden}
                     isDrawing={isDrawing}
@@ -127,7 +128,6 @@ export default function FullscreenMap({
                 {showPolygonPanel && hasPolygons && (
                   <div className="w-full md:w-[340px] lg:w-[380px] shrink-0 min-h-0 overflow-hidden">
                     <PolygonListViewer 
-                      enabledPolygonIds={enabledPolygonIds}
                       location={currentLocation} 
                       onToggleShown={onToggleShown} 
                       isMaster={true} 

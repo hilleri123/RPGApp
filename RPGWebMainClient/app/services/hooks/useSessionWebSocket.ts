@@ -32,6 +32,7 @@ import {
   AudioCommandSyncPosition,
   MasterToggleLocationHidden,
   MasterExpandScene,
+  MasterSetShowParentSceneMap,
   MasterCollapseScene,
   AudioCommandEnqueueTrack,
   RevokeDispatch,
@@ -61,7 +62,7 @@ export function useSessionWebSocket(sessionId: string) {
   const { 
     session, locations, characters, npcs, items, scenes, 
     notes, counters, storyBeats, factories, actions,
-    logs, notifications, dispatches, message_replies, observers, settings, polygon_shown, 
+    logs, notifications, dispatches, message_replies, observers, settings, 
     audio_queue, audio_player, timeline, audio,
     selfPlayer, isMaster, isPlayer,
     presentedEntity, dataRevealedEntities, playerSeen,
@@ -119,6 +120,16 @@ export function useSessionWebSocket(sessionId: string) {
       user_role: MASTER_ROLE,
       msg_type: 'scene_expand',
       scene_id: sceneId,
+    };
+    sendAction(action);
+  }, [sendAction]);
+
+  const setShowParentSceneMap = useCallback((sceneId: string, value: boolean) => {
+    const action: MasterSetShowParentSceneMap = {
+      user_role: MASTER_ROLE,
+      msg_type: 'set_show_parent_scene_map',
+      scene_id: sceneId,
+      value,
     };
     sendAction(action);
   }, [sendAction]);
@@ -682,10 +693,10 @@ export function useSessionWebSocket(sessionId: string) {
   // Мемоизация результата чтобы не пересоздавать объект на каждый рендер
   return useMemo(() => ({
     connected, selfPlayer,
-    session, locations, characters, npcs, items, scenes, notes, counters, logs, actions, observers, settings, polygon_shown,
+    session, locations, characters, npcs, items, scenes, notes, counters, logs, actions, observers, settings,
     audio_queue, audio_player, presentedEntity, dataRevealedEntities, playerSeen,
     isMaster, isPlayer, notifications, dispatches, message_replies, storyBeats, factories, pluginUI, timeline, audio,
-    setLocationCheck, addScene, updateScene, delScene, expandScene, collapseScene, moveCharacterToScene, makeNPCDead,
+    setLocationCheck, addScene, updateScene, delScene, expandScene, setShowParentSceneMap, collapseScene, moveCharacterToScene, makeNPCDead,
     moveToScene, moveOutScene, mergeScene, setMainScene, setSceneLocation, setSceneTime, setSessionTime, makeElementPublic,
     moveItem, dropItem, takeItem, submitActionStep, patchActionStep, updateSettings, setDefaultSettings,
     masterKickPlayer, masterDeselectPlayerCharacter, masterAssignPlayerCharacter, masterSetPlayerColor,
@@ -696,10 +707,10 @@ export function useSessionWebSocket(sessionId: string) {
     sendRequest, createFactoryObject, applySceneExposure, audioCommand, audioPlayEntry, enqueueAudioTrack, setMasterVolume, syncPosition, toggleLocationHidden,
     reloadSessionFields, presentEntity, dismissPresentedEntity, grantEntityDataAccess, revokeEntityDataAccess,
   }), [
-    connected, selfPlayer, session, locations, characters, npcs, items, scenes, observers, settings, polygon_shown,
+    connected, selfPlayer, session, locations, characters, npcs, items, scenes, observers, settings,
     audio_queue, audio_player, presentedEntity, dataRevealedEntities, playerSeen,
     notes, counters, logs, actions, isMaster, isPlayer, notifications, dispatches, message_replies, storyBeats, factories, pluginUI, timeline, audio,
-    setLocationCheck, addScene, updateScene, delScene, expandScene, collapseScene, moveCharacterToScene, makeNPCDead,
+    setLocationCheck, addScene, updateScene, delScene, expandScene, setShowParentSceneMap, collapseScene, moveCharacterToScene, makeNPCDead,
     moveToScene, moveOutScene, mergeScene, setMainScene, setSceneLocation, setSceneTime, setSessionTime, makeElementPublic,
     moveItem, dropItem, takeItem, submitActionStep, patchActionStep, updateSettings, setDefaultSettings,
     masterKickPlayer, masterDeselectPlayerCharacter, masterAssignPlayerCharacter, masterSetPlayerColor,

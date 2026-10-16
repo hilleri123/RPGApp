@@ -9,7 +9,10 @@ import {
   clampElementToCanvas,
   constrainSceneToCanvas,
   isMapCanvasHelperElement,
+  MAP_CANVAS_BOARD_ID,
   MAP_CANVAS_FRAME_ID,
+  MAP_CANVAS_UNDERLAY_FILE_ID,
+  MAP_CANVAS_UNDERLAY_ID,
 } from './excalidrawCanvasBounds';
 
 describe('mapCanvasUtils', () => {
@@ -81,8 +84,23 @@ describe('mapCanvasUtils', () => {
     );
     expect(scene.changed).toBe(true);
     expect(scene.elements.some((el) => el.id === MAP_CANVAS_FRAME_ID)).toBe(true);
+    const board = scene.elements.find((el) => el.id === MAP_CANVAS_BOARD_ID)!;
+    expect(board.backgroundColor).toBe('#ffffff');
+    expect(scene.elements.findIndex((el) => el.id === MAP_CANVAS_BOARD_ID)).toBeLessThan(
+      scene.elements.findIndex((el) => el.id === 'r'),
+    );
     const user = scene.elements.find((el) => el.id === 'r')!;
     expect(user.x + user.width).toBeLessThanOrEqual(200);
     expect(isMapCanvasHelperElement({ id: MAP_CANVAS_FRAME_ID })).toBe(true);
+
+    const withImage = constrainSceneToCanvas(scene.elements, 200, 100, MAP_CANVAS_UNDERLAY_FILE_ID);
+    const image = withImage.elements.find((el) => el.id === MAP_CANVAS_UNDERLAY_ID)!;
+    expect(image.fileId).toBe(MAP_CANVAS_UNDERLAY_FILE_ID);
+    expect(withImage.elements.findIndex((el) => el.id === MAP_CANVAS_UNDERLAY_ID)).toBeGreaterThan(
+      withImage.elements.findIndex((el) => el.id === MAP_CANVAS_BOARD_ID),
+    );
+    expect(withImage.elements.findIndex((el) => el.id === MAP_CANVAS_UNDERLAY_ID)).toBeLessThan(
+      withImage.elements.findIndex((el) => el.id === 'r'),
+    );
   });
 });

@@ -9,7 +9,6 @@ export type ObserverInitMsg = {
   msg_type: 'observer_init';
   session: GameSessionBase;
   location?: Location[];
-  polygon_shown?: string[];
   characters?: any[];
   players?: any[];
   locations?: Location[];
@@ -23,7 +22,6 @@ export type ObserverUpdateMsg = {
   location?: Location[];
   locations?: Location[];
   scenes?: Scene[];
-  polygon_shown?: string[];
   presented_entity?: PresentedEntityView | null;
 };
 
@@ -38,7 +36,6 @@ export type ObserverStoreState = {
   session: GameSessionBase | null;
   location: Location | null;
   locations: Location[];
-  visiblePolygonIds: string[];
   characters: any[];
   players: any[];
   scenes: Scene[];
@@ -62,7 +59,6 @@ export function createObserverStore(code: string) {
     session: null,
     location: null,
     locations: [],
-    visiblePolygonIds: [],
     characters: [],
     players: [],
     scenes: [],
@@ -82,7 +78,6 @@ export function createObserverStore(code: string) {
           session: msg.session ?? null,
           location: msg.location?.[0] ?? null,
           locations: msg.locations ?? [],
-          visiblePolygonIds: msg.polygon_shown ?? [],
           characters: msg.characters ?? [],
           players: msg.players ?? [],
           scenes: msg.scenes ?? [],
@@ -110,10 +105,6 @@ export function createObserverStore(code: string) {
           locations: shouldUpdate('locations')
             ? (msg.locations != null ? msg.locations : prev.locations)
             : prev.locations,
-
-          visiblePolygonIds: shouldUpdate('polygon_shown')
-            ? (msg.polygon_shown != null ? msg.polygon_shown : prev.visiblePolygonIds)
-            : prev.visiblePolygonIds,
 
           scenes: shouldUpdate('scenes')
             ? (msg.scenes != null ? msg.scenes : prev.scenes)

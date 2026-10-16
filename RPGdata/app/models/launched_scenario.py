@@ -57,7 +57,6 @@ class PlayerSeenState(Base):
     )
     user_id = Column(Uuid, ForeignKey("user.id", ondelete="CASCADE"), nullable=False, index=True)
     seen_ids = Column(JSON, nullable=False, default=list)  # legacy; use PlayerSeen rows
-    polygon_shown_ids = Column(JSON, nullable=False, default=list)
     updated_at = Column(
         DateTime(timezone=True),
         default=lambda: datetime.now(timezone.utc),

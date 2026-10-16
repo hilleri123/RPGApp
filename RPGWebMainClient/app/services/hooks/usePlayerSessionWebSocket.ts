@@ -32,7 +32,7 @@ function usePlayerSessionWebSocketLive(sessionId: string) {
   const { 
     session, locations, characters, npcs, items, scenes, notes, message_replies,
     audio_queue, audio_player,
-    logs, selfPlayer, isPlayer , notifications, dispatches, actions,     polygon_shown, settings,
+    logs, selfPlayer, isPlayer , notifications, dispatches, actions, settings,
     playerSeen,
     presentedEntity,
   } = sessionData || {};
@@ -252,7 +252,7 @@ function usePlayerSessionWebSocketLive(sessionId: string) {
   // Мемоизация результата
   return useMemo(() => ({
     connected, selfPlayer,
-    session, locations, characters, npcs, items, scene, scenes, notes, message_replies, logs, polygon_shown,
+    session, locations, characters, npcs, items, scene, scenes, notes, message_replies, logs,
     isPlayer, notifications, dispatches, actions, settings, audio_queue, audio_player, pluginUI, playerSeen, presentedEntity,
     takeItem, dropItem, runSceneAction, changeNoteStatus, dispatchNote, markDispatchOpened, editDispatch,
     editNote, playerCreateNote, publishNote,
@@ -260,7 +260,7 @@ function usePlayerSessionWebSocketLive(sessionId: string) {
     readNotififcations, sendRequest, submitActionStep, patchActionStep, cancelSceneAction,
     listReplaceCharacterOptions, replaceCharacter,
   }), [
-    connected, selfPlayer, session, locations, characters, npcs, items, polygon_shown,
+    connected, selfPlayer, session, locations, characters, npcs, items,
     scene, scenes, notes, message_replies, logs, isPlayer, notifications, dispatches, actions, settings, audio_queue, audio_player, pluginUI, playerSeen, presentedEntity,
     takeItem, dropItem, runSceneAction, changeNoteStatus, dispatchNote, markDispatchOpened, editDispatch,
     editNote, playerCreateNote, publishNote,

@@ -29,11 +29,11 @@ export function MasterLeftColumn({ sessionId }: { sessionId: string }) {
     characters,
     scenes,
     session,
-    polygon_shown,
     isMaster,
     timeline,
     setLocationCheck,
     setSceneLocation,
+    setShowParentSceneMap,
     addScene,
     reloadSessionFields,
     toggleLocationHidden,
@@ -224,7 +224,6 @@ export function MasterLeftColumn({ sessionId }: { sessionId: string }) {
                   <MapSection
                     currentLocation={mapLocation}
                     locationList={locations}
-                    enabledPolygonIds={polygon_shown}
                     scenes={scenes}
                     currentScene={mapTab === 'scene' ? currentScene : null}
                     session={session}
@@ -237,6 +236,11 @@ export function MasterLeftColumn({ sessionId }: { sessionId: string }) {
                     onEditLocation={openEditLocationDialog}
                     onToggleHidden={toggleLocationHidden}
                     onAddTODO={(id: string, text: string) => {}}
+                    onToggleShowParentSceneMap={
+                      mapTab === 'scene' && currentScene
+                        ? (value) => setShowParentSceneMap(currentScene.id, value)
+                        : undefined
+                    }
                     className="w-full h-full"
                   />
                 </div>

@@ -23,7 +23,7 @@ interface PlayerSceneTabProps {
 }
 
 export default function PlayerSceneTab({ sessionId }: PlayerSceneTabProps) {
-  const { scene, scenes, selfPlayer, session, audio_player, pluginUI, takeItem, playerSeen, locations, polygon_shown } =
+  const { scene, scenes, selfPlayer, session, audio_player, pluginUI, takeItem, playerSeen, locations } =
     usePlayerSessionWebSocket(sessionId);
   const entityDialogs = useSessionEntityDialogs();
 
@@ -137,11 +137,11 @@ export default function PlayerSceneTab({ sessionId }: PlayerSceneTabProps) {
           </div>
 
           <SceneMiniMap
+            scene={scene}
             location={scene.location ?? null}
             locations={locations ?? (scene.location ? [scene.location] : [])}
             scenes={scenes}
             session={session}
-            enabledPolygonIds={polygon_shown ?? []}
           />
         </div>
 
