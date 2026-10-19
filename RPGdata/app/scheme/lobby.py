@@ -31,6 +31,10 @@ class LobbyBase(BaseModel):
     # Не хранится в Redis: присутствие считается в момент рассылки по живым сокетам
     # (id мастера, приглашённых, ожидающих и игроков, у которых сейчас есть соединение).
     online_user_ids: Optional[List[UUID]] = Field(default_factory=list)
+    jitsi_room_url: str = ""
+    jitsi_password: str = ""
+    jitsi_music: bool = False
+    jitsi_auto: bool = False
 
     model_config = ConfigDict(
         ser_json_encoders={

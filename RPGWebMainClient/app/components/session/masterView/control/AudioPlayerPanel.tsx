@@ -27,18 +27,29 @@ function ProgressBar({
   duration,
   isMaster,
   onSeek,
+  clock,
 }: {
   audioRef: React.RefObject<HTMLAudioElement | null>;
   duration: number | null;
   isMaster: boolean;
   onSeek?: (sec: number) => void;
+  clock?: { positionSec: number; positionAt: string | null; playing: boolean } | null;
 }) {
   const [currentTime, setCurrentTime] = useState(0);
   const rafRef = useRef<number | null>(null);
 
-  // анимируем через requestAnimationFrame
+  const clockRef = useRef(clock);
+  clockRef.current = clock;
+
   const tick = useCallback(() => {
-    if (audioRef.current) setCurrentTime(audioRef.current.currentTime);
+    const current = clockRef.current;
+    if (current) {
+      const started = current.positionAt ? new Date(current.positionAt).getTime() : NaN;
+      const elapsed = current.playing && !Number.isNaN(started) ? (Date.now() - started) / 1000 : 0;
+      setCurrentTime(Math.max(0, current.positionSec + elapsed));
+    } else if (audioRef.current) {
+      setCurrentTime(audioRef.current.currentTime);
+    }
     rafRef.current = requestAnimationFrame(tick);
   }, [audioRef]);
 
@@ -115,6 +126,8 @@ export function AudioPlayerPanel({ sessionId }: Props) {
   const masterVolume   = audio_player?.volume           ?? 1.0;
   const positionSec    = audio_player?.position_sec     ?? 0.0;
   const positionAt     = audio_player?.position_at      ?? null;
+  const inJitsi        = audio_player?.via === 'jitsi';
+  const audible        = playing && !inJitsi;
 
   const effectiveVolume = muted ? 0 : Math.min(1, masterVolume * localVolume);
 
@@ -140,24 +153,25 @@ export function AudioPlayerPanel({ sessionId }: Props) {
       el.src    = currentEntry.track_url;
       el.loop   = currentEntry.loop;
       el.volume = effectiveVolume;
-      if (positionAt && playing) {
+      if (positionAt && audible) {
         const elapsed = (Date.now() - new Date(positionAt).getTime()) / 1000;
         el.currentTime = Math.max(0, positionSec + elapsed);
       } else {
         el.currentTime = positionSec;
       }
-      if (playing) el.play().catch(() => {});
+      if (audible) el.play().catch(() => {});
+      else el.pause();
     } else {
       el.pause();
       el.src = '';
     }
-  }, [currentEntryId]); // eslint-disable-line
+  }, [currentEntryId, audible]); // eslint-disable-line
 
   // ── play / pause ───────────────────────────────────────────────────────────
   useEffect(() => {
     const el = audioRef.current;
     if (!el || !currentEntry) return;
-    if (playing) {
+    if (audible) {
       if (positionAt) {
         const elapsed = (Date.now() - new Date(positionAt).getTime()) / 1000;
         el.currentTime = Math.max(0, positionSec + elapsed);
@@ -166,7 +180,7 @@ export function AudioPlayerPanel({ sessionId }: Props) {
     } else {
       el.pause();
     }
-  }, [playing]); // eslint-disable-line
+  }, [audible]); // eslint-disable-line
 
   // ── громкость ──────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -201,7 +215,8 @@ export function AudioPlayerPanel({ sessionId }: Props) {
                 <span className="font-normal text-gray-500">Не выбран</span>
               )}
             </span>
-            {playing && <span className="shrink-0 text-xs text-indigo-400 animate-pulse">▶</span>}
+            {playing && !inJitsi && <span className="shrink-0 text-xs text-indigo-400 animate-pulse">▶</span>}
+            {playing && inJitsi && <span className="shrink-0 text-xs text-gray-500">в Jitsi</span>}
           </div>
           {currentEntry && (
             <p className="pl-5 mt-0.5 truncate text-xs text-gray-500">
@@ -254,6 +269,7 @@ export function AudioPlayerPanel({ sessionId }: Props) {
           duration={currentEntry.track_duration ?? null}
           isMaster={isMaster}
           onSeek={isMaster ? syncPosition : undefined}
+          clock={inJitsi ? { positionSec, positionAt, playing } : null}
         />
       )}
 

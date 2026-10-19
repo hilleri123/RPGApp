@@ -265,3 +265,36 @@ def test_damage_quick_option_uses_playbook_die():
     )
     opts = damage_quick_options(scene, codex)
     assert [o["damage_expr"] for o in opts if o["kind"] == "character"] == [die]
+
+
+def test_weapon_choice_brings_bonus_and_piercing():
+    from plugins.common.types.context import ItemContext
+    from plugins.pbta.dungeon_world.base.backend.workflows.perform_move.helpers import (
+        damage_quick_options,
+    )
+
+    hero = uuid4()
+    sword = ItemContext(
+        id=uuid4(),
+        name="Меч",
+        data={
+            "weapon": {
+                "damage_dice": "d10",
+                "damage_bonus": {"bonus": 1},
+                "piercing": {"value": 2},
+                "mechanic_tags": ["ignores-armor"],
+            }
+        },
+    )
+    scene = SceneContext(
+        id=uuid4(),
+        name="s",
+        data={},
+        characters=[CharacterContext(id=hero, name="Герой", data={"damage_die": "d8"}, items=[sword])],
+        npcs=[],
+    )
+    weapon = next(o for o in damage_quick_options(scene) if o["kind"] == "character_weapon")
+    assert weapon["damage_expr"] == "d10+1"
+    assert weapon["piercing"] == 2
+    assert weapon["ignores_armor"] is True
+    assert weapon["weapon_name"] == "Меч"

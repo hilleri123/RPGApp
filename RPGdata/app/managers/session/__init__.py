@@ -1195,6 +1195,9 @@ class CurrentSessionManager(
 
                 await detach_application_pool_from_scenario(db, gs.scenario_id)
 
+            from app.services.table_session import settle_tables
+
+            await settle_tables(db, gs.id, discard=forced)
             gs.is_active = False
             gs.status = (
                 models.GameSessionStatus.finished_forced

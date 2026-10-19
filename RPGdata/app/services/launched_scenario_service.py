@@ -385,6 +385,9 @@ async def start_approach(
         await _resume_launched_redis(db, approach=gs_db, launched=launched, players=players)
     else:
         await _init_launched_redis(db, approach=gs_db, launched=launched, players=players)
+    from app.services.table_session import carry_lobby_table
+
+    await carry_lobby_table(db, lobby, gs.id)
 
     await db.commit()
     return scheme.SessionRedirect(session_id=gs.id)
@@ -494,6 +497,9 @@ async def launch_and_start_approach(
     )
     gs_db = (await db.execute(stmt)).scalar_one()
     await _init_launched_redis(db, approach=gs_db, launched=launched, players=players)
+    from app.services.table_session import carry_lobby_table
+
+    await carry_lobby_table(db, lobby, gs.id)
     if campaign_id is not None:
         await _patch_runtime_campaign_meta(
             launched.id,

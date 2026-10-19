@@ -12,6 +12,7 @@ import { SessionObserversPanel } from '@/app/components/session/masterView/Sessi
 import { SessionPlayersPanel } from '@/app/components/session/masterView/control/SessionPlayersPanel';
 import { Input } from '@/components/ui/input';
 import { CloseSessionDialog } from '@/app/components/session/masterView/control/CloseSessionDialog';
+import { TableBotPanel } from '@/app/components/session/masterView/control/TableBotPanel';
 
 type CheckedState = boolean | 'indeterminate';
 
@@ -45,7 +46,7 @@ export function SessionSettingsDialog({
   const [local, setLocal] = useState<SessionSettings>(DEFAULT_SETTINGS);
   const [saving, setSaving] = useState(false);
   const [closeOpen, setCloseOpen] = useState(false);
-  const [tab, setTab] = useState<'settings' | 'players' | 'observers' | 'session'>('settings');
+  const [tab, setTab] = useState<'settings' | 'players' | 'observers' | 'session' | 'jitsi'>('settings');
   const wasOpenRef = useRef(false);
 
   useEffect(() => {
@@ -89,11 +90,12 @@ export function SessionSettingsDialog({
           </DialogHeader>
 
           <Tabs value={tab} onValueChange={(v) => setTab(v as typeof tab)} className="flex-1 min-h-0 flex flex-col">
-            <TabsList className="w-full grid grid-cols-4">
+            <TabsList className="w-full grid grid-cols-5">
               <TabsTrigger value="settings">Основные</TabsTrigger>
               <TabsTrigger value="players">Игроки</TabsTrigger>
               <TabsTrigger value="observers">Обсерверы</TabsTrigger>
               <TabsTrigger value="session">Сессия</TabsTrigger>
+              <TabsTrigger value="jitsi">Jitsi</TabsTrigger>
             </TabsList>
 
             <TabsContent value="settings" className="flex-1 overflow-y-auto mt-4 space-y-5">
@@ -236,6 +238,12 @@ export function SessionSettingsDialog({
 
             <TabsContent value="observers" className="flex-1 overflow-y-auto mt-4">
               {sessionId ? <SessionObserversPanel sessionId={sessionId} /> : null}
+            </TabsContent>
+
+            <TabsContent value="jitsi" className="flex-1 overflow-y-auto mt-4">
+              {sessionId ? <TableBotPanel sessionId={sessionId} /> : (
+                <p className="text-sm text-gray-400">Сессия ещё не открыта.</p>
+              )}
             </TabsContent>
 
             <TabsContent value="session" className="flex-1 overflow-y-auto mt-4 space-y-4">

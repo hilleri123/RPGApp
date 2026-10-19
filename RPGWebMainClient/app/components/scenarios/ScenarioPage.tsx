@@ -26,6 +26,7 @@ import TemplateSetCharactersList from './lists/TemplateSetCharactersList';
 import TemplateSetItemsList from './lists/TemplateSetItemsList';
 import { TodoTab } from './tabs/TodoTab';
 import { ScenarioSettingsTab } from './tabs/ScenarioSettingsTab';
+import { ScenarioTableArchive } from './tabs/ScenarioTableArchive';
 import { ScenarioSearch } from './ScenarioSearch';
 import { useUrlTab } from '@/app/services/hooks/useUrlTab';
 import { Layers } from 'lucide-react';
@@ -42,6 +43,7 @@ const SCENARIO_TABS = [
   'todos',
   'settings',
   'wiki',
+  'table',
 ] as const;
 
 type ScenarioTab = (typeof SCENARIO_TABS)[number];
@@ -190,6 +192,10 @@ export default function ScenarioPage() {
               <BookOpen className="w-4 h-4 mr-1" />
               Wiki
             </TabsTrigger>
+
+            <TabsTrigger value="table">
+              Стол
+            </TabsTrigger>
           </TabsList>
 
           {/* ── Контент табов ── */}
@@ -247,6 +253,10 @@ export default function ScenarioPage() {
 
           <TabsContent value="wiki">
             <ScenarioWikiTab />
+          </TabsContent>
+
+          <TabsContent value="table">
+            <ScenarioTableArchive scenarioId={scenario.id} />
           </TabsContent>
 
         </Tabs>

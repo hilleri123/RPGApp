@@ -5,6 +5,7 @@ import { Loader2 } from "lucide-react";
 import Header from '@/app/components/layout/Header';
 import { MasterCard } from '@/app/components/lobby/MasterCard';
 import { LobbyAccessCard } from '@/app/components/lobby/LobbyAccessCard';
+import { LobbyJitsiCard } from '@/app/components/lobby/LobbyJitsiCard';
 import { ScenarioInfo } from '@/app/components/lobby/ScenarioInfo';
 import { Players } from "@/app/components/lobby/Players";
 import { Characters } from "@/app/components/lobby/Characters";
@@ -99,6 +100,7 @@ function LobbyMasterView({ lobbyId }: { lobbyId: string }) {
             <div className="lg:col-span-1 space-y-4 md:space-y-6">
               <MasterCard lobbyId={lobbyId} />
               <LobbyAccessCard lobbyId={lobbyId} />
+              <LobbyJitsiCard lobbyId={lobbyId} />
             </div>
             <div className="lg:col-span-2"><ScenarioInfo lobbyId={lobbyId} /></div>
           </div>

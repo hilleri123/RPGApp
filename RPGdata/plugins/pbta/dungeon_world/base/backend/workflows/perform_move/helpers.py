@@ -1002,6 +1002,66 @@ def character_damage_die(data: dict[str, Any] | None, full_codex: Any = None) ->
     return "d6"
 
 
+def _mapping(value: Any) -> dict[str, Any]:
+    if isinstance(value, dict):
+        return value
+    if hasattr(value, "model_dump"):
+        dumped = value.model_dump(mode="json")
+        return dumped if isinstance(dumped, dict) else {}
+    return {}
+
+
+def _int_field(value: Any) -> int:
+    if isinstance(value, dict):
+        value = value.get("bonus", value.get("value"))
+    try:
+        return int(value or 0)
+    except (TypeError, ValueError):
+        return 0
+
+
+def _damage_expr(dice: str, bonus: int) -> str:
+    text = (dice or "").strip() or "d6"
+    if bonus > 0:
+        return f"{text}+{bonus}"
+    if bonus < 0:
+        return f"{text}{bonus}"
+    return text
+
+
+def character_weapon_option(character_id: str, character_name: str, item: Any, class_die: str) -> dict[str, Any] | None:
+    """Оружие персонажа: куб, прибавка к урону и пронзание из карточки предмета."""
+    raw = _mapping(item)
+    if not raw:
+        return None
+    data = raw.get("data") if isinstance(raw.get("data"), dict) else {}
+    weapon = data.get("weapon") if isinstance(data.get("weapon"), dict) else None
+    derived_root = data.get("derived") if isinstance(data.get("derived"), dict) else {}
+    derived = derived_root.get("weapon") if isinstance(derived_root.get("weapon"), dict) else None
+    if weapon is None and derived is None:
+        return None
+    weapon = weapon or {}
+    derived = derived or {}
+    dice = str(derived.get("damage_dice") or weapon.get("damage_dice") or class_die or "d6")
+    bonus = _int_field(derived.get("damage_bonus") if derived.get("damage_bonus") is not None else weapon.get("damage_bonus"))
+    piercing = _int_field(derived.get("piercing") if derived.get("piercing") is not None else weapon.get("piercing"))
+    tags = [str(tag) for tag in (weapon.get("mechanic_tags") or [])]
+    ignores = bool(derived.get("ignores_armor")) or "ignores-armor" in tags
+    expr = _damage_expr(dice, bonus)
+    name = str(raw.get("name") or "оружие")
+    return {
+        "kind": "character_weapon",
+        "id": character_id,
+        "weapon_id": str(raw.get("id") or ""),
+        "name": character_name,
+        "weapon_name": name,
+        "damage_expr": expr,
+        "piercing": piercing,
+        "ignores_armor": ignores,
+        "label": f"{character_name} · {name} · {expr}",
+    }
+
+
 def damage_quick_options(scene, full_codex: Any = None) -> list[dict[str, Any]]:
     """Быстрый доступ: кубы урона персонажей и атаки NPC."""
     options: list[dict[str, Any]] = []
@@ -1015,24 +1075,11 @@ def damage_quick_options(scene, full_codex: Any = None) -> list[dict[str, Any]]:
             "damage_expr": die,
             "label": f"{getattr(ch, 'name', ch.id)} · {die}",
         })
-        for item in (data.get("items") or getattr(ch, "items", None) or []):
-            if not isinstance(item, dict):
-                continue
-            item_data = item.get("data") or {}
-            dmg = item_data.get("damage_dice") or item_data.get("damage")
-            if not dmg:
-                continue
-            if not item.get("equipped") and "weapon" not in (item.get("tags") or []):
-                continue
-            options.append({
-                "kind": "character_weapon",
-                "id": str(ch.id),
-                "weapon_id": str(item.get("id") or ""),
-                "name": str(getattr(ch, "name", "") or ch.id),
-                "weapon_name": str(item.get("name") or "оружие"),
-                "damage_expr": str(dmg),
-                "label": f"{getattr(ch, 'name', ch.id)} · {item.get('name')} · {dmg}",
-            })
+        owned = list(getattr(ch, "items", None) or []) + list(data.get("items") or [])
+        for item in owned:
+            option = character_weapon_option(str(ch.id), str(getattr(ch, "name", "") or ch.id), item, die)
+            if option is not None:
+                options.append(option)
 
     for npc in scene.npcs or []:
         for atk in npc_attack_options(npc):

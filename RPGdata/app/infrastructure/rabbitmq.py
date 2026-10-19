@@ -147,6 +147,23 @@ async def start_bot_rpc_consumer() -> None:
     )
 
 
+TABLE_ASR_QUEUE = "table.asr"
+
+
+async def publish_table_asr(segment_id: str) -> None:
+    """Запись готова — воркер забирает её в SpeechKit."""
+    channel = await connect()
+    queue = await channel.declare_queue(TABLE_ASR_QUEUE, durable=True)
+    await channel.default_exchange.publish(
+        Message(
+            body=json.dumps({"segment_id": segment_id}).encode(),
+            content_type="application/json",
+            delivery_mode=aio_pika.DeliveryMode.PERSISTENT,
+        ),
+        routing_key=queue.name,
+    )
+
+
 async def publish_bot_event(event: dict[str, Any]) -> None:
     """Publish a notification event for the Telegram bot (no reply expected).
 

@@ -16,6 +16,9 @@ services:
       WEB_CLIENT_URL: ${WEB_CLIENT_URL:-http://localhost:6602}
       ROOT_PATH: /api
       RABBIT_URL: ${RABBIT_URL:-amqp://rpg:rpg@rabbitmq:5672/}
+      TABLE_BRIDGE_TOKEN: ${TABLE_BRIDGE_TOKEN:-dev-table-bridge}
+      YANDEX_API_KEY: ${YANDEX_API_KEY:-}
+      YANDEX_FOLDER_ID: ${YANDEX_FOLDER_ID:-}
     healthcheck:
       test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health')\""]
       interval: 30s
@@ -135,6 +138,46 @@ services:
         condition: service_healthy
       app:
         condition: service_started
+
+  table-bridge:
+    build:
+      context: ./table-bridge
+    restart: unless-stopped
+    environment:
+      TABLE_API_URL: http://app:8000
+      TABLE_BRIDGE_TOKEN: ${TABLE_BRIDGE_TOKEN:-dev-table-bridge}
+      MEDIA_ROOT: /app/media
+    volumes:
+      - media_data:/app/media
+    depends_on:
+      app:
+        condition: service_started
+
+  table-asr:
+    build:
+      context: ./RPGdata
+      target: dev
+    restart: unless-stopped
+    command: ["python", "-m", "app.workers.table_asr"]
+    environment:
+      PG_ENDPOINT: postgresql://db:5432
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: rpg_sessions
+      SECRET_KEY: ${SECRET_KEY}
+      ENV: development
+      RABBIT_URL: ${RABBIT_URL:-amqp://rpg:rpg@rabbitmq:5672/}
+      YANDEX_API_KEY: ${YANDEX_API_KEY:-}
+      YANDEX_FOLDER_ID: ${YANDEX_FOLDER_ID:-}
+      MEDIA_ROOT: /app/media
+    volumes:
+      - ./RPGdata:/app
+      - media_data:/app/media
+    depends_on:
+      app:
+        condition: service_started
+      rabbitmq:
+        condition: service_healthy
 
 
 volumes:

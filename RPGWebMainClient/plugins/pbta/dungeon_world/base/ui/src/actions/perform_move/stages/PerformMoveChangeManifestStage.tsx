@@ -89,6 +89,8 @@ type DamageQuickOption = {
   damage_expr: string;
   weapon_id?: string;
   weapon_name?: string;
+  piercing?: number;
+  ignores_armor?: boolean;
 };
 
 /** Куб урона персонажа (класс/оружие по умолчанию), который сервер кладёт в damageQuickOptions. */
@@ -196,6 +198,7 @@ function DamageLineForm({
     } else if (kind === 'character' && hpEffect === 'damage') {
       const die = characterDie(quickOptions, kind, id);
       if (die) setDamageExpr(die);
+      setPiercing(0);
       setIgnoreArmor(false);
     }
   };
@@ -312,6 +315,8 @@ function DamageLineForm({
                   setAttackId('');
                   setAttackName('');
                   setDamageExpr(sourceDie);
+                  setPiercing(0);
+                  setIgnoreArmor(false);
                 }}
               >
                 Куб персонажа ({sourceDie})
@@ -330,9 +335,11 @@ function DamageLineForm({
                   setAttackId(String(w.weapon_id || ''));
                   setAttackName(String(w.weapon_name || ''));
                   setDamageExpr(w.damage_expr);
+                  setPiercing(Number(w.piercing || 0));
+                  setIgnoreArmor(Boolean(w.ignores_armor));
                 }}
               >
-                {w.weapon_name} ({w.damage_expr})
+                {w.weapon_name} ({w.damage_expr}{w.piercing ? `, пронзание ${w.piercing}` : ''})
               </button>
             ))}
           </div>

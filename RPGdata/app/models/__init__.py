@@ -18,6 +18,7 @@ from .scenario.character import *
 from .scenario.npc import *
 from .scenario.notes import *
 from .scenario.chronicle import *
+from .scenario.table_session import *
 from .scenario.story_beat import *
 from .scenario.obstacle import *
 from .scenario.scene_exposure import *

@@ -37,6 +37,8 @@ export function AudioPlayerPanel({ sessionId, compact = false }: Props) {
   const positionSec  = audio_player?.position_sec     ?? 0.0;
   const positionAt   = audio_player?.position_at      ?? null;
   const currentId    = audio_player?.current_entry_id ?? null;
+  const inJitsi      = audio_player?.via === 'jitsi';
+  const audible      = playing && !inJitsi;
 
   const currentEntry = (audio_queue ?? []).find((e) => e.id === currentId) ?? null;
 
@@ -59,25 +61,26 @@ export function AudioPlayerPanel({ sessionId, compact = false }: Props) {
       el.volume = effectiveVolume;
 
       // восстанавливаем позицию
-      if (positionAt && playing) {
+      if (positionAt && audible) {
         const elapsed = (Date.now() - new Date(positionAt).getTime()) / 1000;
         el.currentTime = Math.max(0, positionSec + elapsed);
       } else {
         el.currentTime = positionSec;
       }
 
-      if (playing) el.play().catch(() => {});
+      if (audible) el.play().catch(() => {});
+      else el.pause();
     } else {
       el.pause();
       el.src = '';
     }
-  }, [currentId]); // eslint-disable-line
+  }, [currentId, audible]); // eslint-disable-line
 
   // ── play / pause ───────────────────────────────────────────────────────────
   useEffect(() => {
     const el = audioRef.current;
     if (!el || !currentEntry) return;
-    if (playing) {
+    if (audible) {
       if (positionAt) {
         const elapsed = (Date.now() - new Date(positionAt).getTime()) / 1000;
         el.currentTime = Math.max(0, positionSec + elapsed);
@@ -86,7 +89,7 @@ export function AudioPlayerPanel({ sessionId, compact = false }: Props) {
     } else {
       el.pause();
     }
-  }, [playing]); // eslint-disable-line
+  }, [audible]); // eslint-disable-line
 
   // ── громкость ──────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -94,7 +97,7 @@ export function AudioPlayerPanel({ sessionId, compact = false }: Props) {
   }, [effectiveVolume]);
 
   // ── нет трека → ничего не рендерим ────────────────────────────────────────
-  if (!currentEntry || !playing) return null;
+  if (!currentEntry || !audible) return null;
 
   return (
     <div className="flex items-center gap-2 rounded-lg border border-gray-700 bg-gray-900 px-3 py-2 text-sm">

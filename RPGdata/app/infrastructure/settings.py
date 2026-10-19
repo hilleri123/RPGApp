@@ -22,6 +22,7 @@ class Settings(BaseSettings):
     secret_key: str = os.getenv('SECRET_KEY', DEFAULT_SECRET_KEY)
     algorithm: str = os.getenv('ALGORITHM', 'HS256')
     bot_token: str = os.getenv('BOT_TOKEN', '')
+    table_bridge_token: str = os.getenv('TABLE_BRIDGE_TOKEN', 'dev-table-bridge')
     access_token_lifetime_hours: int = 72
     refresh_token_lifetime_days: int = 14
     # Флаг secure на куках с токенами. В проде включён по умолчанию, локально

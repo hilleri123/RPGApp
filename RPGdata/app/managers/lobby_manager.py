@@ -731,6 +731,17 @@ class CurrentLobbyManager:
         data = await redis_client.json().get(self._lobby_key())
         return scheme.Lobby(**data)
 
+    async def set_jitsi(self, room_url: str | None = None, password: str | None = None, music: bool | None = None, auto: bool | None = None) -> scheme.Lobby:
+        if room_url is not None:
+            await redis_client.json().set(self._lobby_key(), self._m_path("jitsi_room_url"), room_url)
+        if password is not None:
+            await redis_client.json().set(self._lobby_key(), self._m_path("jitsi_password"), password)
+        if music is not None:
+            await redis_client.json().set(self._lobby_key(), self._m_path("jitsi_music"), music)
+        if auto is not None:
+            await redis_client.json().set(self._lobby_key(), self._m_path("jitsi_auto"), auto)
+        return await self.get_lobby()
+
     async def start_session(self) -> Optional[scheme.SessionRedirect]:
         lobby = await self.get_lobby()
         if len(lobby.players) == 0:
@@ -768,6 +779,12 @@ class CurrentLobbyManager:
     async def close_lobby(self, user: models.User) -> bool:
         if not await self.is_master(user):
             return False
+        from app.services.table_session import discard_lobby_preview
+
+        async for db in get_db():
+            await discard_lobby_preview(db, uuid.UUID(self.lobby_id))
+            await db.commit()
+            break
         await self.delete_lobby()
         return True
         

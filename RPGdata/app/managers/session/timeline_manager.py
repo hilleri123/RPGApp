@@ -33,6 +33,7 @@ class SessionTimelineManager:
         timeline = runtime.timeline.model_copy(update={"current_time": parsed})
         runtime.timeline = timeline
         await self.set_runtime(runtime)
+        await self._remember_game_time(parsed)
         return True, ["timeline"]
 
     async def refresh_timeline_scenario_start(self) -> None:
@@ -47,6 +48,22 @@ class SessionTimelineManager:
             updates["current_time"] = starts
         runtime.timeline = runtime.timeline.model_copy(update=updates)
         await self.set_runtime(runtime)
+        if "current_time" in updates:
+            await self._remember_game_time(starts)
+
+    async def _remember_game_time(self, parsed: datetime) -> None:
+        session_id = getattr(self, "session_id", None)
+        if session_id is None:
+            return
+        try:
+            from app.infrastructure.database import AsyncSessionLocal
+            from app.services.table_session import record_game_time_mark
+
+            async with AsyncSessionLocal() as db:
+                await record_game_time_mark(db, session_id, format_game_time(parsed) or "")
+                await db.commit()
+        except Exception:
+            return
 
     def session_game_time_str(self, inner: scheme.GameSessionInner) -> Optional[str]:
         current = inner.timeline.current_time if inner.timeline else None

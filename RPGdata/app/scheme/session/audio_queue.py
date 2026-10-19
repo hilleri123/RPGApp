@@ -37,6 +37,7 @@ class AudioPlayerState(BaseModel):
     volume: float = 1.0
     position_sec: float = 0.0
     position_at: Optional[datetime] = None  # когда записана позиция
+    via: Literal["web", "jitsi"] = "web"
 
     def effective_position(self) -> float:
         """Реальная позиция с учётом прошедшего времени."""

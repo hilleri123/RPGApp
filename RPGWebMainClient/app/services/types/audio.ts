@@ -72,4 +72,5 @@ export type AudioPlayerState = {
   volume: number;
   position_sec: number;
   position_at: string | null;  // ISO datetime
+  via?: 'web' | 'jitsi';
 };
