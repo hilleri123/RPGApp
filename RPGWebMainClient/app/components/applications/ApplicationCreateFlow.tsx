@@ -14,8 +14,9 @@ import {
 } from '@/components/ui/select';
 import { Loader2, BookOpen } from 'lucide-react';
 import { scenariosApiService } from '@/app/services/api/scenario';
+import { applicationApiService } from '@/app/services/api/application';
 import { ApplicationEditDialog } from './ApplicationEditDialog';
-import type { RuleSystemInfo } from '@/app/services/types2';
+import type { AppAuthor, RuleSystemInfo } from '@/app/services/types2';
 
 interface Props {
   open: boolean;
@@ -30,17 +31,21 @@ export function ApplicationCreateFlow({ open, onClose, onSaved }: Props) {
   const [rules, setRules]         = useState<RuleSystemInfo[]>([]);
   const [rulesLoading, setRulesLoading] = useState(false);
   const [selectedRule, setSelectedRule] = useState<string>('');
+  const [reviewers, setReviewers] = useState<AppAuthor[]>([]);
+  const [reviewerId, setReviewerId] = useState<string>('');
 
   // сбрасываем при каждом открытии
   useEffect(() => {
     if (!open) return;
     setStep('pick-rule');
     setSelectedRule('');
+    setReviewerId('');
     setRulesLoading(true);
     scenariosApiService
       .getRuleSystems()
       .then(setRules)
       .finally(() => setRulesLoading(false));
+    applicationApiService.listReviewers().then(setReviewers).catch(() => setReviewers([]));
   }, [open]);
 
   function handleNext() {
@@ -60,6 +65,7 @@ export function ApplicationCreateFlow({ open, onClose, onSaved }: Props) {
       <ApplicationEditDialog
         open={open}
         ruleIdStr={selectedRule}
+        reviewerId={reviewerId || null}
         onClose={handleEditClose}
         onSaved={onSaved}
       />
@@ -113,6 +119,23 @@ export function ApplicationCreateFlow({ open, onClose, onSaved }: Props) {
                 </SelectContent>
               </Select>
             )}
+          </div>
+
+          <div className="space-y-1.5">
+            <Label className="text-gray-300">Мастер-проверяющий</Label>
+            <Select value={reviewerId || '_none'} onValueChange={(v) => setReviewerId(v === '_none' ? '' : v)}>
+              <SelectTrigger className="text-white bg-gray-800 border-gray-600">
+                <SelectValue placeholder="Не выбран" />
+              </SelectTrigger>
+              <SelectContent className="bg-gray-800 border-gray-700">
+                <SelectItem value="_none" className="hover:bg-gray-700">Не выбран</SelectItem>
+                {reviewers.map((master) => (
+                  <SelectItem key={master.id} value={master.id} className="hover:bg-gray-700">
+                    {master.full_name || 'Мастер'}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
         </div>
 

@@ -350,6 +350,19 @@ export default function CharacterDataEditor<TData extends CharacterData = Charac
                     <option key={r.id} value={r.id}>{r.title}</option>
                   ))}
                 </select>
+                {(() => {
+                  const race = playbookObj.races?.find(
+                    (r) => r.id === (sheet as CharacterData).race_id,
+                  );
+                  const move = race ? movesMap.get(race.move_id) : undefined;
+                  const text = move?.effect || move?.summary;
+                  if (!text) return null;
+                  return (
+                    <p className="text-xs text-gray-300 whitespace-pre-wrap">
+                      {text}
+                    </p>
+                  );
+                })()}
               </label>
             ) : null}
             {playbookObj.alignments?.length ? (
@@ -536,9 +549,13 @@ export default function CharacterDataEditor<TData extends CharacterData = Charac
         const raceMoveIds = (playbookObj.races ?? []).map((r) => r.move_id);
 
         let visibleIds: string[] = [];
+        const selectedRaceIds = raceMoveIds.filter(
+          (rid) => currentMoves.includes(rid) && !startingIds.includes(rid) && !choiceIds.includes(rid),
+        );
+
         switch (classMoveFilter) {
           case 'starting':
-            visibleIds = [...startingIds, ...choiceIds];
+            visibleIds = [...startingIds, ...choiceIds, ...selectedRaceIds];
             break;
           case 'advanced':
             visibleIds = [...advancedIds];
@@ -547,12 +564,7 @@ export default function CharacterDataEditor<TData extends CharacterData = Charac
             visibleIds = [...masterIds];
             break;
           default:
-            visibleIds = [...startingIds, ...choiceIds, ...advancedIds, ...masterIds];
-            for (const rid of raceMoveIds) {
-              if (currentMoves.includes(rid) && !visibleIds.includes(rid)) {
-                visibleIds.push(rid);
-              }
-            }
+            visibleIds = [...startingIds, ...choiceIds, ...selectedRaceIds, ...advancedIds, ...masterIds];
         }
 
         if (!visibleIds.length && classMoveFilter === 'master' && !masterIds.length) {

@@ -11,6 +11,7 @@ export interface ApplicationEditDialogProps {
   onClose: () => void;
   applicationId?: string | null;
   ruleIdStr?: string;
+  reviewerId?: string | null;
   readOnly?: boolean;
   onSaved?: (id: string) => void;
 }
@@ -20,6 +21,7 @@ export function ApplicationEditDialog({
   onClose,
   applicationId = null,
   ruleIdStr = '',
+  reviewerId = null,
   readOnly = false,
   onSaved,
 }: ApplicationEditDialogProps) {
@@ -27,6 +29,7 @@ export function ApplicationEditDialog({
     open,
     applicationId,
     ruleIdStr,
+    reviewerId,
     onSaved: (id) => { onSaved?.(id); onClose(); },
   });
 

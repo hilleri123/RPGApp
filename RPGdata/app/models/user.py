@@ -31,6 +31,7 @@ class User(Base):
 
     character_applications = relationship(
         "CharacterApplication",
+        foreign_keys="CharacterApplication.user_id",
         back_populates="user",
         cascade="all, delete-orphan",
     )

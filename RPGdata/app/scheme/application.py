@@ -80,6 +80,8 @@ class ApplicationListOut(BaseModel):
     created_at: datetime
     updated_at: datetime
     submitted_at: Optional[datetime] = None
+    reviewer_id: Optional[UUID] = None
+    reviewer: Optional[AuthorOut] = None
 
 
 # ── ApplicationOut (игрок) ────────────────────────────────────────────────────
@@ -117,6 +119,7 @@ class ApplicationBase(CharacterProfileFields):
 class ApplicationCreatePayload(CharacterDataBase):
     rule_id_str: str
     player_comment: Optional[str] = None
+    reviewer_id: Optional[UUID] = None
 
 
 class ApplicationUpdatePayload(CharacterDataBase):

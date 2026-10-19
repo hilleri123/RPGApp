@@ -42,12 +42,29 @@ def build_session_started_event(
     }
 
 
+def build_session_started_topic_event(
+    *,
+    topic_id: int,
+    session_id: UUID | str,
+    lobby_name: str,
+    scenario_name: str | None,
+) -> dict:
+    return {
+        "event": "session_started_topic",
+        "topic_id": int(topic_id),
+        "session_id": str(session_id),
+        "lobby_name": lobby_name,
+        "scenario_name": scenario_name,
+    }
+
+
 async def notify_session_started(
     *,
     session_id: UUID | str,
     user_ids: Iterable[UUID],
     lobby_name: str,
     scenario_name: str | None = None,
+    topic_id: int | None = None,
 ) -> int:
     """Tell linked Telegram users the session began. Never raises; returns sent count."""
     try:
@@ -58,6 +75,15 @@ async def notify_session_started(
             await publish_bot_event(
                 build_session_started_event(
                     telegram_id=tg_id,
+                    session_id=session_id,
+                    lobby_name=lobby_name,
+                    scenario_name=scenario_name,
+                )
+            )
+        if topic_id:
+            await publish_bot_event(
+                build_session_started_topic_event(
+                    topic_id=topic_id,
                     session_id=session_id,
                     lobby_name=lobby_name,
                     scenario_name=scenario_name,
@@ -120,4 +146,89 @@ async def notify_lobby_invited(
 
 def schedule_lobby_invited(**kwargs) -> None:
     task = asyncio.create_task(notify_lobby_invited(**kwargs))
+    task.add_done_callback(lambda t: t.exception() if not t.cancelled() else None)
+
+
+def build_lobby_created_event(
+    *, lobby_id: UUID | str, lobby_name: str, telegram_id: int | None
+) -> dict:
+    return {
+        "event": "lobby_created",
+        "lobby_id": str(lobby_id),
+        "lobby_name": lobby_name,
+        "telegram_id": telegram_id,
+    }
+
+
+async def notify_lobby_created(
+    *,
+    lobby_id: UUID | str,
+    lobby_name: str,
+    telegram_id: int | None,
+) -> None:
+    """Ask the bot to open a forum topic. Lobby creation must not depend on this."""
+    try:
+        from app.infrastructure.rabbitmq import publish_bot_event
+
+        await publish_bot_event(
+            build_lobby_created_event(
+                lobby_id=lobby_id,
+                lobby_name=lobby_name,
+                telegram_id=telegram_id,
+            )
+        )
+    except Exception:
+        logger.exception("failed to publish lobby_created notification")
+
+
+def schedule_lobby_created(**kwargs) -> None:
+    task = asyncio.create_task(notify_lobby_created(**kwargs))
+    task.add_done_callback(lambda t: t.exception() if not t.cancelled() else None)
+
+
+def build_application_requested_event(
+    *,
+    telegram_id: int,
+    application_id: UUID | str,
+    lobby_name: str,
+    master_name: str | None,
+) -> dict:
+    return {
+        "event": "application_requested",
+        "telegram_id": telegram_id,
+        "application_id": str(application_id),
+        "lobby_name": lobby_name,
+        "master_name": master_name,
+        "next_path": f"/applications/{application_id}",
+    }
+
+
+async def notify_application_requested(
+    *,
+    user_id: UUID,
+    application_id: UUID | str,
+    lobby_name: str,
+    master_name: str | None = None,
+) -> int:
+    try:
+        from app.infrastructure.rabbitmq import publish_bot_event
+
+        telegram_ids = await _telegram_ids([user_id])
+        for tg_id in telegram_ids:
+            await publish_bot_event(
+                build_application_requested_event(
+                    telegram_id=tg_id,
+                    application_id=application_id,
+                    lobby_name=lobby_name,
+                    master_name=master_name,
+                )
+            )
+        return len(telegram_ids)
+    except Exception:
+        logger.exception("failed to publish application_requested notification")
+        return 0
+
+
+def schedule_application_requested(**kwargs) -> None:
+    task = asyncio.create_task(notify_application_requested(**kwargs))
     task.add_done_callback(lambda t: t.exception() if not t.cancelled() else None)

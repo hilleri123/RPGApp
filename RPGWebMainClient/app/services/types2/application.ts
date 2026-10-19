@@ -62,6 +62,8 @@ export interface ApplicationListItem {
   created_at: string;
   updated_at: string;
   submitted_at?: string | null;
+  reviewer_id?: string | null;
+  reviewer?: AppAuthor | null;
   /** Только в ответах мастера */
   user?: AppAuthor | null;
 }
@@ -89,6 +91,7 @@ export interface ApplicationCreatePayload {
   tags?: string[];
   data?: Record<string, unknown>;
   player_comment?: string;
+  reviewer_id?: string;
 }
 
 /** PUT /applications/{id} — JSON-часть внутри FormData */

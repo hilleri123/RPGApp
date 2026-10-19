@@ -4,6 +4,7 @@ import {
   ApplicationCreatePayload,
   ApplicationListItem,
   ApplicationReview,
+  AppAuthor,
   ApplicationUpdatePayload,
   ItemRequest,
   ItemRequestCreatePayload,
@@ -36,6 +37,10 @@ export class ApplicationApiService extends BaseApiClient {
 
   async getList(params?: { rule_id_str?: string; skip?: number; limit?: number }): Promise<ApplicationListItem[]> {
     return this.get<ApplicationListItem[]>(this.ep, params);
+  }
+
+  async listReviewers(): Promise<AppAuthor[]> {
+    return this.get<AppAuthor[]>(`${this.ep}/reviewers`);
   }
 
   async getById(id: string): Promise<Application> {

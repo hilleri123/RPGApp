@@ -102,6 +102,7 @@ export function useApplicationDialog(opts: {
   open: boolean;
   applicationId: string | null;
   ruleIdStr?: string;
+  reviewerId?: string | null;
   onSaved?: (id: string) => void;
 }) {
   const [state, dispatch] = useReducer(reducer, {
@@ -220,6 +221,7 @@ export function useApplicationDialog(opts: {
           tags:           state.form.tags,
           data:           state.form.data,
           player_comment: state.form.player_comment ?? undefined,
+          reviewer_id:    opts.reviewerId || undefined,
         } satisfies ApplicationCreatePayload);
         if (state.assets.iconFile || state.assets.imgFile) {
           app = await applicationApiService.update(

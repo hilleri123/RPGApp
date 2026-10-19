@@ -17,6 +17,10 @@ from app.managers.connection_manager import is_websocket_gone
 from app.infrastructure.redis_service import redis_client
 from app.logger import logger
 from app.services.bot_notify_service import schedule_lobby_invited, schedule_session_started
+from app.services.lobby_application_service import open_lobby_character_application
+from app.scheme import application as application_scheme
+from pydantic import BaseModel
+from uuid import UUID
 from sqlalchemy import or_
 
 
@@ -228,6 +232,7 @@ async def websocket_endpoint(
                                 ],
                                 lobby_name=lobby_before.name,
                                 scenario_name=getattr(lobby_before.scenario, "name", None),
+                                topic_id=getattr(lobby_before, "telegram_topic_id", None),
                             )
                         else:
                             err = scheme.LobbyError(
@@ -386,6 +391,32 @@ async def search_users_to_invite(
         if str(u.id) not in invited
     ]
 
+
+
+class LobbyCharacterApplicationIn(BaseModel):
+    user_id: Optional[UUID] = None
+    reviewer_id: Optional[UUID] = None
+
+
+@router.post("/{lobby_id}/character_application", response_model=application_scheme.ApplicationOut)
+async def open_character_application(
+    lobby_id: str,
+    payload: LobbyCharacterApplicationIn,
+    current_user: models.User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Игрок открывает черновик под сценарий лобби, мастер заказывает его у игрока."""
+    lobby_m = lobby_manager[lobby_id]
+    if not await lobby_m.lobby_exists():
+        raise HTTPException(status_code=404, detail="Лобби не найдено")
+    lobby = await lobby_m.get_lobby()
+    return await open_lobby_character_application(
+        db,
+        lobby=lobby,
+        actor=current_user,
+        target_user_id=payload.user_id,
+        reviewer_id=payload.reviewer_id,
+    )
 
 
 @router.delete("/{lobby_id}")

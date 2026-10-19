@@ -184,6 +184,9 @@ export default function ApplicationDetailPage() {
           <div className="flex-1 min-w-0">
             <h1 className="text-xl font-semibold truncate">{app.name}</h1>
             <p className="text-gray-400 text-sm">{app.rule_id_str}</p>
+            {app.reviewer ? (
+              <p className="text-gray-500 text-xs">Проверяет: {app.reviewer.full_name || 'мастер'}</p>
+            ) : null}
           </div>
           <ApplicationStatusBadge status={app.status} />
         </div>

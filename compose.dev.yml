@@ -140,6 +140,7 @@ services:
       BOT_TOKEN: ${BOT_TOKEN}
       WEB_CLIENT_URL: ${WEB_CLIENT_URL:-http://localhost:6602}
       RABBIT_URL: ${RABBIT_URL:-amqp://rpg:rpg@rabbitmq:5672/}
+      TELEGRAM_FORUM_CHAT_ID: ${TELEGRAM_FORUM_CHAT_ID:-}
       TZ: Europe/Moscow
     volumes:
       - ./telegram-bot:/app

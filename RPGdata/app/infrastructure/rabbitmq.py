@@ -91,6 +91,15 @@ async def _dispatch(method: str, params: dict[str, Any]) -> Any:
             master_username=params.get("master_username"),
         )
 
+    if method == "set_lobby_topic":
+        from app.managers.lobby_manager import manager
+
+        ok = await manager.set_telegram_topic(
+            str(params["lobby_id"]),
+            int(params["topic_id"]),
+        )
+        return {"ok": ok}
+
     raise ValueError(f"unknown method: {method}")
 
 

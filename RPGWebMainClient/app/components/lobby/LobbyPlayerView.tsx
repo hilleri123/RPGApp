@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { Crown, Loader2, UserPlus, Users } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -9,6 +10,7 @@ import { Characters } from '@/app/components/lobby/Characters';
 import { Players } from '@/app/components/lobby/Players';
 import { useLobbyWebSocket } from '@/app/services/hooks/useLobbyWebSocket';
 import { applicationApiService } from '@/app/services/api/application';
+import { lobbyApiService } from '@/app/services/api/lobby';
 import type { ApplicationListItem } from '@/app/services/types2';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -126,7 +128,16 @@ function ImportCharacterDialog({
 
 type PlayerTab = 'characters' | 'players';
 
+function applicationError(error: unknown): string {
+  if (error && typeof error === 'object' && 'message' in error) {
+    const message = (error as { message: unknown }).message;
+    if (typeof message === 'string' && message.trim()) return message;
+  }
+  return 'Не удалось открыть заявку';
+}
+
 export function LobbyPlayerView({ lobbyId }: { lobbyId: string }) {
+  const router = useRouter();
   const {
     lobby,
     connected,
@@ -170,6 +181,21 @@ export function LobbyPlayerView({ lobbyId }: { lobbyId: string }) {
     ];
     return all.find((c) => String(c.id) === currentCharacterId)?.name ?? null;
   }, [lobby, currentCharacterId]);
+
+  const [openingApplication, setOpeningApplication] = useState(false);
+  const canOpenApplication = Boolean(lobby?.scenario?.rule_id_str);
+
+  const openApplication = async () => {
+    setOpeningApplication(true);
+    try {
+      const app = await lobbyApiService.openCharacterApplication(lobbyId);
+      router.push(`/applications/${app.id}`);
+    } catch (error) {
+      toast.error(applicationError(error));
+    } finally {
+      setOpeningApplication(false);
+    }
+  };
 
   const readyCount = (lobby?.players || []).filter((p) => p.is_ready).length;
   const playerCount = (lobby?.players || []).length;
@@ -330,6 +356,15 @@ export function LobbyPlayerView({ lobbyId }: { lobbyId: string }) {
           </Dialog>
         </div>
 
+        <Button
+          variant="outline"
+          className="w-full border-gray-600 text-gray-100"
+          disabled={!canOpenApplication || openingApplication}
+          title={canOpenApplication ? undefined : 'Сначала мастер выбирает сценарий'}
+          onClick={openApplication}
+        >
+          {openingApplication ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Заявка на персонажа'}
+        </Button>
         <Button
           size="lg"
           disabled={!hasCharacter}

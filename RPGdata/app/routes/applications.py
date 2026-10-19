@@ -27,6 +27,7 @@ from app.services.application_entity_service import (
     propagate_character_photos,
     sync_application_character_from_application,
 )
+from app.services.application_reviewer import require_master_reviewer
 
 router = APIRouter(prefix="/applications", tags=["applications"])
 
@@ -38,6 +39,7 @@ def _stmt_full(application_id: UUID):
         select(models.CharacterApplication)
         .where(models.CharacterApplication.id == application_id)
         .options(
+            selectinload(models.CharacterApplication.reviewer),
             selectinload(models.CharacterApplication.reviews)
             .selectinload(models.ApplicationReview.author),
             selectinload(models.CharacterApplication.item_requests)
@@ -81,12 +83,30 @@ async def list_applications(
     stmt = (
         select(models.CharacterApplication)
         .where(models.CharacterApplication.user_id == current_user.id)
+        .options(selectinload(models.CharacterApplication.reviewer))
         .order_by(models.CharacterApplication.updated_at.desc())
         .offset(skip).limit(limit)
     )
     if rule_id_str:
         stmt = stmt.where(models.CharacterApplication.rule_id_str == rule_id_str)
     return (await db.execute(stmt)).scalars().all()
+
+
+@router.get("/reviewers", response_model=List[scheme.AuthorOut])
+async def list_reviewers(
+    current_user: models.User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    rows = await db.execute(
+        select(models.User)
+        .where(
+            models.User.can_be_master.is_(True),
+            models.User.is_active.is_(True),
+        )
+        .order_by(models.User.full_name)
+        .limit(100)
+    )
+    return rows.scalars().all()
 
 
 @router.get("/{application_id}", response_model=scheme.ApplicationOut)
@@ -104,8 +124,10 @@ async def create_application(
     current_user: models.User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
+    reviewer_id = await require_master_reviewer(db, payload.reviewer_id)
     obj = models.CharacterApplication(
         user_id=current_user.id,
+        reviewer_id=reviewer_id,
         rule_id_str=payload.rule_id_str,
         name=payload.name,
         short_desc=payload.short_desc,

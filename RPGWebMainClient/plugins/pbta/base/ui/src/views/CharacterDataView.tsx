@@ -36,6 +36,9 @@ export default function CharacterDataView({ data, config, hideMoves = false, hid
         ...(playbookObj.starting_move_choices ?? []).flat(),
         ...playbookObj.advanced_moves,
         ...(playbookObj.advanced_moves_6_10 ?? []),
+        ...(playbookObj.races ?? [])
+          .map((r) => r.move_id)
+          .filter((mid) => currentMoves.includes(mid)),
       ]
     : [];
 
@@ -54,6 +57,12 @@ export default function CharacterDataView({ data, config, hideMoves = false, hid
                 <div>
                   Раса:{' '}
                   {playbookObj.races.find((r) => r.id === data.race_id)?.title ?? data.race_id}
+                  {(() => {
+                    const race = playbookObj.races?.find((r) => r.id === data.race_id);
+                    const move = race ? movesMap.get(race.move_id) : undefined;
+                    const text = move?.effect || move?.summary;
+                    return text ? <div className="text-gray-400 mt-1">{text}</div> : null;
+                  })()}
                 </div>
               ) : null}
               {data.alignment_id && playbookObj.alignments?.length ? (

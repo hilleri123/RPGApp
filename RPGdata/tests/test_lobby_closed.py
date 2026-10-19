@@ -354,3 +354,61 @@ def test_notify_lobby_invited_never_raises(monkeypatch):
     assert asyncio.run(
         svc.notify_lobby_invited(lobby_id=uuid.uuid4(), user_ids=[uuid.uuid4()], lobby_name="L")
     ) == 0
+
+
+def test_lobby_created_event_names_the_creator():
+    from app.services import bot_notify_service as svc
+
+    lid = uuid.uuid4()
+    ev = svc.build_lobby_created_event(lobby_id=lid, lobby_name="Игра", telegram_id=5)
+    assert ev["event"] == "lobby_created"
+    assert ev["lobby_id"] == str(lid)
+    assert ev["telegram_id"] == 5
+
+    silent = svc.build_lobby_created_event(lobby_id=lid, lobby_name="Игра", telegram_id=None)
+    assert silent["telegram_id"] is None
+
+
+def test_application_requested_points_at_the_form():
+    from app.services import bot_notify_service as svc
+
+    app_id = uuid.uuid4()
+    ev = svc.build_application_requested_event(
+        telegram_id=9, application_id=app_id, lobby_name="Стол", master_name="ГМ"
+    )
+    assert ev["event"] == "application_requested"
+    assert ev["next_path"] == f"/applications/{app_id}"
+
+
+def test_session_started_topic_is_separate_from_direct_messages():
+    from app.services import bot_notify_service as svc
+
+    sid = uuid.uuid4()
+    ev = svc.build_session_started_topic_event(
+        topic_id=42, session_id=sid, lobby_name="Стол", scenario_name="Подземелье"
+    )
+    assert ev["event"] == "session_started_topic"
+    assert ev["topic_id"] == 42
+    assert ev["session_id"] == str(sid)
+
+
+def test_create_lobby_schedules_forum_topic():
+    from app.managers.lobby_manager import LobbyManager
+
+    src = inspect.getsource(LobbyManager.create_lobby)
+    assert "schedule_lobby_created" in src
+    assert "telegram_topic_id" in src
+
+
+def test_master_list_keeps_unassigned_applications():
+    from app.services.application_reviewer import application_visible_to_master
+    import app.routes.master_applications as master_routes
+
+    me = uuid.uuid4()
+    other = uuid.uuid4()
+    assert application_visible_to_master(None, me)
+    assert application_visible_to_master(me, me)
+    assert not application_visible_to_master(other, me)
+    src = inspect.getsource(master_routes.master_list_applications)
+    assert "reviewer_id.is_(None)" in src
+    assert "reviewer_id == current_user.id" in src

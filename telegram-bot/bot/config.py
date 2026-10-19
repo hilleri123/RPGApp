@@ -21,6 +21,7 @@ class BotSettings:
     web_client_url: str = _resolve_web_client_url()
     rabbit_url: str = os.getenv("RABBIT_URL", "amqp://rpg:rpg@rabbitmq:5672/")
     rpc_timeout_seconds: float = float(os.getenv("BOT_RPC_TIMEOUT", "10"))
+    forum_chat_id: str = os.getenv("TELEGRAM_FORUM_CHAT_ID", "").strip()
 
     @property
     def enabled(self) -> bool:

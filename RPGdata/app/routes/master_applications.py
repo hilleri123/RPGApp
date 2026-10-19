@@ -5,7 +5,7 @@ from typing import List, Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -20,6 +20,7 @@ from app.services.application_entity_service import (
 )
 from app.plugins.contracts import EntityPayload
 from app.routes._helpers import validate_entity_data
+from app.services.application_reviewer import application_visible_to_master
 
 
 router = APIRouter(prefix="/master/applications", tags=["master-applications"])
@@ -34,6 +35,7 @@ def _stmt_full(application_id: UUID):
         .where(models.CharacterApplication.id == application_id)
         .options(
             selectinload(models.CharacterApplication.user),
+            selectinload(models.CharacterApplication.reviewer),
             selectinload(models.CharacterApplication.reviews)
             .selectinload(models.ApplicationReview.author),
             selectinload(models.CharacterApplication.item_requests)
@@ -52,10 +54,10 @@ def _stmt_full(application_id: UUID):
 
 
 async def _get_or_404(
-    db: AsyncSession, application_id: UUID
+    db: AsyncSession, application_id: UUID, current_user: models.User
 ) -> models.CharacterApplication:
     obj = (await db.execute(_stmt_full(application_id))).scalars().first()
-    if not obj:
+    if not obj or not application_visible_to_master(obj.reviewer_id, current_user.id):
         raise HTTPException(status_code=404, detail="Заявка не найдена")
     return obj
 
@@ -63,7 +65,7 @@ async def _get_or_404(
 # ── list / get ────────────────────────────────────────────────────────────────
 
 
-@router.get("", response_model=List[scheme.ApplicationListOut])
+@router.get("", response_model=List[scheme.MasterApplicationListOut])
 async def master_list_applications(
     status: Optional[str] = Query(None),
     rule_id_str: Optional[str] = Query(None),
@@ -75,7 +77,16 @@ async def master_list_applications(
 ):
     stmt = (
         select(models.CharacterApplication)
-        .options(selectinload(models.CharacterApplication.user))
+        .options(
+            selectinload(models.CharacterApplication.user),
+            selectinload(models.CharacterApplication.reviewer),
+        )
+        .where(
+            or_(
+                models.CharacterApplication.reviewer_id == current_user.id,
+                models.CharacterApplication.reviewer_id.is_(None),
+            )
+        )
         .order_by(models.CharacterApplication.updated_at.desc())
         .offset(skip).limit(limit)
     )
@@ -100,7 +111,7 @@ async def master_get_application(
     current_user: models.User = Depends(require_master),
     db: AsyncSession = Depends(get_db),
 ):
-    return await _get_or_404(db, application_id)
+    return await _get_or_404(db, application_id, current_user)
 
 
 # ── review (смена статуса + комментарий) ─────────────────────────────────────
@@ -113,7 +124,7 @@ async def master_review(
     current_user: models.User = Depends(require_master),
     db: AsyncSession = Depends(get_db),
 ):
-    obj = await _get_or_404(db, application_id)
+    obj = await _get_or_404(db, application_id, current_user)
 
     # допустимые переходы
     ALLOWED: dict[models.ApplicationStatus, list[models.ApplicationStatus]] = {
@@ -149,7 +160,7 @@ async def master_review(
     obj.status = new_status
     obj.updated_at = datetime.now(timezone.utc)
     await db.commit()
-    return await _get_or_404(db, obj.id)
+    return await _get_or_404(db, obj.id, current_user)
 
 
 # ── редактирование персонажа мастером ─────────────────────────────────────────
@@ -165,7 +176,7 @@ async def master_update_application(
     db: AsyncSession = Depends(get_db),
 ):
     """Мастер может редактировать содержимое заявки в любом статусе."""
-    obj = await _get_or_404(db, application_id)
+    obj = await _get_or_404(db, application_id, current_user)
 
     payload = scheme.ApplicationUpdatePayload.model_validate_json(data)
     for k, v in payload.model_dump(exclude_unset=True, exclude_none=True, mode="json").items():
@@ -185,7 +196,7 @@ async def master_update_application(
     obj.updated_at = datetime.now(timezone.utc)
     await sync_application_character_from_application(db, obj)
     await db.commit()
-    return await _get_or_404(db, obj.id)
+    return await _get_or_404(db, obj.id, current_user)
 
 
 @router.post("/validate", response_model=scheme.ValidateResult)
@@ -217,7 +228,7 @@ async def decide_item_request(
     current_user: models.User = Depends(require_master),
     db: AsyncSession = Depends(get_db),
 ):
-    await _get_or_404(db, application_id)
+    await _get_or_404(db, application_id, current_user)
     req = (await db.execute(
         select(models.ApplicationItemRequest).where(
             models.ApplicationItemRequest.id == request_id,
@@ -250,7 +261,7 @@ async def grant_item(
     current_user: models.User = Depends(require_master),
     db: AsyncSession = Depends(get_db),
 ):
-    obj = await _get_or_404(db, application_id)
+    obj = await _get_or_404(db, application_id, current_user)
     link = await grant_item_to_application_character(
         db,
         obj,
@@ -303,7 +314,7 @@ async def approve_and_create(
     Финальное одобрение: статус → approved, пишем review.
     Логику создания PlayerCharacter из заявки добавь здесь.
     """
-    obj = await _get_or_404(db, application_id)
+    obj = await _get_or_404(db, application_id, current_user)
     if obj.status == models.ApplicationStatus.approved:
         raise HTTPException(400, detail="Заявка уже одобрена")
     if obj.status == models.ApplicationStatus.rejected:
@@ -334,4 +345,4 @@ async def approve_and_create(
             continue
 
     await db.commit()
-    return await _get_or_404(db, obj.id)
+    return await _get_or_404(db, obj.id, current_user)

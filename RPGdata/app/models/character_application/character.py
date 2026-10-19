@@ -31,6 +31,8 @@ class CharacterApplication(Base):
 
     # ── Привязка ──────────────────────────────────────────────────────────────
     user_id     = Column(Uuid, ForeignKey("user.id", ondelete="CASCADE"), nullable=False, index=True)
+    # Мастер, которому заявка назначена на проверку. Пусто — видна всем мастерам.
+    reviewer_id = Column(Uuid, ForeignKey("user.id", ondelete="SET NULL"), nullable=True, index=True)
     rule_id_str = Column(String, nullable=False, index=True)
 
     # ── Персонаж, придуманный игроком ─────────────────────────────────────────
@@ -71,7 +73,12 @@ class CharacterApplication(Base):
     )
 
     # ── Отношения ─────────────────────────────────────────────────────────────
-    user = relationship("User", back_populates="character_applications")
+    user = relationship(
+        "User",
+        foreign_keys=[user_id],
+        back_populates="character_applications",
+    )
+    reviewer = relationship("User", foreign_keys=[reviewer_id])
     player_character = relationship("PlayerCharacter", foreign_keys=[player_character_id])
 
     reviews = relationship(

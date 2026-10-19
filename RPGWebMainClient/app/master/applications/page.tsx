@@ -70,6 +70,9 @@ function AppRow({
         <div className="text-gray-300 text-sm">{app.user?.full_name ?? '—'}</div>
       </td>
       <td className="py-3 px-4">
+        <div className="text-gray-300 text-sm">{app.reviewer?.full_name ?? 'не назначен'}</div>
+      </td>
+      <td className="py-3 px-4">
         <ApplicationStatusBadge status={app.status} />
       </td>
       <td className="py-3 px-4 text-gray-400 text-sm whitespace-nowrap">
@@ -222,6 +225,7 @@ function MasterApplications() {
                 <tr>
                   <th className="py-2 px-4 text-left">Персонаж</th>
                   <th className="py-2 px-4 text-left">Игрок</th>
+                  <th className="py-2 px-4 text-left">Проверяющий</th>
                   <th className="py-2 px-4 text-left">Статус</th>
                   <th className="py-2 px-4 text-left">Обновлена</th>
                   <th className="py-2 px-4 text-left">Теги</th>

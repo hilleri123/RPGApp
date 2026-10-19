@@ -61,6 +61,16 @@ class CurrentLobbyManager:
     
     async def lobby_exists(self) -> bool:
         return await redis_client.exists(self._lobby_key()) == 1
+
+    async def set_telegram_topic(self, topic_id: int) -> bool:
+        if not await self.lobby_exists():
+            return False
+        await redis_client.json().set(
+            self._lobby_key(),
+            self._m_path("telegram_topic_id"),
+            int(topic_id),
+        )
+        return True
     
     async def select_lobby_scenario(self, scenario_id: int) -> bool:
         async for db in get_db():
@@ -857,6 +867,9 @@ class LobbyManager:
     def __init__(self):
         self.managers = {}
 
+    async def set_telegram_topic(self, lobby_id: str, topic_id: int) -> bool:
+        return await self[lobby_id].set_telegram_topic(topic_id)
+
     def __getitem__(self, lobby_id: str) -> CurrentLobbyManager:
         if not lobby_id in self.managers:
             self.managers[lobby_id] = CurrentLobbyManager(lobby_id)
@@ -897,7 +910,13 @@ class LobbyManager:
         # и присутствие клиент задавать не может.
         payload = lobby_data.model_dump(
             mode="json",
-            exclude={"is_open", "invited_users", "online_user_ids", "banned_user_ids"},
+            exclude={
+                "is_open",
+                "invited_users",
+                "online_user_ids",
+                "banned_user_ids",
+                "telegram_topic_id",
+            },
         )
         lobby = scheme.Lobby(
             id=lobby_id,
@@ -909,6 +928,13 @@ class LobbyManager:
             f'{LOBBY_KEY_PREFIX}:{lobby_id}',
             Path.root_path(),
             lobby.model_dump(mode='json')
+        )
+        from app.services.bot_notify_service import schedule_lobby_created
+
+        schedule_lobby_created(
+            lobby_id=lobby.id,
+            lobby_name=lobby.name,
+            telegram_id=getattr(current_user, "telegram_id", None),
         )
         return lobby
 

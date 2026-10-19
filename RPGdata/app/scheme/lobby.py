@@ -35,6 +35,8 @@ class LobbyBase(BaseModel):
     jitsi_password: str = ""
     jitsi_music: bool = False
     jitsi_auto: bool = False
+    # Ветка форума конференции, которую бот создаёт при появлении лобби.
+    telegram_topic_id: Optional[int] = None
 
     model_config = ConfigDict(
         ser_json_encoders={

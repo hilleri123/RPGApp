@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { Player } from '@/app/services/types/lobby';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { UserCard } from '../common/UserCard';
 import { useLobbyWebSocket } from '@/app/services/hooks/useLobbyWebSocket';
 import { playerHasCharacterAssignment } from './lobbyCharacterOccupancy';
+import { OrderApplicationDialog } from './OrderApplicationDialog';
 
 interface PlayerCardProps {
   lobbyId: string;
@@ -27,6 +28,8 @@ export const PlayerCard: React.FC<PlayerCardProps> = ({
   } = useLobbyWebSocket(lobbyId);
 
   const joinedAt = new Date(player.joined_at);
+  const [orderOpen, setOrderOpen] = useState(false);
+  const canOrderApplication = Boolean(lobby?.scenario?.rule_id_str);
 
   const selectedCharacter = useMemo(() => {
     if (player.character) return player.character;
@@ -73,8 +76,28 @@ export const PlayerCard: React.FC<PlayerCardProps> = ({
                 >
                   Сбросить персонажа
                 </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={!canOrderApplication}
+                  title={canOrderApplication ? undefined : 'Сначала выберите сценарий'}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setOrderOpen(true);
+                  }}
+                >
+                  Заказать заявку
+                </Button>
               </div>
             )}
+            <OrderApplicationDialog
+              open={orderOpen}
+              lobbyId={lobbyId}
+              playerUserId={player.user.id}
+              playerName={player.user.full_name || player.name}
+              defaultReviewer={lobby?.master}
+              onClose={() => setOrderOpen(false)}
+            />
 
             <div className="flex items-center gap-2 flex-wrap">
               <h4 className="font-semibold text-white">{player.name}</h4>
