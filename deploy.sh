@@ -80,7 +80,7 @@ pull_master() {
 
 build_and_deploy() {
   log "Building images"
-  "${COMPOSE[@]}" build app web-client telegram-bot papervpn migrate
+  "${COMPOSE[@]}" build app web-client telegram-bot papervpn migrate table-bridge
 
   log "Running Alembic migrations (migrate service)"
   # Force-recreate so migrate always uses the freshly built image (not a stale container).
@@ -90,7 +90,7 @@ build_and_deploy() {
   verify_migrate
 
   log "Starting / recreating application services"
-  "${COMPOSE[@]}" up -d --force-recreate app web-client papervpn telegram-bot
+  "${COMPOSE[@]}" up -d --force-recreate app web-client papervpn telegram-bot table-bridge table-asr
 
   log "Ensuring infrastructure services are up"
   "${COMPOSE[@]}" up -d db redis rabbitmq pg-backup
