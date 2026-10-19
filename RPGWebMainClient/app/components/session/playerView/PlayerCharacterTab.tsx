@@ -9,6 +9,7 @@ import { ScenarioScopedApiService } from "@/app/services/api/scenario_scoped";
 import { loadPluginEditorConfigForEntity } from "@/app/services/loadPluginEditorConfigs";
 import { CharacterMainTab, CharacterRulesTab } from "@/app/components/scenarios/dialogs/tabs/character";
 import { applicationApiService } from "@/app/services/api/application";
+import { useSessionsStore } from "@/app/services/stores/sessions";
 import { DialogModeProvider } from "@/app/components/scenarios/dialogs/common/DialogModeContext";
 
 import { ItemDraggableSquare } from "@/app/components/common/squares/ItemDraggableSquare";
@@ -152,7 +153,9 @@ export default function PlayerCharacterTab({ sessionId }: PlayerCharacterTabProp
               onChangePhoto={async (patch) => {
                 setPhotoError(null);
                 try {
-                  await applicationApiService.updateCharacterPhotos(String(characterId), patch);
+                  const saved = await applicationApiService.updateCharacterPhotos(String(characterId), patch);
+                  useSessionsStore.getState().patchCharacterPhotos(sessionId, String(characterId), saved);
+                  return saved;
                 } catch (e: any) {
                   setPhotoError(e?.message ?? "Не удалось сменить фото");
                   throw e;

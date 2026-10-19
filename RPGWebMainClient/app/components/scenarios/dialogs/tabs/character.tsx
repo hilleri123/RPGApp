@@ -48,12 +48,36 @@ export function CharacterMainTab({
   dlg: CharacterDlg;
   /** Иконка и портрет остаются доступны, когда остальное досье уже только для чтения. */
   allowPhotoEdit?: boolean;
-  onChangePhoto?: (patch: { iconFile?: File; imgFile?: File; iconUrl?: string | null; imgUrl?: string | null }) => Promise<void>;
+  onChangePhoto?: (patch: {
+    iconFile?: File;
+    imgFile?: File;
+    iconUrl?: string | null;
+    imgUrl?: string | null;
+  }) => Promise<{ icon_url?: string | null; img_url?: string | null } | void>;
 }) {
   const { readOnly } = useDialogMode();
   const photosOpen = !readOnly || allowPhotoEdit;
   const [liveImg, setLiveImg] = useState<string | null | undefined>(undefined);
   const [liveIcon, setLiveIcon] = useState<string | null | undefined>(undefined);
+
+  const commitPhoto = async (
+    kind: 'img' | 'icon',
+    patch: { iconFile?: File; imgFile?: File; iconUrl?: string | null; imgUrl?: string | null },
+    optimistic: string | null,
+  ) => {
+    if (kind === 'img') setLiveImg(optimistic);
+    else setLiveIcon(optimistic);
+    try {
+      const saved = await onChangePhoto?.(patch);
+      if (!saved) return;
+      if (kind === 'img' && 'img_url' in saved) setLiveImg(saved.img_url ?? null);
+      if (kind === 'icon' && 'icon_url' in saved) setLiveIcon(saved.icon_url ?? null);
+    } catch (error) {
+      if (kind === 'img') setLiveImg(undefined);
+      else setLiveIcon(undefined);
+      throw error;
+    }
+  };
 
   const avatarSrc = liveImg !== undefined
     ? (liveImg || FALLBACK_AVATAR)
@@ -83,8 +107,7 @@ export function CharacterMainTab({
               onSelect={async (url: string) => {
                 const next = url === '' ? null : url;
                 if (readOnly) {
-                  await onChangePhoto?.({ imgUrl: next });
-                  setLiveImg(next);
+                  await commitPhoto('img', { imgUrl: next }, next);
                   return;
                 }
                 dlg.setForm?.((p: any) => ({ ...p, img_url: next }));
@@ -92,8 +115,7 @@ export function CharacterMainTab({
               }}
               onUpload={async (file: File) => {
                 if (readOnly) {
-                  await onChangePhoto?.({ imgFile: file });
-                  setLiveImg(URL.createObjectURL(file));
+                  await commitPhoto('img', { imgFile: file }, URL.createObjectURL(file));
                   return;
                 }
                 dlg.setAssets?.((a: any) => ({ ...a, imgFile: file }));
@@ -121,8 +143,7 @@ export function CharacterMainTab({
                   onSelect={async (url: string) => {
                     const next = url === '' ? null : url;
                     if (readOnly) {
-                      await onChangePhoto?.({ iconUrl: next });
-                      setLiveIcon(next);
+                      await commitPhoto('icon', { iconUrl: next }, next);
                       return;
                     }
                     dlg.setForm?.((p: any) => ({ ...p, icon_url: next }));
@@ -130,8 +151,7 @@ export function CharacterMainTab({
                   }}
                   onUpload={async (file: File) => {
                     if (readOnly) {
-                      await onChangePhoto?.({ iconFile: file });
-                      setLiveIcon(URL.createObjectURL(file));
+                      await commitPhoto('icon', { iconFile: file }, URL.createObjectURL(file));
                       return;
                     }
                     dlg.setAssets?.((a: any) => ({ ...a, iconFile: file }));

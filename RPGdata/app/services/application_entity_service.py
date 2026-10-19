@@ -12,6 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app import models
+from app.logger import logger
 
 APPLICATION_CHARACTER_TAG = "application_character"
 BOUND_ITEM_TAG = "application_bound"
@@ -56,6 +57,77 @@ def next_photo_url(*, current: str | None, uploaded: str | None, url: str | None
     if url:
         return url
     return current
+
+
+def _photo_ids(item: dict) -> set[str]:
+    return {
+        str(item.get(key))
+        for key in ("id", "source_entity_id", "copied_from", "application_id")
+        if item.get(key)
+    }
+
+
+def apply_character_photo_urls(
+    items: list | None,
+    character_ids: set[str],
+    *,
+    icon_url: str | None,
+    img_url: str | None,
+) -> bool:
+    """Подменяет иконку и портрет в снимке лобби. True, если хоть одна запись изменилась."""
+    changed = False
+    for item in items or []:
+        if not isinstance(item, dict) or not (_photo_ids(item) & character_ids):
+            continue
+        item["icon_url"] = icon_url
+        item["img_url"] = img_url
+        changed = True
+    return changed
+
+
+async def refresh_lobby_character_photos(
+    character_ids: set[str],
+    *,
+    icon_url: str | None,
+    img_url: str | None,
+) -> None:
+    """Открытое лобби держит персонажей в Redis. Без этой подмены фото видно только после перезахода."""
+    if not character_ids:
+        return
+    from redis.commands.json.path import Path
+
+    from app.infrastructure.redis_service import redis_client
+    from app.managers import lobby_manager, master_connection_manager
+    from app.routes.websocket.lobby import broadcast_lobby
+
+    connection_manager = master_connection_manager["lobby"]
+    async for key in redis_client.scan_iter("lobby:*"):
+        data = await redis_client.json().get(key)
+        if not isinstance(data, dict):
+            continue
+        changed = False
+        for field in ("characters", "imported_characters"):
+            items = data.get(field) or []
+            if apply_character_photo_urls(items, character_ids, icon_url=icon_url, img_url=img_url):
+                await redis_client.json().set(key, Path(f".{field}"), items)
+                changed = True
+        players = data.get("players") or []
+        players_changed = False
+        for player in players:
+            if not isinstance(player, dict):
+                continue
+            nested = player.get("character")
+            if isinstance(nested, dict) and apply_character_photo_urls(
+                [nested], character_ids, icon_url=icon_url, img_url=img_url
+            ):
+                players_changed = True
+        if players_changed:
+            await redis_client.json().set(key, Path(".players"), players)
+            changed = True
+        if not changed:
+            continue
+        lobby_id = key.split(":", 1)[1] if ":" in key else key
+        await broadcast_lobby(lobby_manager[lobby_id], connection_manager)
 
 
 async def propagate_character_photos(
@@ -114,6 +186,23 @@ async def propagate_character_photos(
             player.character_snapshot = snapshot
 
     await db.commit()
+
+    photo_ids = {str(row_id) for row_id in row_ids}
+    for row in rows:
+        if row.source_entity_id:
+            photo_ids.add(str(row.source_entity_id))
+        if row.copied_from:
+            photo_ids.add(str(row.copied_from))
+    if source_character_id is not None:
+        photo_ids.add(str(source_character_id))
+    if application is not None:
+        photo_ids.add(str(application.id))
+        if application.player_character_id:
+            photo_ids.add(str(application.player_character_id))
+    try:
+        await refresh_lobby_character_photos(photo_ids, icon_url=icon_url, img_url=img_url)
+    except Exception:
+        logger.exception("Не удалось обновить фото персонажа в открытых лобби")
 
     if not scenario_ids:
         return

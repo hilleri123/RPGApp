@@ -208,7 +208,15 @@ export function LobbyPlayerView({ lobbyId }: { lobbyId: string }) {
           )}
         </div>
         <div className="flex items-center gap-2 text-xs text-gray-400">
-          <Crown className="w-3.5 h-3.5 text-yellow-500 shrink-0" />
+          {lobby.master?.img_url || lobby.master?.icon_url ? (
+            <img
+              src={lobby.master.img_url || lobby.master.icon_url}
+              alt=""
+              className="w-5 h-5 rounded-full object-cover shrink-0"
+            />
+          ) : (
+            <Crown className="w-3.5 h-3.5 text-yellow-500 shrink-0" />
+          )}
           <span className="truncate">{lobby.master?.full_name ?? 'Мастер'}</span>
           <span className="text-gray-600">·</span>
           <Users className="w-3.5 h-3.5 shrink-0" />

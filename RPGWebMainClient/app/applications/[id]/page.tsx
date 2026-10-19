@@ -345,8 +345,15 @@ export default function ApplicationDetailPage() {
               onChangePhoto={async (patch) => {
                 setPhotoError('');
                 try {
-                  setApp(await applicationApiService.updatePhotos(app.id, patch));
+                  const updated = await applicationApiService.updatePhotos(app.id, patch);
+                  setApp(updated);
+                  return updated;
                 } catch (e: any) {
+                  try {
+                    setApp(await applicationApiService.getById(app.id));
+                  } catch {
+                    // Запрос мог оборваться уже после сохранения. Если перечитать не вышло, остаётся прежняя карточка.
+                  }
                   setPhotoError(e?.message ?? 'Не удалось сменить фото');
                   throw e;
                 }

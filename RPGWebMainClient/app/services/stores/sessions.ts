@@ -91,7 +91,52 @@ type SessionsState = {
 
   setConnected: (sessionId: string, connected: boolean) => void;
   removeSession: (sessionId: string) => void;
+  patchCharacterPhotos: (
+    sessionId: string,
+    characterId: string,
+    photos: { icon_url: string | null; img_url: string | null },
+  ) => void;
 };
+
+function characterMatchesPhoto(entity: any, characterId: string): boolean {
+  if (!entity || typeof entity !== 'object') return false;
+  return [entity.id, entity.copied_from, entity.source_entity_id, entity.application_id]
+    .some((value) => value && String(value) === characterId);
+}
+
+function paintCharacter(
+  entity: any,
+  characterId: string,
+  photos: { icon_url: string | null; img_url: string | null },
+) {
+  if (!characterMatchesPhoto(entity, characterId)) return entity;
+  return { ...entity, icon_url: photos.icon_url, img_url: photos.img_url };
+}
+
+function paintSessionPhotos(
+  session: GameSession,
+  characterId: string,
+  photos: { icon_url: string | null; img_url: string | null },
+): GameSession {
+  const next: any = { ...session };
+  next.characters = (session.characters || []).map((ch) => paintCharacter(ch, characterId, photos));
+  next.players = (session.players || []).map((player: any) => ({
+    ...player,
+    character: paintCharacter(player.character, characterId, photos),
+  }));
+  if ((session as any).self_player) {
+    const self = (session as any).self_player;
+    next.self_player = {
+      ...self,
+      character: paintCharacter(self.character, characterId, photos),
+    };
+  }
+  next.scenes = (session.scenes || []).map((scene: any) => ({
+    ...scene,
+    characters: (scene.characters || []).map((ch: any) => paintCharacter(ch, characterId, photos)),
+  }));
+  return next;
+}
 
 function buildGameSessionFromWsInit(msg: SessionInitMessage): GameSession {
   const base: any = {
@@ -389,6 +434,25 @@ export const useSessionsStore = create<SessionsState>((set) => ({
   },
 
   setConnected: (_sessionId, _connected) => {},
+
+  patchCharacterPhotos: (sessionId, characterId, photos) =>
+    set((state) => {
+      const paintBucket = (bucket: Record<string, EnrichedSession>) => {
+        const current = bucket[sessionId];
+        if (!current?.fullSession) return bucket;
+        const nextRaw = paintSessionPhotos(current.fullSession, characterId, photos);
+        const role: WsRole | undefined = current.isMaster ? 'master' : current.isPlayer ? 'player' : undefined;
+        return {
+          ...bucket,
+          [sessionId]: toEnrichedSession(nextRaw, undefined, role),
+        };
+      };
+      return {
+        sessions: paintBucket(state.sessions),
+        sessionsPlayer: paintBucket(state.sessionsPlayer),
+        sessionsMaster: paintBucket(state.sessionsMaster),
+      };
+    }),
 
   removeSession: (sessionId) =>
     set((state) => {

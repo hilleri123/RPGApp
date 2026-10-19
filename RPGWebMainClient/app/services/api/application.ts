@@ -63,14 +63,19 @@ export class ApplicationApiService extends BaseApiClient {
     id: string,
     patch: { iconFile?: File; imgFile?: File; iconUrl?: string | null; imgUrl?: string | null },
   ): Promise<Application> {
-    return this.putMultipart<Application>(`${this.ep}/${id}/photos`, photosForm(patch));
+    return this.putMultipart<Application>(`${this.ep}/${id}/photos`, photosForm(patch), undefined, 120_000);
   }
 
   async updateCharacterPhotos(
     characterId: string,
     patch: { iconFile?: File; imgFile?: File; iconUrl?: string | null; imgUrl?: string | null },
   ): Promise<{ icon_url: string | null; img_url: string | null }> {
-    return this.putMultipart(`${this.ep}/by-character/${characterId}/photos`, photosForm(patch));
+    return this.putMultipart(
+      `${this.ep}/by-character/${characterId}/photos`,
+      photosForm(patch),
+      undefined,
+      120_000,
+    );
   }
 
   async submit(id: string): Promise<Application> {

@@ -194,12 +194,13 @@ export class BaseApiClient {
   protected async putMultipart<T>(
     endpoint: string,
     formData: FormData,
-    params?: Record<string, any>
+    params?: Record<string, any>,
+    timeout?: number,
   ): Promise<T> {
     const query = params ? this.buildQuery(params) : '';
     return this.request<T>(
       `${endpoint}${query}`,
-      { method: 'PUT', body: formData },
+      { method: 'PUT', body: formData, timeout },
       false
     );
   }
