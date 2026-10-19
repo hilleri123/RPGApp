@@ -1,5 +1,7 @@
 from logging.config import fileConfig
 
+import app.logger.settings  # noqa: F401  — часы логов +03 до fileConfig
+
 from sqlalchemy import engine_from_config
 from sqlalchemy import pool
 

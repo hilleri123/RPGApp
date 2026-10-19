@@ -23,8 +23,8 @@ import type { GameItemTemplateSeed } from '@/app/services/hooks/scenario/dialogs
 import type { Counter, GameItemOut } from '@/app/services/types2';
 import { isLineageProtectedEntity } from '@/app/lib/launchedLineage';
 
-const FALLBACK_AVATAR = 'https://rpgzona.ru/static/img/character-avatar-default.png';
-const FALLBACK_ICON = 'https://rpgzona.ru/static/img/icon-default.png';
+const FALLBACK_AVATAR = 'https://rpgzona.xyz/static/img/character-avatar-default.png';
+const FALLBACK_ICON = 'https://rpgzona.xyz/static/img/icon-default.png';
 
 export type CharacterDlg = {
   form: any;

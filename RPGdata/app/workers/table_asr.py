@@ -5,9 +5,11 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+from logging.config import dictConfig
 from uuid import UUID
 
 from app.infrastructure.rabbitmq import TABLE_ASR_QUEUE, connect
+from app.logger import LOG_CONFIG
 from app.services.table_asr import pending_segment_ids, transcribe_segment
 
 logger = logging.getLogger(__name__)
@@ -44,6 +46,7 @@ async def _consume() -> None:
 
 
 async def main() -> None:
+    dictConfig(LOG_CONFIG)
     sweep = asyncio.create_task(_sweep())
     try:
         await _consume()

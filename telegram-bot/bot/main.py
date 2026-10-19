@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from datetime import datetime, timedelta, timezone
 
 from aiogram import Bot, Dispatcher, Router
 from aiogram.filters import CommandStart
@@ -36,7 +37,15 @@ async def _set_commands(bot: Bot) -> None:
 
 
 async def main() -> None:
-    logging.basicConfig(level=logging.INFO)
+    def _eu_clock(seconds: float):
+        return datetime.fromtimestamp(seconds, timezone(timedelta(hours=3))).timetuple()
+
+    logging.Formatter.converter = staticmethod(_eu_clock)
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+        datefmt="%d.%m.%Y %H:%M:%S+03",
+    )
 
     if not bot_settings.enabled:
         raise RuntimeError("BOT_TOKEN is not set")

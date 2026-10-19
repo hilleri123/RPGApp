@@ -1,5 +1,7 @@
 # ---------- base ----------
 FROM node:20-slim AS base
+RUN apt-get update && apt-get install -y --no-install-recommends tzdata \
+    && rm -rf /var/lib/apt/lists/*
 RUN corepack enable && corepack prepare pnpm@latest --activate
 WORKDIR /app
 COPY package.json pnpm-lock.yaml ./
@@ -15,10 +17,13 @@ CMD ["pnpm", "dev"]
 FROM base AS builder
 RUN pnpm install --frozen-lockfile
 COPY . .
+ENV NODE_OPTIONS=--max-old-space-size=2048
 RUN pnpm build
 
 # ---------- prod ----------
 FROM node:20-slim AS prod
+RUN apt-get update && apt-get install -y --no-install-recommends tzdata \
+    && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 ENV NODE_ENV=production
 RUN corepack enable && corepack prepare pnpm@latest --activate

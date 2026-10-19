@@ -2,7 +2,9 @@ package main
 
 import (
 	"context"
+	"io"
 	"log"
+	"os"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -28,7 +30,24 @@ type seat struct {
 	cue     *media.OpenCue
 }
 
+// Часы всех строк: 19.10.2026 16:49:05+03. Смещение фиксированное, tzdata в образе не нужна.
+var euClock = time.FixedZone("+03", 3*60*60)
+
+type euWriter struct{ dst io.Writer }
+
+func (w euWriter) Write(p []byte) (int, error) {
+	stamp := time.Now().In(euClock).Format("02.01.2006 15:04:05+03 ")
+	n, err := w.dst.Write([]byte(stamp))
+	m, err2 := w.dst.Write(p)
+	if err2 != nil {
+		return n, err2
+	}
+	return n + m, err
+}
+
 func main() {
+	log.SetFlags(0)
+	log.SetOutput(euWriter{dst: os.Stderr})
 	client := api.New()
 	var mu sync.Mutex
 	seats := map[string]*seat{}

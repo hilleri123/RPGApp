@@ -19,8 +19,8 @@ import { GameItemEditDialog } from '../GameItemEditDialog';
 import { CreateItemFromTemplatePickerDialog } from '../CreateItemFromTemplatePickerDialog';
 import type { GameItemTemplateSeed } from '@/app/services/hooks/scenario/dialogs/useGameItemDialog';
 
-const FALLBACK_AVATAR = 'https://rpgzona.ru/static/img/npc-avatar-default.png';
-const FALLBACK_ICON = 'https://rpgzona.ru/static/img/icon-default.png';
+const FALLBACK_AVATAR = 'https://rpgzona.xyz/static/img/npc-avatar-default.png';
+const FALLBACK_ICON = 'https://rpgzona.xyz/static/img/icon-default.png';
 
 export function NpcMainTab({ dlg }: any) {
   const { readOnly } = useDialogMode();

@@ -12,11 +12,11 @@ upstream rpg_api {
 }
 
 server {
-    server_name rpgzona.ru www.rpgzona.ru;
+    server_name rpgzona.xyz www.rpgzona.xyz;
 
     listen 443 ssl; # managed by Certbot
-    ssl_certificate /etc/letsencrypt/live/rpgzona.ru/fullchain.pem; # managed by Certbot
-    ssl_certificate_key /etc/letsencrypt/live/rpgzona.ru/privkey.pem; # managed by Certbot
+    ssl_certificate /etc/letsencrypt/live/rpgzona.xyz/fullchain.pem; # managed by Certbot
+    ssl_certificate_key /etc/letsencrypt/live/rpgzona.xyz/privkey.pem; # managed by Certbot
     include /etc/letsencrypt/options-ssl-nginx.conf; # managed by Certbot
     ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem; # managed by Certbot
 
@@ -53,15 +53,15 @@ server {
 }
 
 server {
-    if ($host = rpgzona.ru) {
+    if ($host = rpgzona.xyz) {
         return 301 https://$host$request_uri;
     } # managed by Certbot
 
-    if ($host = www.rpgzona.ru) {
-        return 301 https://rpgzona.ru$request_uri;
+    if ($host = www.rpgzona.xyz) {
+        return 301 https://rpgzona.xyz$request_uri;
     } # managed by Certbot
 
     listen 80;
-    server_name rpgzona.ru www.rpgzona.ru;
+    server_name rpgzona.xyz www.rpgzona.xyz;
     return 404; # managed by Certbot
 }

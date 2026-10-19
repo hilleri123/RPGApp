@@ -12,8 +12,8 @@ import { useDialogMode } from '../common/DialogModeContext';
 import { RandomNamePicker } from '@/app/components/common/RandomNamePicker';
 import { getNameGeneratorEntries } from '../common/nameGenerators';
 
-const FALLBACK_IMG = 'https://rpgzona.ru/static/img/item-default.png';
-const FALLBACK_ICON = 'https://rpgzona.ru/static/img/icon-default.png';
+const FALLBACK_IMG = 'https://rpgzona.xyz/static/img/item-default.png';
+const FALLBACK_ICON = 'https://rpgzona.xyz/static/img/icon-default.png';
 
 export type ItemDlg = {
   form: any;

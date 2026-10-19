@@ -16,8 +16,8 @@ import { useDialogMode } from './common/DialogModeContext';
 import { useLaunchedLineageExtras } from './common/LaunchedLineageExtras';
 
 
-const FALLBACK_IMG = 'https://rpgzona.ru/static/img/note-default.png';
-const FALLBACK_ICON = 'https://rpgzona.ru/static/img/icon-default.png';
+const FALLBACK_IMG = 'https://rpgzona.xyz/static/img/note-default.png';
+const FALLBACK_ICON = 'https://rpgzona.xyz/static/img/icon-default.png';
 
 export function NoteMainTab({ dlg }: any) {
   const { readOnly } = useDialogMode();

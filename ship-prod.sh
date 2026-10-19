@@ -7,7 +7,7 @@
 #   ./ship-prod.sh --deploy-only           # remote pull+deploy only (no local push)
 #
 # Env overrides:
-#   PROD_HOST=shurik@176.123.165.212
+#   PROD_HOST=shurik@2.26.229.198
 #   PROD_DIR=~/RPGApp
 #   PROD_BRANCH=master
 set -euo pipefail
@@ -15,7 +15,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$ROOT"
 
-PROD_HOST="${PROD_HOST:-shurik@176.123.165.212}"
+PROD_HOST="${PROD_HOST:-shurik@2.26.229.198}"
 PROD_DIR="${PROD_DIR:-~/RPGApp}"
 PROD_BRANCH="${PROD_BRANCH:-master}"
 
