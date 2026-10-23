@@ -229,9 +229,21 @@ class SessionActionManager(SessionSceneManager):
         return ["logs"] if wrote else []
 
     async def _persist_and_add_roll_log(self, user: models.User, action: ActionRecord, log) -> None:
+        from app.services.gesture_service import create_gesture_from_seed
         from app.services.roll_persist import persist_roll_record, sanitize_log_seed
 
         meta = dict(getattr(log, "meta", None) or {})
+        gesture_id = await create_gesture_from_seed(
+            getattr(log, "seed", None),
+            session_id=self.session_id,
+            user_id=user.id,
+            reason=str(getattr(log, "title", "") or "") or None,
+        )
+        if gesture_id is not None:
+            try:
+                log.gesture_id = gesture_id
+            except Exception:
+                pass
         await persist_roll_record(
             session_id=self.session_id,
             user_id=user.id,

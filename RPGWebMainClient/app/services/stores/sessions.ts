@@ -85,6 +85,12 @@ type SessionsState = {
 
   setWsInit: (msg: SessionInitMessage, userId: string) => void;
   patchWsUpdate: (msg: SessionUpdateMessage, userId: string) => void;
+  applyObjectBatch: (
+    sessionId: string,
+    changes: { object_type: string; object_id: string; op: string }[],
+    bodies: { object_type: string; object_id: string; body: any }[],
+    userId?: string,
+  ) => void;
 
   setSessionData: (data: GameSession, userId?: string, roleHint?: WsRole) => void;
   patchSessionData: (patch: GameSessionPatch, userId?: string) => void;
@@ -247,6 +253,146 @@ function mergeWsUpdate(base: GameSession, patch: SessionUpdateMessage): GameSess
   return next as GameSession;
 }
 
+const OBJECT_FIELDS: Record<string, string> = {
+  player_character: 'characters',
+  npc: 'npcs',
+  game_item: 'items',
+  location: 'locations',
+  obstacle: 'obstacles',
+  note: 'notes',
+  story_beat: 'story_beats',
+  scene: 'scenes',
+  action: 'actions',
+  log: 'logs',
+  audio_queue: 'audio_queue',
+  inventory: 'inventories',
+  gesture: 'gestures',
+};
+
+const OBJECT_ORDER = [
+  'player_character', 'npc', 'game_item', 'location', 'obstacle', 'note', 'story_beat',
+  'inventory', 'log', 'audio_queue', 'gesture', 'scene', 'action',
+];
+
+function upsertById(list: any[], body: any): any[] {
+  const id = String(body?.id ?? '');
+  if (!id) return list;
+  const index = list.findIndex((item) => String(item?.id) === id);
+  if (index < 0) return [...list, body];
+  return list.map((item, i) => (i === index ? { ...item, ...body } : item));
+}
+
+function idsFrom(side: any, idKey: string, embeddedKey: string): string[] | null {
+  if (Array.isArray(side?.[idKey])) return side[idKey].map((id: unknown) => String(id));
+  if (Array.isArray(side?.[embeddedKey])) {
+    return side[embeddedKey].map((item: any) => String(item?.id ?? '')).filter(Boolean);
+  }
+  return null;
+}
+
+function pickByIds(list: any[] | undefined, ids: string[] | null, previous: any[] | undefined): any[] {
+  if (!ids) return previous ?? [];
+  return ids
+    .map((id) => (list ?? []).find((item) => String(item?.id) === id)
+      || (previous ?? []).find((item) => String(item?.id) === id))
+    .filter(Boolean);
+}
+
+function hydrateScene(scene: any, session: any, role?: WsRole): any {
+  const previousPublic = scene.public ?? {};
+  const previousPrivate = scene.private ?? {};
+  const fillSide = (side: any, previous: any) => {
+    const npcIds = idsFrom(side, 'npc_ids', 'npcs');
+    const itemIds = idsFrom(side, 'item_ids', 'items');
+    const obstacleIds = idsFrom(side, 'obstacle_ids', 'obstacles');
+    return {
+      ...previous,
+      ...side,
+      npcs: pickByIds(session.npcs, npcIds, previous?.npcs),
+      items: pickByIds(session.items, itemIds, previous?.items),
+      obstacles: pickByIds(
+        [...(session.obstacles ?? []), ...(side?.obstacles ?? [])],
+        obstacleIds,
+        previous?.obstacles,
+      ),
+    };
+  };
+  const characterIds = Array.isArray(scene.character_ids)
+    ? scene.character_ids.map((id: unknown) => String(id))
+    : (scene.characters ?? []).map((ch: any) => String(ch?.id ?? '')).filter(Boolean);
+  const locationId = String(scene.location_id ?? scene.location?.id ?? '');
+  const location = locationId
+    ? (session.locations ?? []).find((loc: any) => String(loc?.id) === locationId) ?? scene.location
+    : scene.location;
+  const roleKey = role === 'master' ? 'gm' : 'player';
+  const byRole = scene.available_actions_by_role;
+  const available = byRole?.[roleKey] ?? scene.available_actions ?? [];
+  let parentLocation = scene.parent_scene_location ?? null;
+  if (scene.show_parent_scene_map && scene.parent_scene_id) {
+    const parent = (session.scenes ?? []).find((item: any) => String(item?.id) === String(scene.parent_scene_id));
+    const parentLocationId = String(parent?.location_id ?? parent?.location?.id ?? '');
+    if (parentLocationId) {
+      parentLocation = (session.locations ?? []).find((loc: any) => String(loc?.id) === parentLocationId) ?? parentLocation;
+    }
+  }
+  return {
+    ...scene,
+    location,
+    parent_scene_location: parentLocation,
+    available_actions: available,
+    characters: pickByIds(session.characters, characterIds, scene.characters),
+    public: fillSide(scene.public, previousPublic),
+    private: fillSide(scene.private, previousPrivate),
+  };
+}
+
+function hydrateAction(action: any, session: any): any {
+  if (action?.scene) return action;
+  const scene = (session.scenes ?? []).find((item: any) => String(item?.id) === String(action?.scene_id));
+  return scene ? { ...action, scene } : action;
+}
+
+function hydrateSessionObjects(session: any, role?: WsRole): any {
+  const scenes = (session.scenes ?? []).map((scene: any) => hydrateScene(scene, session, role));
+  const withScenes = { ...session, scenes };
+  return {
+    ...withScenes,
+    actions: (withScenes.actions ?? []).map((action: any) => hydrateAction(action, withScenes)),
+  };
+}
+
+function applyBodies(
+  session: any,
+  changes: { object_type: string; object_id: string; op: string }[],
+  bodies: { object_type: string; object_id: string; body: any }[],
+  role?: WsRole,
+): any {
+  const next: any = { ...session };
+  const bodyByKey = new Map(bodies.map((row) => [`${row.object_type}:${row.object_id}`, row.body]));
+  const ordered = [...changes].sort(
+    (a, b) => OBJECT_ORDER.indexOf(a.object_type) - OBJECT_ORDER.indexOf(b.object_type),
+  );
+  for (const change of ordered) {
+    const field = OBJECT_FIELDS[change.object_type];
+    if (!field) continue;
+    const list = Array.isArray(next[field]) ? next[field] : [];
+    if (change.op === 'gone') {
+      next[field] = list.filter((item: any) => String(item?.id) !== String(change.object_id));
+      continue;
+    }
+    const body = bodyByKey.get(`${change.object_type}:${change.object_id}`);
+    if (!body) continue;
+    next[field] = upsertById(list, body);
+    if (change.object_type === 'player_character') {
+      next.players = (next.players ?? []).map((player: any) => {
+        const same = String(player?.character?.id ?? player?.character_id ?? '') === String(body.id);
+        return same ? { ...player, character: { ...(player.character ?? {}), ...body }, character_id: body.id } : player;
+      });
+    }
+  }
+  return hydrateSessionObjects(next, role);
+}
+
 function computeRoleFlags(
   sessionData: GameSession,
   userId?: string,
@@ -383,6 +529,32 @@ export const useSessionsStore = create<SessionsState>((set) => ({
         next.sessionsPlayer = { ...state2.sessionsPlayer, [sessionId]: enriched };
       }
       return next as SessionsState;
+    });
+  },
+
+  applyObjectBatch: (sessionId, changes, bodies, userId) => {
+    const state = useSessionsStore.getState();
+    const current =
+      state.sessionsMaster[sessionId]
+      ?? state.sessionsPlayer[sessionId]
+      ?? state.sessions[sessionId];
+    const base = current?.fullSession;
+    if (!base) return;
+
+    const role: WsRole | undefined = current?.isMaster ? 'master' : current?.isPlayer ? 'player' : undefined;
+    const next = applyBodies(base, changes, bodies, role);
+    const enriched = toEnrichedSession(next, userId, role);
+
+    set((state2) => {
+      const patch: Partial<SessionsState> = {
+        sessions: { ...state2.sessions, [sessionId]: enriched },
+      };
+      if (role === 'master') {
+        patch.sessionsMaster = { ...state2.sessionsMaster, [sessionId]: enriched };
+      } else if (role === 'player') {
+        patch.sessionsPlayer = { ...state2.sessionsPlayer, [sessionId]: enriched };
+      }
+      return patch as SessionsState;
     });
   },
 

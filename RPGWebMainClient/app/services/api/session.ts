@@ -13,6 +13,13 @@ export class SessionApiService extends BaseApiClient {
     return this.get<GameSessionPreview[]>(this.endpoint, params);
   }
 
+  async getObjects(
+    sessionId: string,
+    ids: string,
+  ): Promise<{ object_type: string; object_id: string; body: any }[]> {
+    return this.get(`${this.endpoint}/${sessionId}/objects`, { ids });
+  }
+
   async closeSession(session_id: string, forced: boolean = false): Promise<SessionFinishResponse> {
     return this.post<SessionFinishResponse>(`${this.endpoint}/${session_id}/finish`, { forced });
   }

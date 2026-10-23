@@ -37,6 +37,9 @@ _PERSISTED_ENTITY_MODELS: dict[str, Any] = {
 # вид, что запись прошла, нельзя.
 _UNBACKED_ENTITY_FIELDS = frozenset({"counters", "todos", "audio", "factories"})
 
+# Эти поля сессии лежат строками в Postgres. В Redis остаётся пустой список.
+_PG_RUNTIME_FIELDS = frozenset({"scenes", "actions", "logs", "audio_queue"})
+
 
 class SessionDataManager:
     def __init__(self, session_id: str, launched_scenario_id: str | None = None):
@@ -63,20 +66,55 @@ class SessionDataManager:
         return await redis_client.exists(self._session_key()) == 1
 
     async def delete_session(self) -> None:
+        from app.services.session_object_store import SessionObjectStore
+
+        await SessionObjectStore(self.session_id).delete_session_rows()
         await redis_client.delete(self._session_key())
 
     async def get_runtime(self) -> SessionRuntimeState:
         data = await redis_client.json().get(self._session_key())
         if not data:
             raise ValueError(f"session not found in redis: {self.session_id}")
+        data = await self._overlay_session_objects(data)
         return SessionRuntimeState.model_validate(data)
 
     async def set_runtime(self, runtime: SessionRuntimeState) -> None:
-        await redis_client.json().set(
-            self._session_key(),
-            Path.root_path(),
-            runtime.model_dump(mode="json"),
-        )
+        dumped = runtime.model_dump(mode="json")
+        await self._store_session_objects(dumped)
+        for field in _PG_RUNTIME_FIELDS:
+            dumped[field] = []
+        await redis_client.json().set(self._session_key(), Path.root_path(), dumped)
+        self._mark_visibility_dirty()
+
+    async def _overlay_session_objects(self, data: dict) -> dict:
+        from app.services.session_object_store import SessionObjectStore
+
+        store = SessionObjectStore(self.session_id)
+        for field in _PG_RUNTIME_FIELDS:
+            loaded = await store.load(field)
+            if loaded is None and data.get(field):
+                await store.save(field, data[field])
+                loaded = data[field]
+            if loaded is not None:
+                data[field] = loaded
+        return data
+
+    async def _store_session_objects(self, dumped: dict) -> None:
+        from app.services.gesture_service import materialize_gestures
+        from app.services.session_object_store import SessionObjectStore
+
+        store = SessionObjectStore(self.session_id)
+        for field in _PG_RUNTIME_FIELDS:
+            value = dumped.get(field) or []
+            if field in ("actions", "logs"):
+                value = await materialize_gestures(value, session_id=self.session_id, user_id=None)
+                dumped[field] = value
+            await store.save(field, value)
+
+    def _mark_visibility_dirty(self) -> None:
+        from app.services.change_scheduler import scheduler
+
+        scheduler.mark_dirty(self.session_id)
 
     async def _load_entities(self, scenario_id: UUID) -> ScenarioEntitiesSnapshot:
         cached = self._entity_cache.get(scenario_id)
@@ -118,6 +156,9 @@ class SessionDataManager:
         return runtime.scenario_id
 
     async def get_field(self, field: str) -> Any:
+        if field in _PG_RUNTIME_FIELDS:
+            runtime = await self.get_runtime()
+            return getattr(runtime, field)
         if field in _RUNTIME_FIELDS:
             try:
                 return await redis_client.json().get(self._session_key(), self._m_path(field))
@@ -130,6 +171,20 @@ class SessionDataManager:
         return getattr(inner, field)
 
     async def set_field(self, field: str, value: Any) -> None:
+        if field in _PG_RUNTIME_FIELDS:
+            from app.services.gesture_service import materialize_gestures
+            from app.services.session_object_store import SessionObjectStore
+
+            if field in ("actions", "logs"):
+                value = await materialize_gestures(value, session_id=self.session_id, user_id=None)
+            await SessionObjectStore(self.session_id).save(field, value)
+            try:
+                await redis_client.json().set(self._session_key(), self._m_path(field), [])
+            except ResponseError as exc:
+                if "does not exist" not in str(exc):
+                    raise
+            self._mark_visibility_dirty()
+            return
         if field not in _RUNTIME_FIELDS:
             # Entity fields live in Postgres (not Redis). Session patches / WS
             # updates must write data+tags back or HP/resource changes are lost
@@ -207,13 +262,18 @@ class SessionDataManager:
 
             for obj in rows:
                 raw = by_id[obj.id]
-                if "data" in raw and raw["data"] is not None and "data" in columns:
+                changed = False
+                if "data" in raw and raw["data"] is not None and "data" in columns and obj.data != raw["data"]:
                     obj.data = raw["data"]
-                if "tags" in raw and raw["tags"] is not None and "tags" in columns:
+                    changed = True
+                if "tags" in raw and raw["tags"] is not None and "tags" in columns and list(obj.tags or []) != list(raw["tags"] or []):
                     obj.tags = list(raw["tags"] or [])
-                updated += 1
+                    changed = True
+                if changed:
+                    updated += 1
             if updated:
                 await db.commit()
+                self._mark_visibility_dirty()
                 logger.info(
                     "persisted %s entity field=%s session=%s",
                     updated,

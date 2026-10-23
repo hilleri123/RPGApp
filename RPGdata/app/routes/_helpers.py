@@ -422,6 +422,16 @@ async def apply_item_ownership(
 
         db.add(link)
 
+    from app.services.inventory_service import sync_owner_inventory
+
+    await sync_owner_inventory(
+        db,
+        scenario_id=scenario_id,
+        owner_type=owner_type,
+        owner_id=owner_id,
+        items=[(x.item_id, int(getattr(x, "qty", None) or 1), bool(getattr(x, "equipped", False))) for x in owned_items],
+    )
+
     # commit снаружи, как у тебя сейчас
 
 

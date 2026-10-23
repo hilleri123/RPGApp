@@ -26,4 +26,5 @@ class LogRoll(LogMsgBase):
     total: Optional[int] = None
     outcome: Optional[str] = None
     seed: Optional[str] = None
+    gesture_id: Optional[UUID] = None
     meta: dict[str, Any] = Field(default_factory=dict)

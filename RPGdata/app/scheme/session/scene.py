@@ -24,7 +24,21 @@ class SceneElements(BaseModel):
 class SceneElementsInner(BaseModel):
     npc_ids: List[UUID] = []
     item_ids: List[UUID] = []
+    obstacle_ids: List[UUID] = []
     obstacles: List[ObstacleOut] = []
+
+    @model_validator(mode="before")
+    @classmethod
+    def _fill_obstacle_ids(cls, data: Any) -> Any:
+        if not isinstance(data, dict) or data.get("obstacle_ids"):
+            return data
+        ids = []
+        for ob in data.get("obstacles") or []:
+            if isinstance(ob, dict) and ob.get("id"):
+                ids.append(ob["id"])
+            elif hasattr(ob, "id"):
+                ids.append(ob.id)
+        return {**data, "obstacle_ids": ids}
 
 class Scene(BaseModel):
     id: UUID

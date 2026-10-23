@@ -21,9 +21,13 @@ async def lifespan(app: FastAPI):
     from app.infrastructure.rabbitmq import start_bot_rpc_consumer, stop_bot_rpc_consumer
 
     await start_bot_rpc_consumer()
+    from app.services.change_scheduler import scheduler
+
+    scheduler.start()
     try:
         yield
     finally:
+        await scheduler.stop()
         await stop_bot_rpc_consumer()
 
 

@@ -135,7 +135,13 @@ export function extractMoveResolution(action: any): MoveResolutionViewModel {
     localBonus: asNum(roll?.local_bonus),
     aidBonus: asNum(roll?.aid_bonus),
     dice,
-    rollSeed: roll?.roll_seed ? String(roll.roll_seed) : null,
+    rollSeed: roll?.gesture_url
+      ? String(roll.gesture_url)
+      : roll?.roll_seed_gesture_url
+        ? String(roll.roll_seed_gesture_url)
+        : roll?.roll_seed
+          ? String(roll.roll_seed)
+          : null,
 
     summary: moveRec?.summary ? String(moveRec.summary) : null,
     effect: moveRec?.effect ? String(moveRec.effect) : null,

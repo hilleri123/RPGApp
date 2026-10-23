@@ -80,7 +80,7 @@ export const SessionWebSocketProvider = ({
   } = useAuth();
   const router = useRouter();
 
-  const { setWsInit, patchWsUpdate, removeSession } = useSessionsStore();
+  const { setWsInit, patchWsUpdate, applyObjectBatch, removeSession } = useSessionsStore();
 
   const socketRef = useRef<WebSocket | null>(null);
   const [connected, setConnected] = useState(false);
@@ -288,7 +288,7 @@ export const SessionWebSocketProvider = ({
         flushOutbox();
       };
 
-      ws.onmessage = (event) => {
+      ws.onmessage = async (event) => {
         if (disposedRef.current) return;
 
         try {
@@ -395,6 +395,23 @@ export const SessionWebSocketProvider = ({
             patchWsUpdate({ ...(data as SessionUpdateMessage), session_id: sessionId } as any, user.id);
             return;
           }
+
+          if (data.msg_type === 'object_changes') {
+            const changes = Array.isArray(data.changes) ? data.changes : [];
+            const need = changes.filter((change: { op?: string }) => change.op !== 'gone');
+            const bodies: { object_type: string; object_id: string; body: any }[] = [];
+            for (let offset = 0; offset < need.length; offset += 40) {
+              const chunk = need.slice(offset, offset + 40);
+              const ids = chunk
+                .map((change: { object_type: string; object_id: string }) => `${change.object_type}:${change.object_id}`)
+                .join(',');
+              if (!ids) continue;
+              const part = await sessionApiService.getObjects(sessionId, ids);
+              bodies.push(...(part ?? []));
+            }
+            applyObjectBatch(sessionId, changes, bodies, user.id);
+            return;
+          }
         } catch (e) {
           console.error('Failed to parse message', e);
         }
@@ -453,6 +470,7 @@ export const SessionWebSocketProvider = ({
     user,
     setWsInit,
     patchWsUpdate,
+    applyObjectBatch,
     clearReconnectTimer,
     cleanupSocket,
     failAllPending,

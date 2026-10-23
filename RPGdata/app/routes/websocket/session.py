@@ -160,6 +160,18 @@ async def websocket_endpoint(
         # initial payload (role-based)
         await send_init_to_current()
 
+        from app.services.change_scheduler import current_change_cursor, scheduler
+        from app.services.visibility_service import rebuild_for_user
+
+        ws_role = "master" if is_master else "player"
+        await rebuild_for_user(UUID(str(session_id)), current_user.id, ws_role)
+        scheduler.watch(
+            session_id,
+            current_user.id,
+            ws_role,
+            await current_change_cursor(),
+        )
+
         rpc = SessionWsRpcHandler(
             db=db,
             session_m=session_m,
@@ -187,7 +199,14 @@ async def websocket_endpoint(
             active_claim = None
             raw_data = await websocket.receive_json()
 
-            logger.debug(f"{is_master=} {is_player=} {raw_data=}")
+            logger.debug(
+                "ws action session=%s user=%s master=%s player=%s msg_type=%s",
+                session_id,
+                getattr(current_user, "id", None),
+                is_master,
+                is_player,
+                raw_data.get("msg_type"),
+            )
             if await rpc.try_handle(raw_data):
                 continue
 
@@ -204,7 +223,7 @@ async def websocket_endpoint(
             client_msg_id = ws_idempotency.normalize_client_msg_id(raw_data.pop("client_msg_id", None))
 
             action = scheme.SessionActionBase.parse_action(raw_data)
-            logger.debug(f"{action=}")
+            logger.debug("ws parsed msg_type=%s", getattr(action, "msg_type", None))
 
             if client_msg_id:
                 if not await ws_idempotency.claim(session_id, current_user.id, client_msg_id):
@@ -449,13 +468,23 @@ async def websocket_endpoint(
                     ok = False
 
             if ok:
-                await broadcast_updates(fields)
+                # Подтверждение шага не ждёт рассылку. Тяжёлые списки уходят
+                # шедулером как id. Остальные поля сессии — прежним пакетом.
+                await ack(client_msg_id, ok=ok)
+                versioned = {
+                    "characters", "npcs", "items", "locations", "obstacles",
+                    "notes", "story_beats", "scenes", "actions", "logs", "audio_queue",
+                }
+                leftover = [name for name in fields if name not in versioned]
+                if leftover:
+                    await broadcast_updates(leftover)
                 await broadcast_observer_updates(fields)
             elif client_msg_id:
                 # Отказ не менял состояние: разрешаем повтор с тем же id.
                 await ws_idempotency.release(session_id, current_user.id, client_msg_id)
             active_claim = None
-            await ack(client_msg_id, ok=ok)
+            if not ok:
+                await ack(client_msg_id, ok=ok)
 
     except WebSocketException as e:
         # нет токена / политика / и т.п.
@@ -482,7 +511,34 @@ async def websocket_endpoint(
             pass
     finally:
         if current_user is not None:
+            from app.services.change_scheduler import scheduler
+
+            scheduler.unwatch(session_id, current_user.id)
             await connection_manager.disconnect(current_user.id, websocket)
+
+
+@router.get("/{session_id}/objects")
+async def get_session_objects(
+    session_id: UUID,
+    ids: str = "",
+    current_user: models.User = Depends(get_current_user),
+):
+    """Пачка тел по id. Клиент собирает стейт сам, сокет присылает только версии."""
+    from app.services.object_bodies import project_objects
+
+    pairs: list[tuple[str, UUID]] = []
+    for part in ids.split(","):
+        part = part.strip()
+        if ":" not in part:
+            continue
+        object_type, raw_id = part.split(":", 1)
+        try:
+            pairs.append((object_type, UUID(raw_id)))
+        except ValueError:
+            continue
+    if not pairs:
+        return []
+    return await project_objects(session_id, current_user, pairs[:80])
 
 
 @router.get("", response_model=list[scheme.GameSessionPreview])

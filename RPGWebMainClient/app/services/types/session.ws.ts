@@ -13,11 +13,26 @@ export type WsRole = 'master' | 'player';
 export type WsMsgType =
   | 'session_init'
   | 'session_update'
+  | 'object_changes'
   | 'rpc_result'
   | 'session_finished'
   | 'session_not_found'
   | 'session_return_to_lobby'
   ;
+
+export type ObjectChangeNotice = {
+  object_type: string;
+  object_id: string;
+  version: number;
+  op: 'appeared' | 'updated' | 'gone';
+  changed_at?: string | null;
+};
+
+export type ObjectChangesMessage = {
+  msg_type: 'object_changes';
+  session_id: string;
+  changes: ObjectChangeNotice[];
+};
 
 export type SessionInitMessage = {
   msg_type: 'session_init';
@@ -136,6 +151,7 @@ export type SessionReturnToLobbyMessage = {
 export type SessionWsMessage =
   | SessionInitMessage
   | SessionUpdateMessage
+  | ObjectChangesMessage
   | RpcResult
   | SessionFinishedMessage
   | SessionNotFoundMessage

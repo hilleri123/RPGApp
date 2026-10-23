@@ -5,6 +5,11 @@ from .campaign import Campaign, CampaignScenario
 from .launched_scenario import ScenarioParty, ScenarioPartyMember, PlayerSeenState, PlayerSeen
 from .character_application import *
 from .roll import RollRecord
+from .roll_gesture import RollGesture
+from .object_change import ObjectChange
+from .inventory import Inventory, InventoryItem, InventoryParticipant
+from .visibility import VisibilityMember
+from .session_object import SessionActionRow, SessionAudioQueueRow, SessionLogRow, SessionSceneRow
 from .prepared_seed import PreparedRollSeed
 
 from .entity_pack import *

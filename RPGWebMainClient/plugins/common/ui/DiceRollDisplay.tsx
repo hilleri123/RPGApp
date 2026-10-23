@@ -2,7 +2,20 @@
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { clampDie, DiceIcon } from './DiceUi';
+import { seedImageUrl } from './seedImage';
 import { ImageIcon } from 'lucide-react';
+
+function rollImageSrc(canvasSeed?: string | null): string | null {
+  if (!canvasSeed) return null;
+  if (
+    canvasSeed.startsWith('data:')
+    || canvasSeed.startsWith('http')
+    || canvasSeed.startsWith('/')
+  ) {
+    return canvasSeed;
+  }
+  return seedImageUrl(null, canvasSeed);
+}
 
 export type DieColor =
   | 'neutral'
@@ -226,9 +239,9 @@ export function DiceRollDisplay({
       )}
 
       <div className="relative rounded border bg-zinc-950/30 px-3 py-2">
-        {canvasSeed && (
+        {rollImageSrc(canvasSeed) && (
           <div className="absolute right-2 top-2">
-            <SeedTooltip src={canvasSeed} />
+            <SeedTooltip src={rollImageSrc(canvasSeed) as string} />
           </div>
         )}
 
