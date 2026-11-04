@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Commit (optional), push master, build images on this machine, send them
-# to production, then pull and recreate containers there. Production does not build.
+# Commit (optional), push master, then start deploy.sh on the production host
+# under nohup. The build runs there, so this machine can be turned off.
 #
 # Usage:
 #   ./ship-prod.sh "commit message here"   # commit dirty tree, push, deploy
@@ -117,45 +117,23 @@ do_push() {
   log "Local HEAD: $(git log -1 --oneline)"
 }
 
-# Built here. migrate and table-asr use the app image.
-PROD_IMAGES=(
-  rpgzona/app:latest
-  rpgzona/web-client:latest
-  rpgzona/telegram-bot:latest
-  rpgzona/table-bridge:latest
-)
-
-do_local_images() {
-  require_cmd docker
-  # Эти переменные нужны только чтобы compose разобрал файл. В образ они не
-  # попадают: это не build-args, а окружение уже запущенного контейнера.
-  export RABBIT_URL="${RABBIT_URL:-amqp://user:pass@rabbitmq:5672/}"
-  export RABBITMQ_DEFAULT_USER="${RABBITMQ_DEFAULT_USER:-user}"
-  export RABBITMQ_DEFAULT_PASS="${RABBITMQ_DEFAULT_PASS:-pass}"
-  log "Building images on this machine"
-  docker compose -f compose.prod.yml build app web-client telegram-bot table-bridge
-  log "Sending images to ${PROD_HOST}"
-  docker save "${PROD_IMAGES[@]}" | gzip -1 | ssh -o BatchMode=yes "$PROD_HOST" 'gunzip | docker load'
-}
-
 do_remote_deploy() {
-  log "Deploying on ${PROD_HOST}:${PROD_DIR}"
-  # Expand ~ on the remote via bash -lc
+  log "Starting deploy on ${PROD_HOST} under nohup"
   ssh -o BatchMode=yes "$PROD_HOST" bash -s -- "$PROD_DIR" "$PROD_BRANCH" <<'REMOTE'
 set -euo pipefail
 PROD_DIR="$1"
 PROD_BRANCH="$2"
 cd "$PROD_DIR"
-chmod +x deploy.sh
-echo "==> Remote: fetching ${PROD_BRANCH}"
-git fetch origin "$PROD_BRANCH"
-if [[ -n "$(git status --porcelain)" ]]; then
-  echo "warning: remote working tree is dirty" >&2
+if pgrep -f '[.]/deploy.sh' >/dev/null; then
+  echo "deploy.sh is already running" >&2
+  exit 1
 fi
+git fetch origin "$PROD_BRANCH"
 git checkout "$PROD_BRANCH"
 git pull origin "$PROD_BRANCH" --ff-only
-echo "==> Remote revision: $(git log -1 --oneline)"
-./deploy.sh --skip-pull
+chmod +x deploy.sh
+nohup ./deploy.sh --skip-pull >> "$HOME/rpgapp-deploy.log" 2>&1 < /dev/null &
+echo "pid $! log $HOME/rpgapp-deploy.log"
 REMOTE
 }
 
@@ -163,12 +141,10 @@ case "$MODE" in
   commit-push-deploy)
     do_commit
     do_push
-    do_local_images
     do_remote_deploy
     ;;
   push-deploy)
     do_push
-    do_local_images
     do_remote_deploy
     ;;
   deploy-only)

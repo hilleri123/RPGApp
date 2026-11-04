@@ -23,10 +23,8 @@ Usage: $(basename "$0") [--skip-pull]
 
   --skip-pull   Skip git pull (redeploy current checkout only)
 
-Pulls origin/master, runs Alembic via the migrate service, then recreates
-app / web-client / telegram-bot from images already loaded on this host.
-Images are built on the dev machine and sent with docker save | docker load.
-This host does not build them.
+Pulls origin/master, builds images on this host, runs Alembic via the
+migrate service, then recreates app / web-client / telegram-bot.
 EOF
 }
 
@@ -81,9 +79,11 @@ pull_master() {
 }
 
 build_and_deploy() {
-  log "Using images already loaded on this host"
+  log "Building images"
+  "${COMPOSE[@]}" build app web-client telegram-bot table-bridge
+
   log "Running Alembic migrations (migrate service)"
-  # Force-recreate so migrate always uses the freshly loaded image (not a stale container).
+  # migrate uses the app image just built. --no-build keeps compose from compiling it again.
   "${COMPOSE[@]}" up -d --no-build --force-recreate --no-deps db
   "${COMPOSE[@]}" up --no-build --force-recreate --abort-on-container-exit migrate
 
@@ -94,6 +94,9 @@ build_and_deploy() {
 
   log "Ensuring infrastructure services are up"
   "${COMPOSE[@]}" up -d --no-build db redis rabbitmq pg-backup
+
+  log "Removing dangling images left by the rebuild"
+  docker image prune -f >/dev/null
 }
 
 verify_migrate() {
