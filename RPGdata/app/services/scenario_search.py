@@ -12,6 +12,7 @@ from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app import models
+from app.services.character_membership import scope_clause
 from app.constants.location_kinds import is_kind_tag, kind_of
 
 # type -> (model, name column, searchable text columns). `type` ids match the client tabs.
@@ -89,7 +90,7 @@ async def search_scenario(
 
     for type_id in selected:
         model, name_col, text_cols = _SPECS[type_id]
-        stmt = select(model).where(model.scenario_id == scenario_id)
+        stmt = select(model).where(scope_clause(model, scenario_id))
         if needle:
             pattern = f"%{_escape_like(needle)}%"
             stmt = stmt.where(

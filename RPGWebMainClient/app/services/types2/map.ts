@@ -7,6 +7,8 @@ export interface MapObjectPolygonPoint {
 
 export interface MapObjectPolygonBase {
   name: string;
+  /** Задано в карточке полигона. Подпись на фигуре такое имя не затирает. */
+  name_is_manual?: boolean;
   source_location_id: UUID;
   target_location_id: UUID | null;
 

@@ -12,6 +12,7 @@ from app import models, scheme
 from app.plugins.contracts import EntityPayload
 from app.scheme.character import CharacterUpsertPayload
 from app.scheme.common import dump_entity_fields
+from app.services.character_membership import ORIGIN_NATIVE, link_character
 
 
 async def create_character_from_ws_dict(
@@ -52,10 +53,11 @@ async def create_character_from_ws_dict(
         id=UUID(str(raw_id)),
         **entity_data,
         **plugin_data,
-        scenario_id=scenario_id,
         copied_from=ch_dict.get("copied_from"),
     )
     db.add(obj)
+    await db.flush()
+    await link_character(db, obj.id, scenario_id, ORIGIN_NATIVE)
     await db.commit()
     await db.refresh(obj)
 

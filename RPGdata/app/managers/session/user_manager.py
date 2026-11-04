@@ -45,3 +45,29 @@ class SessionUserManager(SessionDataManager):
         players = await self.get_field('players')
         res += [scheme.Player(**data).user for data in players]
         return res
+
+    async def scene_cue_speaker(self, user: models.User) -> dict | None:
+        """Имя, аватар персонажа и цвет игрока для тоста. В журнал не пишется."""
+        if not await self.is_player(user):
+            return None
+        inner = await self.get_inner()
+        player = next(
+            (p for p in (inner.players or []) if str(p.user.id) == str(user.id)),
+            None,
+        )
+        if player is None or not player.character_id:
+            return None
+        character = next(
+            (c for c in (inner.characters or []) if str(c.id) == str(player.character_id)),
+            None,
+        )
+        source = character or getattr(player, "character", None)
+        name = getattr(source, "name", None)
+        if not name:
+            return None
+        icon = getattr(source, "icon_url", None) or getattr(source, "img_url", None)
+        return {
+            "name": name,
+            "icon_url": str(icon) if icon else None,
+            "color": getattr(player, "color", None) or "#ffffff",
+        }

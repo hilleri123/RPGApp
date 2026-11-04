@@ -21,6 +21,7 @@ import {
   MAP_CANVAS_UNDERLAY_FILE_ID,
 } from '@/app/components/common/map/excalidrawCanvasBounds';
 import { useLocationCanvasExpand } from './useLocationCanvasExpand';
+import { polygonNameFromShape } from '@/app/components/common/map/polygonLabel';
 
 type Point = { x: number; y: number };
 
@@ -150,29 +151,11 @@ function isLine(el: ExcalidrawElement): boolean {
   return el.type === 'line' || el.type === 'arrow' || el.type === 'freedraw';
 }
 
-function extractLabelForElement(
-  el: ExcalidrawElement,
-  textById: Record<string, string>
-): string {
-  return textById[el.id] ?? `${el.type} ${el.id.slice(0, 4)}`;
-}
-
 function elementsToMapObjects(
   elements: readonly ExcalidrawElement[],
   existingMapObjects: MapObjectPolygonCreate[],
   locationId: string | null | undefined,
 ): MapObjectPolygonCreate[] {
-  const textById: Record<string, string> = {};
-
-  for (const el of elements) {
-    if (el.type === 'text' && !el.isDeleted) {
-      // @ts-ignore
-      const container: string | undefined = el.containerId;
-      // @ts-ignore
-      if (container) textById[container] = el.text ?? '';
-    }
-  }
-
   const existingByInternalId = new Map<string, MapObjectPolygonCreate>(
     (existingMapObjects ?? [])
       .filter((o) => o.internal_id)
@@ -189,11 +172,13 @@ function elementsToMapObjects(
     if (polygon.length < 2) continue;
 
     const existing = existingByInternalId.get(el.id);
+    const named = polygonNameFromShape(existing, el as any, elements as any);
 
     const obj: MapObjectPolygonCreate = {
       ...existing,
       internal_id: el.id,
-      name: existing?.name ?? extractLabelForElement(el, textById),
+      name: named.name,
+      name_is_manual: named.name_is_manual,
       color: existing?.color ?? elementColor(el),
       polygon_list: polygon,
       source_location_id: locationId ?? (existing?.source_location_id ?? ''),

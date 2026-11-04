@@ -124,7 +124,11 @@ class CurrentLobbyManager:
         bindings: dict[str, dict] = {}
 
         char_stmt = select(models.PlayerCharacter).where(
-            models.PlayerCharacter.scenario_id == launched_scenario_id,
+            models.PlayerCharacter.id.in_(
+                select(models.CharacterScenario.character_id).where(
+                    models.CharacterScenario.scenario_id == launched_scenario_id
+                )
+            ),
             models.PlayerCharacter.bound_user_id.is_not(None),
         )
         for ch in (await db.execute(char_stmt)).scalars().all():
@@ -189,6 +193,24 @@ class CurrentLobbyManager:
                     entry["character_dict"] = character_dict_from_application(app)
                 bindings[uid] = entry
 
+        prefs = (
+            await db.execute(
+                select(models.LaunchedScenarioPlayer).where(
+                    models.LaunchedScenarioPlayer.launched_scenario_id == launched_scenario_id
+                )
+            )
+        ).scalars().all()
+        for pref in prefs:
+            uid = str(pref.user_id)
+            entry = bindings.get(uid) or {"character_id": None, "application_id": None}
+            if entry.get("character_id") != pref.character_id:
+                entry["character_id"] = pref.character_id
+                entry["application_id"] = None
+                entry.pop("character_dict", None)
+            if pref.color:
+                entry["color"] = pref.color
+            bindings[uid] = entry
+
         # Enrich scenario-bound chars that are also application pool rows.
         bound_cids = [b["character_id"] for b in bindings.values() if b.get("character_id")]
         if bound_cids:
@@ -246,6 +268,8 @@ class CurrentLobbyManager:
             else:
                 player.character_id = None
                 player.application_id = None
+            if binding and binding.get("color"):
+                player.color = binding["color"]
             players_to_set.append(player.model_dump(mode="json"))
 
         await redis_client.json().set(
@@ -278,7 +302,13 @@ class CurrentLobbyManager:
 
             char_stmt = (
                 select(models.PlayerCharacter)
-                .where(models.PlayerCharacter.scenario_id == launched_scenario_id)
+                .where(
+                    models.PlayerCharacter.id.in_(
+                        select(models.CharacterScenario.character_id).where(
+                            models.CharacterScenario.scenario_id == launched_scenario_id
+                        )
+                    )
+                )
                 .options(
                     selectinload(models.PlayerCharacter.owned_item_links).selectinload(
                         models.ItemOwnership.item
@@ -484,6 +514,8 @@ class CurrentLobbyManager:
                     bindings = await self._bindings_for_launched_scenario(db, launched_id)
                     await db.commit()
                 binding = bindings.get(str(user.id))
+                if binding and binding.get("color"):
+                    player.color = binding["color"]
                 if binding and binding.get("character_id"):
                     player.character_id = binding["character_id"]
                     player.application_id = binding.get("application_id")

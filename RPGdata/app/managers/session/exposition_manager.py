@@ -119,14 +119,21 @@ class ExpositionManager(AudioManager):
 
         scene.private = self._ensure_scene_elements(scene.private)
         scenes = list(inner.scenes or [])
+        tree = set(self._location_tree_ids(scene.location_id, inner.locations or []))
+        target_location_id = from_location_id if from_location_id in tree else scene.location_id
+        bucket = self._bucket_for(scene, target_location_id)
+        side = self._ensure_scene_elements(bucket.private)
+        bucket.private = side
+        if bucket.location_id == scene.location_id:
+            scene.private = side
 
-        existing_npc_ids = set(scene.private.npc_ids or [])
-        existing_item_ids = set(scene.private.item_ids or [])
+        existing_npc_ids = set(side.npc_ids or [])
+        existing_item_ids = set(side.item_ids or [])
 
         # локация сцены — NPC из неё не дублируем
         loc_npc_ids: set[UUID] = set()
-        if scene.location_id:
-            loc = next((l for l in (inner.locations or []) if l.id == scene.location_id), None)
+        if target_location_id:
+            loc = next((l for l in (inner.locations or []) if l.id == target_location_id), None)
             if loc:
                 loc_npc_ids = set(getattr(loc, "npc_ids", None) or [])
 
@@ -138,15 +145,15 @@ class ExpositionManager(AudioManager):
         for npc_id in (exposure.npc_ids or []):
             if npc_id in loc_npc_ids or npc_id in existing_npc_ids:
                 continue
-            scene.private.npc_ids.append(npc_id)
+            side.npc_ids.append(npc_id)
             existing_npc_ids.add(npc_id)
 
         # ── 2) обычные предметы ────────────────────────────────────────────
         for item_id in (exposure.item_ids or []):
-            if not self._is_free_item(inner, item_id, scene.location_id):
+            if not self._is_free_item(inner, item_id, target_location_id):
                 continue
             if item_id not in existing_item_ids:
-                scene.private.item_ids.append(item_id)
+                side.item_ids.append(item_id)
                 existing_item_ids.add(item_id)
 
         # ── 3) шаблонные NPC — клонируем из фабрики ────────────────────────
@@ -159,7 +166,7 @@ class ExpositionManager(AudioManager):
             new_npc = self._clone_npc_from_factory(src)
             print(new_npc)
             npcs.append(new_npc)
-            scene.private.npc_ids.append(new_npc.id)
+            side.npc_ids.append(new_npc.id)
             existing_npc_ids.add(new_npc.id)
             changed_fields.add("npcs")
 
@@ -172,12 +179,12 @@ class ExpositionManager(AudioManager):
 
             new_item = self._clone_item_from_factory(src)
             items.append(new_item)
-            scene.private.item_ids.append(new_item.id)
+            side.item_ids.append(new_item.id)
             existing_item_ids.add(new_item.id)
             changed_fields.add("items")
 
         # ── 5) препятствия — копируем с новым id ───────────────────────────
-        obstacles_private = list(scene.private.obstacles or [])
+        obstacles_private = list(side.obstacles or [])
         for ob in (exposure.obstacles or []):
             new_ob = scheme.ObstacleOut.model_validate(ob) if not hasattr(ob, "model_copy") else ob.model_copy(deep=True)
             try:
@@ -186,7 +193,9 @@ class ExpositionManager(AudioManager):
                 pass
             obstacles_private.append(new_ob)
 
-        scene.private.obstacles = obstacles_private
+        side.obstacles = obstacles_private
+        if bucket.location_id == scene.location_id:
+            scene.private = side
 
 
         # ── 6) аудио — добавляем в очередь ────────────────────────────────

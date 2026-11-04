@@ -120,7 +120,11 @@ async def build_approach_zip(db: AsyncSession, session: models.GameSession) -> t
     if world_id is not None:
         characters = list((await db.execute(
             select(models.PlayerCharacter)
-            .where(models.PlayerCharacter.scenario_id == world_id)
+            .where(models.PlayerCharacter.id.in_(
+                select(models.CharacterScenario.character_id).where(
+                    models.CharacterScenario.scenario_id == world_id
+                )
+            ))
             .order_by(models.PlayerCharacter.name.asc())
         )).scalars().all())
         npcs = list((await db.execute(

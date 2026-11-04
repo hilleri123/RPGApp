@@ -26,14 +26,16 @@ class PlayerCharacter(Base):
     img_path = Column(String)
 
     location_id = Column(Uuid, ForeignKey("location.id"))
-    scenario_id = Column(Uuid, ForeignKey("scenario.id", ondelete="CASCADE"), nullable=True)
     # Stable link to the user who plays this character in the launched scenario / lobby prefill.
     bound_user_id = Column(Uuid, ForeignKey("user.id", ondelete="SET NULL"), nullable=True, index=True)
 
     # Отношения
     location = relationship("Location", back_populates="characters")
-    scenario = relationship("Scenario", back_populates="characters")  # Добавлено это отношение
-    # player = relationship("Player", back_populates="character")
+    scenario_links = relationship(
+        "CharacterScenario",
+        back_populates="character",
+        cascade="all, delete-orphan",
+    )
     counters = relationship("Counter", back_populates="character")
 
     owned_item_links = relationship(
@@ -42,4 +44,27 @@ class PlayerCharacter(Base):
         cascade="all, delete-orphan",
     )
     owned_items = association_proxy("owned_item_links", "item")
+
+
+class CharacterScenario(Base):
+    """Персонаж в сценарии. Один и тот же персонаж может состоять в нескольких."""
+
+    __tablename__ = "character_scenario"
+
+    character_id = Column(
+        Uuid,
+        ForeignKey("player_character.id", ondelete="CASCADE"),
+        primary_key=True,
+    )
+    scenario_id = Column(
+        Uuid,
+        ForeignKey("scenario.id", ondelete="CASCADE"),
+        primary_key=True,
+        index=True,
+    )
+    # native — родной для сценария; application — из заявки в лобби; other — иначе.
+    origin = Column(String, nullable=False)
+
+    character = relationship("PlayerCharacter", back_populates="scenario_links")
+    scenario = relationship("Scenario", back_populates="character_links")
 

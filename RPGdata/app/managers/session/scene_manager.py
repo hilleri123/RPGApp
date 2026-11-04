@@ -30,6 +30,8 @@ class SessionSceneManager(SessionDataManager):
 
     # --- helpers ---
     async def _save_scenes(self, scenes: list[scheme.SceneInner]) -> None:
+        for scene in scenes:
+            scheme.sync_scene_projection(scene)
         await self.set_field("scenes", [s.model_dump(mode="json") for s in scenes])
 
     async def _save_seen(self, seen_set, *, added: set[UUID] | None = None) -> None:
@@ -139,24 +141,15 @@ class SessionSceneManager(SessionDataManager):
         if not loc:
             return False, []
 
-        scene.location_id = location_id
         inner.seen.add(location_id)
-
-        private = self._ensure_scene_elements(scene.private)
-
-        existing_npc_ids = set(private.npc_ids or [])
-        existing_item_ids = set(private.item_ids or [])
-
-        for nid in (getattr(loc, "npc_ids", None) or []):
-            if nid not in existing_npc_ids:
-                private.npc_ids.append(nid)
-
-        for it in (inner.items or []):
-            if hasattr(it, "location_id") and it.location_id == location_id:
-                if it.id not in existing_item_ids:
-                    private.item_ids.append(it.id)
-
-        scene.private = private
+        private = scheme.SceneElementsInner(
+            npc_ids=list(getattr(loc, "npc_ids", None) or []),
+            item_ids=[
+                it.id for it in (inner.items or [])
+                if getattr(it, "location_id", None) == location_id
+            ],
+        )
+        scheme.switch_scene_root(scene, location_id, private=private)
 
         await self._recompute_available_actions_for_scene(inner, scene)
 
@@ -749,8 +742,269 @@ class SessionSceneManager(SessionDataManager):
 
         scene.available_actions_by_role = by_role
 
+    def _location_tree_ids(self, root_id: UUID, locations) -> list[UUID]:
+        children: dict[UUID | None, list[UUID]] = {}
+        for loc in locations or []:
+            children.setdefault(getattr(loc, "parent_location_id", None), []).append(loc.id)
+        ordered: list[UUID] = []
+        stack = [root_id]
+        seen: set[UUID] = set()
+        while stack:
+            current = stack.pop()
+            if current in seen:
+                continue
+            seen.add(current)
+            ordered.append(current)
+            stack.extend(children.get(current, []))
+        return ordered
 
+    def _location_has_map(self, loc) -> bool:
+        if getattr(loc, "map_url", None):
+            return True
+        drawing = getattr(loc, "excalidraw_map_json", None) or {}
+        if isinstance(drawing, dict) and drawing.get("elements"):
+            return True
+        return bool(getattr(loc, "map_width", None) and getattr(loc, "map_height", None))
 
+    def _bucket_for(self, scene: scheme.SceneInner, location_id: UUID) -> scheme.SceneLocationBucket:
+        scheme.sync_scene_projection(scene)
+        bucket = next((item for item in scene.containers if item.location_id == location_id), None)
+        if bucket is None:
+            bucket = scheme.SceneLocationBucket(location_id=location_id)
+            scene.containers.append(bucket)
+            if location_id == scene.location_id:
+                scene.public = bucket.public
+                scene.private = bucket.private
+        return bucket
+
+    async def create_scene_canvases(
+        self,
+        scene_id: UUID,
+        location_id: UUID | None = None,
+        all_maps: bool = False,
+    ) -> Tuple[bool, list[str]]:
+        inner = await self.get_inner()
+        scene = next((item for item in (inner.scenes or []) if item.id == scene_id), None)
+        if not scene:
+            return False, []
+        by_id = {loc.id: loc for loc in (inner.locations or [])}
+        tree = self._location_tree_ids(scene.location_id, inner.locations or [])
+        if all_maps:
+            wanted = [loc_id for loc_id in tree if loc_id in by_id and self._location_has_map(by_id[loc_id])]
+        elif location_id is not None and location_id in tree and location_id in by_id:
+            wanted = [location_id]
+        else:
+            return False, []
+        existing = {canvas.location_id for canvas in scene.canvases}
+        created = False
+        for loc_id in wanted:
+            if all_maps and loc_id in existing:
+                continue
+            loc = by_id[loc_id]
+            scene.canvases.append(scheme.SceneCanvas(
+                id=uuid4(),
+                location_id=loc_id,
+                name=getattr(loc, "name", None) or "Холст",
+            ))
+            created = True
+            existing.add(loc_id)
+        if not scene.shown_canvas_id and scene.canvases:
+            scene.shown_canvas_id = scene.canvases[0].id
+        if not created:
+            return False, []
+        await self._save_scenes(inner.scenes)
+        return True, ["scenes"]
+
+    async def delete_scene_canvas(self, scene_id: UUID, canvas_id: UUID) -> Tuple[bool, list[str]]:
+        inner = await self.get_inner()
+        scene = next((item for item in (inner.scenes or []) if item.id == scene_id), None)
+        if not scene:
+            return False, []
+        scene.canvases = [canvas for canvas in scene.canvases if canvas.id != canvas_id]
+        if scene.shown_canvas_id == canvas_id:
+            scene.shown_canvas_id = scene.canvases[0].id if scene.canvases else None
+        scene.player_canvas = {
+            player_id: cid for player_id, cid in (scene.player_canvas or {}).items() if cid != canvas_id
+        }
+        await self._save_scenes(inner.scenes)
+        return True, ["scenes"]
+
+    async def set_shown_canvas(self, scene_id: UUID, canvas_id: UUID) -> Tuple[bool, list[str]]:
+        inner = await self.get_inner()
+        scene = next((item for item in (inner.scenes or []) if item.id == scene_id), None)
+        if not scene or not any(canvas.id == canvas_id for canvas in scene.canvases):
+            return False, []
+        scene.shown_canvas_id = canvas_id
+        await self._save_scenes(inner.scenes)
+        return True, ["scenes"]
+
+    async def set_player_canvas(
+        self,
+        scene_id: UUID,
+        player_id: UUID,
+        canvas_id: UUID | None,
+    ) -> Tuple[bool, list[str]]:
+        inner = await self.get_inner()
+        scene = next((item for item in (inner.scenes or []) if item.id == scene_id), None)
+        if not scene:
+            return False, []
+        key = str(player_id)
+        if canvas_id is None:
+            scene.player_canvas.pop(key, None)
+        elif any(canvas.id == canvas_id for canvas in scene.canvases):
+            scene.player_canvas[key] = canvas_id
+        else:
+            return False, []
+        await self._save_scenes(inner.scenes)
+        return True, ["scenes"]
+
+    async def update_scene_canvas(
+        self,
+        scene_id: UUID,
+        canvas_id: UUID,
+        *,
+        tokens: list | None = None,
+        grid_on: bool | None = None,
+        mask_ids: list | None = None,
+        name: str | None = None,
+    ) -> Tuple[bool, list[str]]:
+        inner = await self.get_inner()
+        scene = next((item for item in (inner.scenes or []) if item.id == scene_id), None)
+        if not scene:
+            return False, []
+        canvas = next((item for item in scene.canvases if item.id == canvas_id), None)
+        if canvas is None:
+            return False, []
+        if tokens is not None:
+            canvas.tokens = [scheme.SceneToken.model_validate(token) for token in tokens]
+        if grid_on is not None:
+            canvas.grid_on = grid_on
+        if mask_ids is not None:
+            canvas.mask_ids = [UUID(str(item)) for item in mask_ids]
+        if name is not None:
+            canvas.name = name
+        await self._save_scenes(inner.scenes)
+        return True, ["scenes"]
+
+    async def _load_overlays(self) -> list[scheme.MapOverlay]:
+        raw = await self.get_field("map_overlays") or []
+        overlays = []
+        for item in raw:
+            overlays.append(item if isinstance(item, scheme.MapOverlay) else scheme.MapOverlay.model_validate(item))
+        return overlays
+
+    async def save_map_overlay(self, payload: dict) -> Tuple[bool, list[str]]:
+        overlays = await self._load_overlays()
+        overlay = scheme.MapOverlay.model_validate({
+            **payload,
+            "id": payload.get("id") or str(uuid4()),
+        })
+        replaced = False
+        for index, current in enumerate(overlays):
+            if current.id == overlay.id:
+                overlay.location_id = current.location_id
+                overlays[index] = overlay
+                replaced = True
+                break
+        if not replaced:
+            overlays.append(overlay)
+        await self.set_field("map_overlays", [item.model_dump(mode="json") for item in overlays])
+        return True, ["map_overlays"]
+
+    async def delete_map_overlay(self, overlay_id: UUID) -> Tuple[bool, list[str]]:
+        overlays = [item for item in await self._load_overlays() if item.id != overlay_id]
+        await self.set_field("map_overlays", [item.model_dump(mode="json") for item in overlays])
+        inner = await self.get_inner()
+        for scene in inner.scenes or []:
+            for canvas in scene.canvases:
+                canvas.mask_ids = [mask_id for mask_id in canvas.mask_ids if mask_id != overlay_id]
+        await self._save_scenes(inner.scenes)
+        return True, ["map_overlays", "scenes"]
+
+    async def merge_map_overlay(self, overlay_id: UUID) -> Tuple[bool, list[str]]:
+        from sqlalchemy import select
+        from sqlalchemy.orm import selectinload
+
+        from app.infrastructure.database import AsyncSessionLocal
+        from app.services.map_polygons import append_overlay_elements, elements_to_map_objects
+
+        overlays = await self._load_overlays()
+        overlay = next((item for item in overlays if item.id == overlay_id), None)
+        if overlay is None:
+            return False, []
+        inner = await self.get_inner()
+        async with AsyncSessionLocal() as db:
+            row = (await db.execute(
+                select(models.Location).where(
+                    models.Location.id == overlay.location_id,
+                    models.Location.scenario_id == inner.scenario_id,
+                ).options(selectinload(models.Location.map_objects))
+            )).scalars().first()
+            if row is None:
+                return False, []
+            merged = append_overlay_elements(row.excalidraw_map_json, overlay.scene, str(overlay.id))
+            existing = [
+                {
+                    "id": poly.id,
+                    "name": poly.name,
+                    "name_is_manual": bool(getattr(poly, "name_is_manual", False)),
+                    "internal_id": poly.internal_id,
+                    "color": poly.color,
+                    "polygon_list": poly.polygon_list,
+                    "source_location_id": poly.source_location_id,
+                    "target_location_id": poly.target_location_id,
+                    "is_shown": poly.is_shown,
+                    "is_line": poly.is_line,
+                    "is_filled": poly.is_filled,
+                    "alpha": poly.alpha,
+                    "icon": poly.icon,
+                    "icon_url": poly.icon_url,
+                }
+                for poly in (row.map_objects or [])
+            ]
+            rebuilt = elements_to_map_objects(merged.get("elements") or [], existing, str(row.id))
+            by_internal = {poly.internal_id: poly for poly in (row.map_objects or []) if poly.internal_id}
+            seen: set[str] = set()
+            for obj in rebuilt:
+                internal_id = obj.get("internal_id")
+                seen.add(internal_id)
+                current = by_internal.get(internal_id)
+                payload = {key: value for key, value in obj.items() if key != "id"}
+                payload["source_location_id"] = row.id
+                if current is None:
+                    db.add(models.MapObjectPolygon(**payload))
+                    continue
+                for key, value in payload.items():
+                    setattr(current, key, value)
+            for poly in list(row.map_objects or []):
+                if poly.internal_id and poly.internal_id not in seen:
+                    await db.delete(poly)
+            row.excalidraw_map_json = merged
+            await db.commit()
+        await self.invalidate_entity_cache()
+        return True, ["locations"]
+
+    async def set_location_map_grid(self, location_id: UUID, map_grid: dict) -> Tuple[bool, list[str]]:
+        from sqlalchemy import select
+
+        from app.infrastructure.database import AsyncSessionLocal
+
+        inner = await self.get_inner()
+        async with AsyncSessionLocal() as db:
+            row = (await db.execute(
+                select(models.Location).where(
+                    models.Location.id == location_id,
+                    models.Location.scenario_id == inner.scenario_id,
+                )
+            )).scalars().first()
+            if row is None:
+                return False, []
+            data = dict(row.data or {})
+            data["map_grid"] = map_grid
+            row.data = data
+            await db.commit()
+        await self.invalidate_entity_cache()
+        return True, ["locations"]
 
     # async def apply_exposition(
     #     self,

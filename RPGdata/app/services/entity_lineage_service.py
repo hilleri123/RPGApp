@@ -12,6 +12,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app import models, scheme
+from app.services.character_membership import ORIGIN_NATIVE, in_scenario, link_character
 
 ENTITY_MODELS: dict[str, Type] = {
     "npc": models.NPC,
@@ -66,11 +67,29 @@ def _copy_sync_fields(src: Any, dst: Any) -> None:
                 setattr(dst, attr, val)
 
 
+def _scoped(model: Type, scenario_id: UUID):
+    if model is models.PlayerCharacter:
+        return in_scenario(scenario_id)
+    return model.scenario_id == scenario_id
+
+
 async def _load_entity(
     db: AsyncSession, model: Type, entity_id: UUID, scenario_id: UUID
 ) -> Any | None:
-    stmt = select(model).where(model.id == entity_id, model.scenario_id == scenario_id)
+    stmt = select(model).where(model.id == entity_id, _scoped(model, scenario_id))
     return (await db.execute(stmt)).scalars().first()
+
+
+async def _scenario_of(db: AsyncSession, entity: Any) -> UUID | None:
+    if isinstance(entity, models.PlayerCharacter):
+        return (
+            await db.execute(
+                select(models.CharacterScenario.scenario_id)
+                .where(models.CharacterScenario.character_id == entity.id)
+                .limit(1)
+            )
+        ).scalar_one_or_none()
+    return getattr(entity, "scenario_id", None)
 
 
 def _serialize(entity: Any, entity_type: str) -> dict[str, Any]:
@@ -113,10 +132,23 @@ async def get_entity_lineage(
     else:
         prep_entity = current
         if prep_scenario_id:
-            stmt = select(model).where(
-                model.scenario_id != scenario_id,
-                model.source_entity_id == entity_id,
-            )
+            if model is models.PlayerCharacter:
+                stmt = (
+                    select(model)
+                    .join(
+                        models.CharacterScenario,
+                        models.CharacterScenario.character_id == model.id,
+                    )
+                    .where(
+                        models.CharacterScenario.scenario_id != scenario_id,
+                        model.source_entity_id == entity_id,
+                    )
+                )
+            else:
+                stmt = select(model).where(
+                    model.scenario_id != scenario_id,
+                    model.source_entity_id == entity_id,
+                )
             launched_entity = (await db.execute(stmt)).scalars().first()
 
     prep_scenario = await db.get(models.Scenario, prep_scenario_id) if prep_scenario_id else None
@@ -125,7 +157,9 @@ async def get_entity_lineage(
         entity_type=entity_type,
         prep_scenario_id=prep_scenario_id,
         prep_scenario_name=getattr(prep_scenario, "name", None),
-        launched_scenario_id=launched_scenario_id or (getattr(launched_entity, "scenario_id", None)),
+        launched_scenario_id=launched_scenario_id or (
+            await _scenario_of(db, launched_entity) if launched_entity is not None else None
+        ),
         current_scenario_id=scenario_id,
         current_entity_id=entity_id,
         current=_serialize(current, entity_type),
@@ -160,7 +194,7 @@ async def sync_entity_lineage(
         src = await _load_entity(db, model, UUID(str(lineage.prep_entity_id)), lineage.prep_scenario_id)
         launched_id = lineage.launched_scenario_id
         stmt = select(model).where(
-            model.scenario_id == launched_id,
+            _scoped(model, launched_id),
             model.source_entity_id == lineage.prep_entity_id,
         )
         dst = (await db.execute(stmt)).scalars().first()
@@ -203,8 +237,14 @@ async def ensure_prep_entity(
     new_id = uuid.uuid4()
     fields = {attr: getattr(launched, attr) for attr in _SYNC_ATTRS if hasattr(launched, attr)}
     fields = {k: v for k, v in fields.items() if v is not None}
-    prep_entity = model(id=new_id, scenario_id=prep_id, **fields)
-    db.add(prep_entity)
+    if model is models.PlayerCharacter:
+        prep_entity = model(id=new_id, **fields)
+        db.add(prep_entity)
+        await db.flush()
+        await link_character(db, new_id, prep_id, ORIGIN_NATIVE)
+    else:
+        prep_entity = model(id=new_id, scenario_id=prep_id, **fields)
+        db.add(prep_entity)
     launched.source_entity_id = new_id
     await db.commit()
     return await get_entity_lineage(db, scenario_id=scenario_id, entity_type=entity_type, entity_id=entity_id)

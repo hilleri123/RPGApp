@@ -41,17 +41,15 @@ def test_index_applications_keys_by_app_and_character_id():
 
 
 @pytest.mark.asyncio
-async def test_attach_always_sets_scenario_id_and_bound_user():
+async def test_attach_adds_application_link_without_moving_the_row():
     scenario_id = uuid4()
     user_id = uuid4()
     pc_id = uuid4()
-    other_scenario = uuid4()
 
     item = SimpleNamespace(scenario_id=None, tags=[])
     link = SimpleNamespace(item=item)
     pc = SimpleNamespace(
         id=pc_id,
-        scenario_id=other_scenario,
         bound_user_id=None,
         owned_item_links=[link],
     )
@@ -64,14 +62,18 @@ async def test_attach_always_sets_scenario_id_and_bound_user():
     db = AsyncMock()
     db.flush = AsyncMock()
 
-    attached = await attach_application_characters_to_scenario(
-        db,
-        scenario_id=scenario_id,
-        applications=[app],  # type: ignore[list-item]
-    )
+    with patch(
+        "app.services.application_entity_service.link_character",
+        new=AsyncMock(),
+    ) as link_character:
+        attached = await attach_application_characters_to_scenario(
+            db,
+            scenario_id=scenario_id,
+            applications=[app],  # type: ignore[list-item]
+        )
 
     assert attached[pc_id] is pc
-    assert pc.scenario_id == scenario_id
+    link_character.assert_awaited()
     assert pc.bound_user_id == user_id
     assert item.scenario_id == scenario_id
     db.flush.assert_awaited()

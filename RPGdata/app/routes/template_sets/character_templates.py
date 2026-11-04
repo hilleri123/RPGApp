@@ -18,6 +18,7 @@ from app.scheme.character import CharacterUpsertPayload, CharacterUpsertResult
 
 from app.routes._helpers import validate_entity_data
 from app.routes.characters import _make_entity_payload
+from app.services.character_membership import without_scenario
 from app.services.entity_data_rule import merge_validated_entity_fields
 from ._common import get_template_set_or_404
 from .unified_helpers import (
@@ -38,7 +39,7 @@ def _stmt_character_list(pack_id: UUID, skip: int, limit: int):
         select(models.PlayerCharacter)
         .where(
             models.PlayerCharacter.id.in_(character_ids_in_pack(pack_id)),
-            models.PlayerCharacter.scenario_id.is_(None),
+            without_scenario(),
         )
         .order_by(models.PlayerCharacter.name.asc())
         .offset(skip)
@@ -109,7 +110,7 @@ async def create_character(
         plugin_payload=res.result,
         exclude={"owned_items", "location_id"},
         tags=ensure_template_tags(res.result.tags or payload.tags),
-        extra={"scenario_id": None},
+        extra={},
     )
     obj = models.PlayerCharacter(**create_fields)
     db.add(obj)

@@ -157,19 +157,22 @@ async def websocket_endpoint(
 
 
 
-        # initial payload (role-based)
-        await send_init_to_current()
-
         from app.services.change_scheduler import current_change_cursor, scheduler
         from app.services.visibility_service import rebuild_for_user
 
         ws_role = "master" if is_master else "player"
         await rebuild_for_user(UUID(str(session_id)), current_user.id, ws_role)
+        # Курсор до оболочки: изменения во время GET /visible попадут в object_changes
+        # и клиент применит их после снимка.
+        change_cursor = await current_change_cursor()
+
+        await send_init_to_current()
+
         scheduler.watch(
             session_id,
             current_user.id,
             ws_role,
-            await current_change_cursor(),
+            change_cursor,
         )
 
         rpc = SessionWsRpcHandler(
@@ -211,7 +214,8 @@ async def websocket_endpoint(
                 continue
 
             if raw_data.get("msg_type") == "request_sync":
-                await send_init_to_current()
+                # Полный снимок больше не шлём: объекты приходят зоной на старте
+                # и дальше только журналом изменений.
                 continue
 
             if raw_data.get("msg_type") == "reload_entities" and is_master:
@@ -324,6 +328,35 @@ async def websocket_endpoint(
                     )
                 elif isinstance(action, scheme.CancelSceneAction):
                     ok, fields = await session_m.cancel_action(current_user=current_user, action_id=action.action_id)
+                elif isinstance(action, scheme.CreateSceneCanvases):
+                    ok, fields = await session_m.create_scene_canvases(
+                        action.scene_id, action.location_id, action.all_maps
+                    )
+                elif isinstance(action, scheme.DeleteSceneCanvas):
+                    ok, fields = await session_m.delete_scene_canvas(action.scene_id, action.canvas_id)
+                elif isinstance(action, scheme.SetShownCanvas):
+                    ok, fields = await session_m.set_shown_canvas(action.scene_id, action.canvas_id)
+                elif isinstance(action, scheme.SetPlayerCanvas):
+                    ok, fields = await session_m.set_player_canvas(
+                        action.scene_id, action.player_id, action.canvas_id
+                    )
+                elif isinstance(action, scheme.UpdateSceneCanvas):
+                    ok, fields = await session_m.update_scene_canvas(
+                        action.scene_id,
+                        action.canvas_id,
+                        tokens=action.tokens,
+                        grid_on=action.grid_on,
+                        mask_ids=action.mask_ids,
+                        name=action.name,
+                    )
+                elif isinstance(action, scheme.SaveMapOverlay):
+                    ok, fields = await session_m.save_map_overlay(action.overlay)
+                elif isinstance(action, scheme.DeleteMapOverlay):
+                    ok, fields = await session_m.delete_map_overlay(action.overlay_id)
+                elif isinstance(action, scheme.MergeMapOverlay):
+                    ok, fields = await session_m.merge_map_overlay(action.overlay_id)
+                elif isinstance(action, scheme.SetLocationMapGrid):
+                    ok, fields = await session_m.set_location_map_grid(action.location_id, action.map_grid)
                 elif isinstance(action, scheme.ApplyExposition):
                     ok, fields = await session_m.apply_exposition(current_user, scene_id=action.scene_id, exposition_id=action.exposition_id, from_location_id=action.from_location_id, from_story_beat=action.from_story_beat)
                 elif isinstance(action, scheme.MasterToggleLocationHidden):
@@ -464,6 +497,16 @@ async def websocket_endpoint(
                         new_character_id=action.character_id,
                         application_id=action.application_id,
                     )
+                elif isinstance(action, scheme.PlayerSceneCue):
+                    speaker = await session_m.scene_cue_speaker(current_user)
+                    if not speaker:
+                        ok = False
+                    else:
+                        payload = {"msg_type": "scene_cue", "kind": action.kind, **speaker}
+                        for recipient in await session_m.get_recipients():
+                            await connection_manager.send_json(recipient.id, payload)
+                        ok = True
+                        fields = []
                 else:
                     ok = False
 
@@ -539,6 +582,27 @@ async def get_session_objects(
     if not pairs:
         return []
     return await project_objects(session_id, current_user, pairs[:80])
+
+
+@router.get("/{session_id}/visible")
+async def get_visible_objects(
+    session_id: UUID,
+    current_user: models.User = Depends(get_current_user),
+):
+    """Все тела зоны видимости текущего пользователя. Стартовый снимок, без лимита пачки."""
+    from app.services.object_bodies import project_objects
+    from app.services.visibility_service import load_visible_keys, rebuild_for_user
+
+    manager = await session_manager.ensure_manager(str(session_id))
+    if not await manager.session_exists():
+        raise HTTPException(status_code=404, detail="session not found")
+    is_master = await manager.is_master(current_user)
+    if not is_master and not await manager.is_player(current_user):
+        raise HTTPException(status_code=403, detail="not a session member")
+    role = "master" if is_master else "player"
+    await rebuild_for_user(session_id, current_user.id, role)
+    zone = await load_visible_keys(session_id, current_user.id)
+    return await project_objects(session_id, current_user, list(zone))
 
 
 @router.get("", response_model=list[scheme.GameSessionPreview])

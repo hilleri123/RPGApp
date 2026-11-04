@@ -45,12 +45,14 @@ import {
 } from "@/app/components/scenarios/dialogs/common/EntityTagFilterChips";
 import type { FrontListItem } from "@/app/services/types2";
 
-const MASTER_CONTENT_TABS: readonly MasterContentTab[] = [
+const CONTENT_TABS: readonly MasterContentTab[] = [
   "storyBeats",
   "counters",
   "messages",
   "wiki",
   "fronts",
+];
+const OBJECT_TABS: readonly MasterContentTab[] = [
   "npcs",
   "items",
   "obstacles",
@@ -59,9 +61,10 @@ const MASTER_CONTENT_TABS: readonly MasterContentTab[] = [
 
 interface MasterContentPanelProps {
   sessionId: string;
+  section?: "content" | "objects";
 }
 
-export function MasterContentPanel({ sessionId }: MasterContentPanelProps) {
+export function MasterContentPanel({ sessionId, section = "content" }: MasterContentPanelProps) {
   const {
     counters,
     isMaster,
@@ -81,10 +84,11 @@ export function MasterContentPanel({ sessionId }: MasterContentPanelProps) {
     [session?.scenario_id]
   );
 
+  const allowedTabs = section === "objects" ? OBJECT_TABS : CONTENT_TABS;
   const [activeTab, setActiveTab] = useUrlTab<MasterContentTab>(
-    MASTER_CONTENT_TABS,
-    "storyBeats",
-    { paramName: "sub" },
+    allowedTabs,
+    allowedTabs[0],
+    { paramName: section === "objects" ? "objects" : "sub" },
   );
   const [counterValues, setCounterValues] = useState<Record<string, number>>({});
   const [obstacleOpen, setObstacleOpen] = useState(false);
@@ -272,38 +276,46 @@ export function MasterContentPanel({ sessionId }: MasterContentPanelProps) {
         className="w-full flex flex-col min-h-0 h-full"
       >
         <TabsList className="mb-3 h-auto min-h-10">
-          <TabsTrigger value="storyBeats" className="flex items-center gap-1.5 text-xs">
-            <BookOpen className="w-3.5 h-3.5" /> Стори‑биты
-          </TabsTrigger>
-          <TabsTrigger value="counters" className="flex items-center gap-1.5 text-xs">
-            <Hash className="w-3.5 h-3.5" /> Счётчики
-          </TabsTrigger>
-          <TabsTrigger value="messages" className="flex items-center gap-1.5 text-xs">
-            <Inbox className="w-3.5 h-3.5" /> Сообщения
-            {messagesUnread > 0 && (
-              <span className="ml-0.5 text-[10px] bg-violet-700 rounded-full px-1 py-0 leading-none">
-                {messagesUnread}
-              </span>
-            )}
-          </TabsTrigger>
-          <TabsTrigger value="wiki" className="flex items-center gap-1.5 text-xs">
-            <BookOpen className="w-3.5 h-3.5" /> Wiki
-          </TabsTrigger>
-          <TabsTrigger value="fronts" className="flex items-center gap-1.5 text-xs">
-            <Layers className="w-3.5 h-3.5" /> Фронты
-          </TabsTrigger>
-          <TabsTrigger value="npcs" className="flex items-center gap-1.5 text-xs">
-            <Users className="w-3.5 h-3.5" /> NPC
-          </TabsTrigger>
-          <TabsTrigger value="items" className="flex items-center gap-1.5 text-xs">
-            <Package className="w-3.5 h-3.5" /> Предметы
-          </TabsTrigger>
-          <TabsTrigger value="obstacles" className="flex items-center gap-1.5 text-xs">
-            <Shield className="w-3.5 h-3.5" /> Препятствия
-          </TabsTrigger>
-          <TabsTrigger value="characters" className="flex items-center gap-1.5 text-xs">
-            <UserRound className="w-3.5 h-3.5" /> Персонажи
-          </TabsTrigger>
+          {section === "content" && (
+            <>
+              <TabsTrigger value="storyBeats" className="flex items-center gap-1.5 text-xs">
+                <BookOpen className="w-3.5 h-3.5" /> Стори‑биты
+              </TabsTrigger>
+              <TabsTrigger value="counters" className="flex items-center gap-1.5 text-xs">
+                <Hash className="w-3.5 h-3.5" /> Счётчики
+              </TabsTrigger>
+              <TabsTrigger value="messages" className="flex items-center gap-1.5 text-xs">
+                <Inbox className="w-3.5 h-3.5" /> Сообщения
+                {messagesUnread > 0 && (
+                  <span className="ml-0.5 text-[10px] bg-violet-700 rounded-full px-1 py-0 leading-none">
+                    {messagesUnread}
+                  </span>
+                )}
+              </TabsTrigger>
+              <TabsTrigger value="wiki" className="flex items-center gap-1.5 text-xs">
+                <BookOpen className="w-3.5 h-3.5" /> Wiki
+              </TabsTrigger>
+              <TabsTrigger value="fronts" className="flex items-center gap-1.5 text-xs">
+                <Layers className="w-3.5 h-3.5" /> Фронты
+              </TabsTrigger>
+            </>
+          )}
+          {section === "objects" && (
+            <>
+              <TabsTrigger value="npcs" className="flex items-center gap-1.5 text-xs">
+                <Users className="w-3.5 h-3.5" /> NPC
+              </TabsTrigger>
+              <TabsTrigger value="items" className="flex items-center gap-1.5 text-xs">
+                <Package className="w-3.5 h-3.5" /> Предметы
+              </TabsTrigger>
+              <TabsTrigger value="obstacles" className="flex items-center gap-1.5 text-xs">
+                <Shield className="w-3.5 h-3.5" /> Препятствия
+              </TabsTrigger>
+              <TabsTrigger value="characters" className="flex items-center gap-1.5 text-xs">
+                <UserRound className="w-3.5 h-3.5" /> Персонажи
+              </TabsTrigger>
+            </>
+          )}
         </TabsList>
 
         <TabsContent value="storyBeats" className="flex-1 min-h-0">

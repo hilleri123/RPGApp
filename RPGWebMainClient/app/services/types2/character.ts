@@ -36,7 +36,7 @@ export interface PlayerCharacter extends PlayerCharacterOut {
 }
 
 // соответствует PlayerCharacterList (бэк)
-export interface PlayerCharacterList extends PlayerCharacterBase {
+export interface PlayerCharacterList extends PlayerCharacterBase, WithLineage {
   id: UUID;
 }
 

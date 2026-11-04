@@ -49,3 +49,26 @@ class StartApproachIn(BaseModel):
 
 class CloseLaunchedScenarioIn(BaseModel):
     launched_scenario_id: UUID
+
+
+class LaunchedPlayerCharacterOut(BaseModel):
+    id: UUID
+    name: str
+    bound_user_id: Optional[UUID] = None
+
+
+class LaunchedPlayerOut(BaseModel):
+    user_id: UUID
+    name: str
+    color: str = "#ffffff"
+    character_id: Optional[UUID] = None
+
+
+class LaunchedPlayersOut(BaseModel):
+    players: List[LaunchedPlayerOut] = Field(default_factory=list)
+    characters: List[LaunchedPlayerCharacterOut] = Field(default_factory=list)
+
+
+class LaunchedPlayerAssign(BaseModel):
+    character_id: Optional[UUID] = None
+    color: Optional[str] = None

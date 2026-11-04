@@ -32,6 +32,32 @@ class ScenarioParty(Base):
     )
 
 
+class LaunchedScenarioPlayer(Base):
+    """Кто уже играл в этом запущенном сценарии: текущий персонаж и цвет для лобби."""
+
+    __tablename__ = "launched_scenario_player"
+    __table_args__ = (
+        UniqueConstraint(
+            "launched_scenario_id",
+            "user_id",
+            name="uq_launched_scenario_player",
+        ),
+    )
+
+    id = Column(Uuid, primary_key=True, default=uuid.uuid4, index=True)
+    launched_scenario_id = Column(
+        Uuid, ForeignKey("scenario.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    user_id = Column(Uuid, ForeignKey("user.id", ondelete="CASCADE"), nullable=False, index=True)
+    character_id = Column(
+        Uuid, ForeignKey("player_character.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    color = Column(String, nullable=False, default="#ffffff")
+
+    user = relationship("User")
+    character = relationship("PlayerCharacter")
+
+
 class ScenarioPartyMember(Base):
     __tablename__ = "scenario_party_member"
     __table_args__ = (

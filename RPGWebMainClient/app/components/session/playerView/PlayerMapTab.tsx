@@ -1,25 +1,33 @@
 'use client';
 
-import { useEffect, useMemo, useState } from "react";
-import { Location } from "@/app/services/types2";
+import { useMemo } from "react";
 import { usePlayerSessionWebSocket } from "@/app/services/hooks/usePlayerSessionWebSocket";
-import MapSection from "../common/MapSection";
+import { SceneCanvasView, assignedCanvas, canvasMapLocation } from "../masterView/scene/SceneCanvasView";
 
 interface PlayerMapTabProps {
   sessionId: string;
+  compact?: boolean;
 }
 
 export default function PlayerMapTab({ sessionId }: PlayerMapTabProps) {
-  const { scene, characters, locations, scenes, session } = usePlayerSessionWebSocket(sessionId);
+  const { scene, locations, mapOverlays, selfPlayer, characters, npcs, items } = usePlayerSessionWebSocket(sessionId);
 
-  const homeLocation: Location | null = scene?.location ?? null;
-  const [currentLocation, setCurrentLocation] = useState<Location | null>(homeLocation);
+  const canvas = useMemo(
+    () => assignedCanvas(scene, selfPlayer?.user?.id),
+    [scene, selfPlayer?.user?.id],
+  );
 
-  useEffect(() => {
-    setCurrentLocation(homeLocation);
-  }, [homeLocation?.id]);
+  const location = canvasMapLocation(canvas, locations);
 
-  if (!scene || !homeLocation) {
+  const names = useMemo(() => {
+    const map: Record<string, string> = {};
+    for (const entity of [...(characters ?? []), ...(npcs ?? []), ...(items ?? []), ...(scene?.characters ?? [])]) {
+      if ((entity as any)?.id) map[String((entity as any).id)] = (entity as any).name ?? '';
+    }
+    return map;
+  }, [characters, npcs, items, scene?.characters]);
+
+  if (!scene || !canvas || !location) {
     return (
       <div className="text-xs text-gray-400 p-2">
         Карта недоступна — персонаж не на сцене.
@@ -28,19 +36,12 @@ export default function PlayerMapTab({ sessionId }: PlayerMapTabProps) {
   }
 
   return (
-    <div className="h-full min-h-0 overflow-y-auto overscroll-contain">
-      <MapSection
-        currentLocation={currentLocation}
-        setCurrentLocation={setCurrentLocation}
-        scenes={scenes}
-        currentScene={scene}
-        session={session}
-        locationList={locations ?? [homeLocation]}
-        characters={characters ?? []}
-        editable={false}
-        isMaster={false}
-        homeLocation={homeLocation}
-        compact
+    <div className="h-full min-h-0">
+      <SceneCanvasView
+        location={location}
+        canvas={canvas}
+        overlays={mapOverlays ?? []}
+        names={names}
       />
     </div>
   );

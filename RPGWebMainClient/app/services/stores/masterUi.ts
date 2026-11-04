@@ -2,7 +2,8 @@ import { create } from 'zustand';
 
 export type AddKind = 'npc' | 'item' | 'obstacle' | 'note' | 'counter';
 export type MapTab = 'location' | 'scene' | 'timeline';
-export type LeftColumnTab = 'map' | 'content' | 'journal';
+export type LeftColumnTab = 'map' | 'scene' | 'objects' | 'content' | 'journal';
+export type SceneWorkspaceTab = 'canvas' | 'location' | 'exposures' | 'music';
 export type MasterContentTab =
   | 'storyBeats'
   | 'counters'

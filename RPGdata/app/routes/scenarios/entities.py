@@ -17,7 +17,24 @@ from app import models
 from app.plugins.resolver import get_factory_for_scenario
 from app.scheme.universal_entity import UniversalUpsertPayload, UniversalResult
 from app.routes._helpers import require_scenario_by_id, validate_entity_data  # твоя функция, она уже умеет validate/enrich
+from app.services.character_membership import ORIGIN_NATIVE, first_scenario_id, link_character, scope_clause
 from .helper import _apply_entity_fields, _entity_to_dict, _model_for, _parse_payload
+
+
+async def _entity_scenario_id(db: AsyncSession, obj) -> UUID | None:
+    if isinstance(obj, models.PlayerCharacter):
+        return await first_scenario_id(db, obj.id)
+    return obj.scenario_id
+
+
+async def _place_entity(db: AsyncSession, obj, scenario_id: UUID) -> None:
+    if isinstance(obj, models.PlayerCharacter):
+        db.add(obj)
+        await db.flush()
+        await link_character(db, obj.id, scenario_id, ORIGIN_NATIVE)
+        return
+    obj.scenario_id = scenario_id
+    db.add(obj)
 
 
 
@@ -62,16 +79,10 @@ async def create_entity(
     Model = _model_for(payload.type)
     obj = Model()
 
-    # общие связи
-    obj.scenario_id = payload.scenario_id
-
-    # поля сущности напрямую в БД
     _apply_entity_fields(obj, payload.type, payload.entity_fields())
-
-    # plugin-data в JSON колонку data (она должна быть в каждой модели)
     obj.data = enriched
 
-    db.add(obj)
+    await _place_entity(db, obj, payload.scenario_id)
     await db.commit()
     await db.refresh(obj)
 
@@ -99,11 +110,11 @@ async def update_entity(
     if not obj:
         raise HTTPException(404, "Entity not found")
 
-    # scenario_id лучше брать из obj (защита от подмены)
-    await require_scenario_by_id(db, current_user, obj.scenario_id, PERM_EDIT_PARTIAL)
+    owner_scenario_id = await _entity_scenario_id(db, obj)
+    await require_scenario_by_id(db, current_user, owner_scenario_id, PERM_EDIT_PARTIAL)
     ok, issues, enriched = await validate_entity_data(
         db=db,
-        scenario_id=obj.scenario_id,
+        scenario_id=owner_scenario_id,
         entity=payload.type,
         data=payload.data,
         user_id=current_user.id,
@@ -140,7 +151,7 @@ async def list_entities(
     Model = _model_for(type)
     stmt = (
         select(Model)
-        .where(Model.scenario_id == scenario_id)
+        .where(scope_clause(Model, scenario_id))
         .offset(skip)
         .limit(limit)
     )
@@ -158,7 +169,7 @@ async def get_entity(
     obj = (await db.execute(select(Model).where(Model.id == entity_id))).scalars().first()
     if not obj:
         raise HTTPException(404, "Entity not found")
-    await require_scenario_by_id(db, current_user, obj.scenario_id, PERM_READ)
+    await require_scenario_by_id(db, current_user, await _entity_scenario_id(db, obj), PERM_READ)
     return _entity_to_dict(obj)
 
 @router.delete("/{entity_id}", response_model=dict)
@@ -172,7 +183,7 @@ async def delete_entity(
     obj = (await db.execute(select(Model).where(Model.id == entity_id))).scalars().first()
     if not obj:
         raise HTTPException(404, "Entity not found")
-    await require_scenario_by_id(db, current_user, obj.scenario_id, PERM_EDIT_PARTIAL)
+    await require_scenario_by_id(db, current_user, await _entity_scenario_id(db, obj), PERM_EDIT_PARTIAL)
     await db.delete(obj)
     await db.commit()
     return {"ok": True}
@@ -232,13 +243,11 @@ async def create_entity_multipart(
 
     Model = _model_for(payload_obj.type)
     obj = Model()
-    obj.scenario_id = payload_obj.scenario_id
 
-    # на create сначала сохраним, чтобы получить id под s3 key
     _apply_entity_fields(obj, payload_obj.type, payload_obj.entity_fields())
     obj.data = enriched
 
-    db.add(obj)
+    await _place_entity(db, obj, payload_obj.scenario_id)
     await db.commit()
     await db.refresh(obj)
 
@@ -286,10 +295,11 @@ async def update_entity_multipart(
     if not obj:
         raise HTTPException(404, "Entity not found")
 
-    await require_scenario_by_id(db, current_user, obj.scenario_id, PERM_EDIT_PARTIAL)
+    owner_scenario_id = await _entity_scenario_id(db, obj)
+    await require_scenario_by_id(db, current_user, owner_scenario_id, PERM_EDIT_PARTIAL)
     ok, issues, enriched = await validate_entity_data(
         db=db,
-        scenario_id=obj.scenario_id,
+        scenario_id=owner_scenario_id,
         data=payload_obj.data,
         user_id=current_user.id,
     )

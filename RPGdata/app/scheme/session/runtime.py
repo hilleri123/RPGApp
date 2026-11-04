@@ -15,7 +15,7 @@ from app.scheme.session.base_log import LogMsgBase
 from app.scheme.session.base_notifications import NotificationBase
 from app.scheme.session.observer import Observer
 from app.scheme.session.plugin_actions import ActionRecord
-from app.scheme.session.scene import SceneInner
+from app.scheme.session.scene import MapOverlay, SceneInner
 from app.scheme.session.session import SessionErrorEntry
 from app.scheme.session.settings import Settings
 from app.scheme.session.presentation import PresentedEntityView
@@ -45,6 +45,7 @@ class SessionRuntimeState(BaseModel):
     logs: List[Any] = Field(default_factory=list)
     notifications: List[Any] = Field(default_factory=list)
     scenes: list[SceneInner] = Field(default_factory=list)
+    map_overlays: list[MapOverlay] = Field(default_factory=list)
     actions: list[ActionRecord] = Field(default_factory=list)
     observers: list[Observer] = Field(default_factory=list)
     settings: Settings = Field(default_factory=Settings)

@@ -16,6 +16,7 @@ from sqlalchemy.orm import selectinload
 
 from app import models
 from app.constants.templates import TEMPLATE_TAG, is_template_entity
+from app.services.character_membership import without_scenario
 from app.services.entity_data_rule import resolve_rule_id_from_data
 
 ENTITY_KIND_MODEL: dict[str, type] = {
@@ -149,7 +150,7 @@ async def load_template_characters_for_scenario(
         select(models.PlayerCharacter)
         .where(
             models.PlayerCharacter.id.in_(ids),
-            models.PlayerCharacter.scenario_id.is_(None),
+            without_scenario(),
             _template_tag_filter(models.PlayerCharacter),
         )
         .options(

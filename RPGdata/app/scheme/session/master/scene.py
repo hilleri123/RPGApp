@@ -91,6 +91,63 @@ class MakeElementPublic(MasterSessionActionBase):
     public: bool
 
 
+class CreateSceneCanvases(MasterSessionActionBase):
+    msg_type: Literal['create_scene_canvases'] = 'create_scene_canvases'
+    scene_id: UUID
+    location_id: Optional[UUID] = None
+    all_maps: bool = False
+
+
+class DeleteSceneCanvas(MasterSessionActionBase):
+    msg_type: Literal['delete_scene_canvas'] = 'delete_scene_canvas'
+    scene_id: UUID
+    canvas_id: UUID
+
+
+class SetShownCanvas(MasterSessionActionBase):
+    msg_type: Literal['set_shown_canvas'] = 'set_shown_canvas'
+    scene_id: UUID
+    canvas_id: UUID
+
+
+class SetPlayerCanvas(MasterSessionActionBase):
+    msg_type: Literal['set_player_canvas'] = 'set_player_canvas'
+    scene_id: UUID
+    player_id: UUID
+    canvas_id: Optional[UUID] = None
+
+
+class UpdateSceneCanvas(MasterSessionActionBase):
+    msg_type: Literal['update_scene_canvas'] = 'update_scene_canvas'
+    scene_id: UUID
+    canvas_id: UUID
+    tokens: Optional[list] = None
+    grid_on: Optional[bool] = None
+    mask_ids: Optional[list] = None
+    name: Optional[str] = None
+
+
+class SaveMapOverlay(MasterSessionActionBase):
+    msg_type: Literal['save_map_overlay'] = 'save_map_overlay'
+    overlay: dict
+
+
+class DeleteMapOverlay(MasterSessionActionBase):
+    msg_type: Literal['delete_map_overlay'] = 'delete_map_overlay'
+    overlay_id: UUID
+
+
+class MergeMapOverlay(MasterSessionActionBase):
+    msg_type: Literal['merge_map_overlay'] = 'merge_map_overlay'
+    overlay_id: UUID
+
+
+class SetLocationMapGrid(MasterSessionActionBase):
+    msg_type: Literal['set_location_map_grid'] = 'set_location_map_grid'
+    location_id: UUID
+    map_grid: dict
+
+
 class ApplyExposition(MasterSessionActionBase):
     msg_type: Literal['apply_exposition'] = 'apply_exposition'
     scene_id: UUID

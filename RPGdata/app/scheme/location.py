@@ -16,6 +16,7 @@ class MapObjectPolygonPoint(BaseModel):
 
 class MapObjectPolygonBase(BaseModel):
     name: str
+    name_is_manual: bool = False
     source_location_id: UUID
     target_location_id: Optional[UUID] = None
 
@@ -71,6 +72,8 @@ class LocationBase(BaseModel):
     map_width: Optional[int] = None
     map_height: Optional[int] = None
     excalidraw_map_json: Optional[dict[str, Any]] = None
+    # Сетка токенов: cols, rows, origin_x, origin_y, cell_w, cell_h в пикселях картинки.
+    map_grid: Optional[dict[str, Any]] = None
 
 
 

@@ -10,8 +10,9 @@ type UseWsTabResyncOptions = {
 };
 
 /**
- * When the tab goes to background the browser may suspend the socket or drop
- * messages. On return we reconnect or ask the server for a full state snapshot.
+ * When the tab goes to background the browser may drop the socket.
+ * On return we reconnect only if it is already closed. An open socket keeps
+ * receiving object_changes and does not reload the whole session.
  */
 export function useWsTabResync({
   enabled,
@@ -29,20 +30,11 @@ export function useWsTabResync({
       if (endedRef?.current) return;
 
       const ws = socketRef.current;
-      if (!ws || ws.readyState !== WebSocket.OPEN) {
-        reconnectAttemptsRef.current = 0;
-        clearReconnectTimer();
-        reconnect();
-        return;
-      }
+      if (ws && ws.readyState === WebSocket.OPEN) return;
 
-      try {
-        ws.send(JSON.stringify({ msg_type: 'request_sync' }));
-      } catch {
-        reconnectAttemptsRef.current = 0;
-        clearReconnectTimer();
-        reconnect();
-      }
+      reconnectAttemptsRef.current = 0;
+      clearReconnectTimer();
+      reconnect();
     };
 
     document.addEventListener('visibilitychange', handleResume);

@@ -77,6 +77,7 @@ class MapObjectPolygon(Base):
     id = Column(Uuid, primary_key=True, default=uuid.uuid4, index=True)
     source_entity_id = Column(Uuid, ForeignKey("map_object_polygon.id", ondelete="SET NULL"), nullable=True, index=True)
     name = Column(String, nullable=False)
+    name_is_manual = Column(Boolean, nullable=False, default=False, server_default="false")
     source_location_id = Column(Uuid, ForeignKey("location.id", ondelete="CASCADE"))
     target_location_id = Column(Uuid, ForeignKey("location.id"), nullable=True)
 

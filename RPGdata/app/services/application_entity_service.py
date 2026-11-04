@@ -13,6 +13,12 @@ from sqlalchemy.orm import selectinload
 
 from app import models
 from app.logger import logger
+from app.services.character_membership import (
+    ORIGIN_APPLICATION,
+    has_any_link,
+    link_character,
+    unlink_character,
+)
 
 APPLICATION_CHARACTER_TAG = "application_character"
 BOUND_ITEM_TAG = "application_bound"
@@ -40,7 +46,6 @@ async def create_player_character_for_application(
         icon_path=app.icon_path,
         img_url=app.img_url,
         img_path=app.img_path,
-        scenario_id=None,
     )
     db.add(pc)
     await db.flush()
@@ -223,6 +228,9 @@ async def sync_application_character_from_application(
         pc = await db.get(models.PlayerCharacter, app.player_character_id)
         if pc is None:
             app.player_character_id = None
+        elif await has_any_link(db, pc.id):
+            # Персонаж уже в каком-то сценарии. Заявка не должна откатывать его назад.
+            return pc
         else:
             pc.name = app.name
             pc.short_desc = app.short_desc
@@ -402,8 +410,7 @@ async def attach_application_characters_to_scenario(
         if pc is None:
             continue
 
-        # Always bind to the target scenario (re-approach after detach / stuck on other scenario).
-        pc.scenario_id = scenario_id
+        await link_character(db, pc.id, scenario_id, ORIGIN_APPLICATION)
         if getattr(app, "user_id", None):
             pc.bound_user_id = app.user_id
         attached[pc.id] = pc
@@ -429,7 +436,14 @@ async def detach_application_pool_from_scenario(
             models.CharacterApplication,
             models.CharacterApplication.player_character_id == models.PlayerCharacter.id,
         )
-        .where(models.PlayerCharacter.scenario_id == scenario_id)
+        .join(
+            models.CharacterScenario,
+            models.CharacterScenario.character_id == models.PlayerCharacter.id,
+        )
+        .where(
+            models.CharacterScenario.scenario_id == scenario_id,
+            models.CharacterScenario.origin == ORIGIN_APPLICATION,
+        )
         .options(
             selectinload(models.PlayerCharacter.owned_item_links).selectinload(models.ItemOwnership.item),
         )
@@ -437,8 +451,11 @@ async def detach_application_pool_from_scenario(
     characters = list((await db.execute(stmt)).scalars().all())
 
     for pc in characters:
-        pc.scenario_id = None
-        pc.location_id = None
+        await unlink_character(db, pc.id, scenario_id, origin=ORIGIN_APPLICATION)
+        if pc.location_id is not None:
+            loc = await db.get(models.Location, pc.location_id)
+            if loc is not None and loc.scenario_id == scenario_id:
+                pc.location_id = None
         for link in pc.owned_item_links or []:
             item = link.item
             if item is None:

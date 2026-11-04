@@ -50,11 +50,11 @@ from app.services.entity_seen import canonical_seen_id
 
 
 MASTER_ALWAYS_FIELDS = {
-    "locations", "notes", "counters", "items", "characters", "npcs", "scenes", "notifications", "logs", "actions", "observers", "players", "settings", "audio", "audio_queue", "dispatches", "message_replies", "timeline", "presented_entity", "data_revealed_entities",
+    "locations", "notes", "counters", "items", "characters", "npcs", "scenes", "notifications", "logs", "actions", "observers", "players", "settings", "audio", "audio_queue", "dispatches", "message_replies", "timeline", "presented_entity", "data_revealed_entities", "map_overlays",
 }
 MASTER_INIT_ONLY_FIELDS = {"story_beats", "factories"}
 
-PLAYER_ALWAYS_FIELDS = {"locations", "characters", "scenes", "notifications", "logs", "actions", "settings", "audio_queue", "npcs", "items", "dispatches", "notes", "message_replies", "presented_entity", "self_player", "players", "player_seen"}
+PLAYER_ALWAYS_FIELDS = {"locations", "characters", "scenes", "notifications", "logs", "actions", "settings", "audio_queue", "npcs", "items", "dispatches", "notes", "message_replies", "presented_entity", "self_player", "players", "player_seen", "map_overlays"}
 
 # Сущности встроены в другие payload'ы: сцены содержат персонажей, NPC и предметы,
 # игрок видит своего персонажа ещё и в self_player. Поэтому правка сущности должна
@@ -132,6 +132,59 @@ class CurrentSessionManager(
         return scheme.SessionTimeline(
             **inner.timeline.model_dump()
             )
+
+    def _public_token_ids(self, scene: scheme.SceneInner) -> set:
+        ids: set = set()
+        sides = [scene.public, *(bucket.public for bucket in (scene.containers or []))]
+        for side in sides:
+            ids.update(side.npc_ids or [])
+            ids.update(side.item_ids or [])
+            ids.update(getattr(side, "obstacle_ids", None) or [])
+        return ids
+
+    def canvas_map_location(self, location_id, locations, *, hide_master: bool) -> dict | None:
+        loc = next((item for item in locations or [] if str(getattr(item, "id", None)) == str(location_id)), None)
+        if loc is None:
+            return None
+        if hide_master:
+            loc = location_with_child_polygons(self._strip_tags_for_player(loc), locations)
+            loc = loc.model_copy(update={"description_for_master": ""})
+        data = loc.model_dump(mode="json")
+        data.pop("scene_exposures", None)
+        return data
+
+    def _canvases_for_role(self, scene: scheme.SceneInner, role: str, locations=None) -> list[scheme.SceneCanvasOut]:
+        public_ids = self._public_token_ids(scene)
+        canvases = []
+        for canvas in scene.canvases or []:
+            tokens = list(canvas.tokens or [])
+            if role != "gm":
+                tokens = [
+                    token for token in tokens
+                    if token.entity_type == "character" or token.entity_id in public_ids
+                ]
+            payload = canvas.model_dump()
+            payload["tokens"] = tokens
+            payload["location"] = self.canvas_map_location(
+                canvas.location_id, locations, hide_master=role != "gm",
+            )
+            canvases.append(scheme.SceneCanvasOut(**payload))
+        return canvases
+
+    def _containers_for_role(self, scene: scheme.SceneInner, role: str) -> list[scheme.SceneLocationBucket]:
+        if role == "gm":
+            return list(scene.containers or [])
+        return [
+            bucket.model_copy(update={"private": scheme.SceneElementsInner()})
+            for bucket in (scene.containers or [])
+        ]
+
+    def _overlays_for_role(self, inner: scheme.GameSessionInner, role: str, scenes: list[scheme.Scene]) -> list:
+        overlays = list(getattr(inner, "map_overlays", None) or [])
+        if role == "gm":
+            return overlays
+        allowed = {mask_id for scene in scenes for canvas in (scene.canvases or []) for mask_id in canvas.mask_ids}
+        return [item for item in overlays if getattr(item, "id", None) in allowed]
 
     def _build_scene_objects(
         self,
@@ -246,8 +299,12 @@ class CurrentSessionManager(
                         "public",
                         "private",
                         "available_actions_by_role",
+                        "canvases",
+                        "containers",
                     }
                 ),
+                canvases=self._canvases_for_role(si, role, inner.locations or []),
+                containers=self._containers_for_role(si, role),
                 location=loc,
                 parent_scene_location=parent_map_location,
                 characters=scene_characters,
@@ -699,32 +756,22 @@ class CurrentSessionManager(
             )
 
     async def build_master_init(self) -> scheme.MasterSessionInit:
+        """Оболочка сессии. Локации, сцены и прочие объекты клиент берёт GET /visible."""
         inner = await self.get_inner()
         master_id = inner.master.id if inner.master else None
-        scenes_denorm = self._build_scene_objects(inner, master_id)
-        master_filter = list(getattr(inner.settings, "master_filter_tags", None) or [])
         data_revealed = await self._load_data_revealed_entities()
 
         return scheme.MasterSessionInit(
-            locations=filter_entities_for_master(self._enrich_locations(inner), master_filter),
-            story_beats=self._enrich_story_beats(inner),
             factories=inner.factories,
-            notes=filter_entities_for_master(inner.notes or [], master_filter),
             counters=inner.counters,
-            items=filter_entities_for_master(inner.items or [], master_filter),
-            characters=inner.characters,
-            npcs=filter_entities_for_master(inner.npcs or [], master_filter),
-            scenes=scenes_denorm,
+            map_overlays=list(inner.map_overlays or []),
             notifications=inner.notifications,
-            logs=inner.logs,
             players=inner.players,
             observers=inner.observers,
             settings=inner.settings,
             audio=inner.audio,
-            audio_queue=inner.audio_queue or [],
             audio_player=inner.audio_player,
-            timeline = self._build_timeline(inner, master_id),
-            actions=self._enrich_actions_for_user(inner, master_id),
+            timeline=self._build_timeline(inner, master_id),
             dispatches=list(getattr(inner, "dispatches", None) or []),
             message_replies=self._replies_for_user(inner, master_id, is_master=True),
             session=self._build_session_meta(inner),
@@ -747,6 +794,7 @@ class CurrentSessionManager(
         if "characters" in fields: msg.characters = inner.characters
         if "npcs" in fields: msg.npcs = inner.npcs
         if "scenes" in fields: msg.scenes = self._build_scene_objects(inner, master_id)
+        if "map_overlays" in fields: msg.map_overlays = list(inner.map_overlays or [])
         if "observers" in fields: msg.observers = inner.observers
         if "notifications" in fields: msg.notifications = inner.notifications
         if "logs" in fields: msg.logs = inner.logs
@@ -771,40 +819,34 @@ class CurrentSessionManager(
 
         return msg
 
+    def _player_inner_scenes(self, inner: scheme.GameSessionInner, user_id: uuid.UUID) -> list:
+        if getattr(inner.settings, "merge_scenes_for_players", False):
+            return list(inner.scenes or [])
+        scenes = []
+        for scene in inner.scenes or []:
+            for player in inner.players or []:
+                if str(player.user.id) == str(user_id) and player.character_id in (scene.character_ids or []):
+                    scenes.append(scene)
+                    break
+        return scenes
+
     async def build_player_init(self, current_user_id: uuid.UUID) -> scheme.PlayerSessionInit:
+        """Оболочка сессии. Объекты зоны видимости клиент берёт GET /visible."""
         inner = await self.get_inner()
-        player_seen_ids, player_seen_records = await self.get_player_seen_sets(current_user_id)
+        _, player_seen_records = await self.get_player_seen_sets(current_user_id)
         access_map = self._seen_access_map(player_seen_records)
-        scenes_denorm = self._build_scene_objects(inner, current_user_id, access_map=access_map)
-        party_tags = await self.get_party_filter_tags() if self.launched_scenario_id else []
-
-        all_locations = self._enrich_locations(inner)
-        visible_locations = [
-            location_with_child_polygons(self._strip_tags_for_player(loc), all_locations)
-            for loc in all_locations
-            if loc.id in player_seen_ids
-            and entity_visible_for_party(getattr(loc, "tags", None), party_tags or None)
-        ]
-
         self_player = self._build_self_player(inner, current_user_id, access_map)
+        player_scenes = self._player_inner_scenes(inner, current_user_id)
 
         return scheme.PlayerSessionInit(
-            locations=visible_locations,
-            characters=self._player_payload_characters(inner, access_map, current_user_id),
-            npcs=self._player_payload_npcs(inner, current_user_id, player_seen_ids, party_tags or None, access_map),
-            items=self._player_payload_items(inner, current_user_id, player_seen_ids, party_tags or None, access_map),
-            scenes=scenes_denorm,
+            map_overlays=self._overlays_for_role(inner, "player", player_scenes),
             dispatches=self._dispatches_for_user(inner, current_user_id, is_master=False),
-            notes=self._notes_for_user(inner, current_user_id, is_master=False),
             message_replies=self._replies_for_user(inner, current_user_id, is_master=False),
             notifications=self._build_notifications_for_user(inner, current_user_id),
-            logs=inner.logs,
             players=self._player_payload_players(inner, current_user_id, access_map),
-            actions=self._enrich_actions_for_user(inner, current_user_id),
             self_player=self_player,
             session=self._build_session_meta(inner),
             settings=inner.settings,
-            audio_queue=self._audio_for_player(inner),
             audio_player=inner.audio_player,
             player_seen=player_seen_records,
             presented_entity=self._presented_entity_for_user(inner, current_user_id),
@@ -843,6 +885,11 @@ class CurrentSessionManager(
             msg.player_seen = player_seen_records
         if "scenes" in fields:
             msg.scenes = self._build_scene_objects(inner, current_user_id, access_map=access_map)
+        if "map_overlays" in fields or "scenes" in fields:
+            msg.map_overlays = self._overlays_for_role(inner, "player", msg.scenes or self._build_scene_objects(inner, current_user_id, access_map=access_map))
+            if "map_overlays" not in fields:
+                fields = [*fields, "map_overlays"]
+                msg.fields = fields
             msg.npcs = self._player_payload_npcs(
                 inner, current_user_id, player_seen_ids, party_tags or None, access_map
             )
@@ -1011,7 +1058,7 @@ class CurrentSessionManager(
         - только мастер;
         - в БД: GameSession.is_active=False;
         - Player.finished_with_character_data = итоговый snapshot;
-        - для каждого игрока создаёт CharacterApplication как результат сессии;
+        - заявка игрока ссылается на ту же строку персонажа, которой он играл;
         - для кампании сохраняет carryover;
         - удаляет snapshot из Redis.
         """
@@ -1113,69 +1160,25 @@ class CurrentSessionManager(
 
                 p.finished_with_character_data = ch_json
 
-                if not ch_json or not p.user_id or forced:
+                if forced or not p.user_id or not p.character_id:
                     continue
 
-                if p.character_source_type == "application":
-                    continue
+                inner_player = inner_players_by_id.get(str(p.id))
+                color = getattr(inner_player, "color", None) or p.color
+                from app.services.launched_player_service import remember_played_character
 
-                target_app_id = p.character_id
-
-                app = None
-                if target_app_id:
-                    app = await db.get(models.CharacterApplication, target_app_id)
-
-                history_entry = {
-                    "kind": "session_result",
-                    "session_id": str(gs.id),
-                    "player_id": str(p.id),
-                    "session_name": gs.name,
-                    "forced": forced,
-                }
-
-                if app is None:
-                    app = models.CharacterApplication(
-                        id=target_app_id or uuid.uuid4(),
-                        rule_id_str=rule_id_str,
-                        user_id=p.user_id,
-                        name=ch_json.get("name") or p.name or "Безымянный персонаж",
-                        short_desc=ch_json.get("short_desc"),
-                        story=ch_json.get("story"),
-                        tags=ch_json.get("tags") or [],
-                        data={
-                            **(ch_json.get("data") or {}),
-                            "_history": [history_entry],
-                        },
-                        icon_url=ch_json.get("icon_url"),
-                        img_url=ch_json.get("img_url"),
-                        status=models.ApplicationStatus.approved,
-                        source_kind="session_result",
-                        source_session_id=gs.id,
-                        source_player_id=p.id,
-                        is_result_snapshot=True,
-                    )
-                    db.add(app)
-                else:
-                    old_data = app.data or {}
-                    old_history = old_data.get("_history") or []
-
-                    app.rule_id_str = rule_id_str
-                    app.user_id = p.user_id
-                    app.name = ch_json.get("name") or p.name or app.name
-                    app.short_desc = ch_json.get("short_desc")
-                    app.story = ch_json.get("story")
-                    app.tags = ch_json.get("tags") or []
-                    app.data = {
-                        **(ch_json.get("data") or {}),
-                        "_history": [*old_history, history_entry],
-                    }
-                    app.icon_url = ch_json.get("icon_url")
-                    app.img_url = ch_json.get("img_url")
-                    app.status = models.ApplicationStatus.approved
-                    app.source_kind = "session_result"
-                    app.source_session_id = gs.id
-                    app.source_player_id = p.id
-                    app.is_result_snapshot = True
+                await remember_played_character(
+                    db,
+                    launched_scenario_id=gs.launched_scenario_id,
+                    user_id=p.user_id,
+                    character_id=p.character_id,
+                    color=color,
+                    fields=ch_json,
+                    rule_id_str=rule_id_str,
+                    session_id=gs.id,
+                    player_id=p.id,
+                    session_name=gs.name,
+                )
 
 
             if gs.campaign_id and not forced:
@@ -1191,9 +1194,13 @@ class CurrentSessionManager(
                 )
 
             if not forced and gs.scenario_id:
-                from app.services.application_entity_service import detach_application_pool_from_scenario
+                scenario_row = await db.get(models.Scenario, gs.scenario_id)
+                # В запущенном сценарии сыгранный персонаж остаётся той же строкой,
+                # на которую смотрит заявка. Снимать его в пул — значит развести их.
+                if scenario_row is None or not scenario_row.is_session_snapshot:
+                    from app.services.application_entity_service import detach_application_pool_from_scenario
 
-                await detach_application_pool_from_scenario(db, gs.scenario_id)
+                    await detach_application_pool_from_scenario(db, gs.scenario_id)
 
             from app.services.table_session import settle_tables
 

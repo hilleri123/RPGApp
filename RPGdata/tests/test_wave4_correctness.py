@@ -92,11 +92,14 @@ def test_persisted_entity_fields_cover_backed_models():
 
 
 def test_persisted_models_have_scenario_scope():
-    """Запись идёт с фильтром по scenario_id, поэтому колонка обязательна."""
+    """Запись идёт с фильтром по сценарию. У персонажа это связь, не колонка."""
     dm = _module("app.managers.session.data_manager")
 
     for field, model in dm._PERSISTED_ENTITY_MODELS.items():
         columns = {c.name for c in model.__table__.columns}
+        if field == "characters":
+            assert "scenario_id" not in columns
+            continue
         assert "scenario_id" in columns, field
 
 
@@ -153,7 +156,10 @@ def test_no_entity_lookup_ignores_scenario():
             if not re.search(rf"models\.{model}\.id ==", line):
                 continue
             window = "\n".join(lines[max(0, i - 7):i + 8])
-            if f"models.{model}.scenario_id" not in window:
+            scoped = f"models.{model}.scenario_id" in window
+            if model == "PlayerCharacter":
+                scoped = scoped or "in_scenario(" in window
+            if not scoped:
                 unscoped.append(f"{filename}:{i + 1}")
 
     assert unscoped == [], f"выборки без скоупа сценария: {unscoped}"

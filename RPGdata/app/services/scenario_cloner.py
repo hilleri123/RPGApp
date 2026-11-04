@@ -13,6 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app import models
+from app.services.character_membership import ORIGIN_NATIVE, link_character
 from app.services.entity_data_rule import stamp_entity_data
 from app.models.scenario.story_beat import story_beat_location, story_beat_npc
 from app.models.scenario.scene_exposure import (
@@ -257,7 +258,6 @@ async def _copy_owned_template_sets(
                 exclude=frozenset({"scenario_id"}),
                 rule_id_str=src_pack.rule_id_str,
             ),
-            scenario_id=None,
             tags=ensure_template_tags(ch.tags),
         )
         db.add(new_ch)
@@ -520,11 +520,11 @@ async def _clone_scenario(
                 exclude=frozenset({"scenario_id", "location_id", "bound_user_id"}),
                 rule_id_str=clone_rule_id,
             ),
-            scenario_id=new_sid,
             location_id=id_map.remap(ch.location_id),
             bound_user_id=None,
         )
         db.add(new_ch)
+        await link_character(db, new_ch.id, new_sid, ORIGIN_NATIVE)
         char_by_old[ch.id] = new_ch
 
     # application-imported characters: attach pool rows (no duplicate clone)

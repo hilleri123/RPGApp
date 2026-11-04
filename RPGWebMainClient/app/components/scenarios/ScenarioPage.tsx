@@ -3,7 +3,7 @@
 import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
-import { Loader2, TimerIcon, ListTodo, Settings, BookOpen } from 'lucide-react';
+import { BookOpen, Layers, ListTodo, Loader2, Settings, TimerIcon, Users } from 'lucide-react';
 import { ScenarioWikiTab } from '@/app/components/masterNotes/ScenarioWikiTab';
 import { openMasterWikiCreate } from '@/app/components/masterNotes/openMasterWiki';
 import { Button } from '@/components/ui/button';
@@ -29,7 +29,7 @@ import { ScenarioSettingsTab } from './tabs/ScenarioSettingsTab';
 import { ScenarioTableArchive } from './tabs/ScenarioTableArchive';
 import { ScenarioSearch } from './ScenarioSearch';
 import { useUrlTab } from '@/app/services/hooks/useUrlTab';
-import { Layers } from 'lucide-react';
+import { ScenarioPlayersTab } from './tabs/ScenarioPlayersTab';
 
 const SCENARIO_TABS = [
   'story',
@@ -44,6 +44,7 @@ const SCENARIO_TABS = [
   'settings',
   'wiki',
   'table',
+  'players',
 ] as const;
 
 type ScenarioTab = (typeof SCENARIO_TABS)[number];
@@ -129,7 +130,15 @@ export default function ScenarioPage() {
         <div className="mb-3 flex justify-end">
           <ScenarioSearch scenarioId={scenario.id} onNavigate={(tab) => setActiveTab(tab)} />
         </div>
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+        <Tabs
+          value={activeTab}
+          onValueChange={(value) => {
+            if ((SCENARIO_TABS as readonly string[]).includes(value)) {
+              setActiveTab(value as ScenarioTab);
+            }
+          }}
+          className="w-full"
+        >
 
           {/* ── Список табов ── */}
           <TabsList>
@@ -196,6 +205,13 @@ export default function ScenarioPage() {
             <TabsTrigger value="table">
               Стол
             </TabsTrigger>
+
+            {scenario.is_session_snapshot ? (
+              <TabsTrigger value="players">
+                <Users className="w-4 h-4 mr-1" />
+                Игроки
+              </TabsTrigger>
+            ) : null}
           </TabsList>
 
           {/* ── Контент табов ── */}
@@ -258,6 +274,12 @@ export default function ScenarioPage() {
           <TabsContent value="table">
             <ScenarioTableArchive scenarioId={scenario.id} />
           </TabsContent>
+
+          {scenario.is_session_snapshot ? (
+            <TabsContent value="players">
+              <ScenarioPlayersTab />
+            </TabsContent>
+          ) : null}
 
         </Tabs>
       </div>

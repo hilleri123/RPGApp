@@ -22,6 +22,15 @@ export interface LocationBase {
   map_width?: number | null;
   map_height?: number | null;
   excalidraw_map_json?: any;
+  /** cols, rows, origin_x, origin_y, cell_w, cell_h в пикселях карты. */
+  map_grid?: {
+    cols: number;
+    rows: number;
+    origin_x: number;
+    origin_y: number;
+    cell_w: number;
+    cell_h: number;
+  } | null;
   tags?: string[];
 }
 

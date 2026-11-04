@@ -15,6 +15,7 @@ from app.auth import require_master
 from app.infrastructure.database import get_async_session as get_db
 from app.routes._helpers import get_scenario_or_404, get_scenario_read
 from app.services import scenario_search as search
+from app.services.character_membership import scope_clause
 
 router = APIRouter(prefix="/scenarios/{scenario_id}/mentions", tags=["mentions"])
 
@@ -103,7 +104,7 @@ async def resolve_mentions(
         rows = (
             await db.execute(
                 select(model).where(
-                    model.scenario_id == scenario.id,
+                    scope_clause(model, scenario.id),
                     model.id.in_(ids),
                 )
             )

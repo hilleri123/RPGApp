@@ -14,11 +14,13 @@ from app.models.session_object import (
     SessionActionRow,
     SessionAudioQueueRow,
     SessionLogRow,
+    SessionMapOverlayRow,
     SessionSceneRow,
 )
 
 _KIND = {
     "scenes": (SessionSceneRow, "scene"),
+    "map_overlays": (SessionMapOverlayRow, "map_overlay"),
     "actions": (SessionActionRow, "action"),
     "audio_queue": (SessionAudioQueueRow, "audio_queue"),
     "logs": (SessionLogRow, "log"),

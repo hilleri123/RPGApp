@@ -292,6 +292,8 @@ def dump_locations_with_exposition(orm_locations: Iterable[Any]) -> List[Dict[st
     for loc in orm_locations:
         loc_out = scheme.LocationOut.model_validate(loc)
         loc_data = loc_out.model_dump(mode="python")
+        stored = getattr(loc, "data", None) or {}
+        loc_data["map_grid"] = stored.get("map_grid") if isinstance(stored, dict) else None
         loc_data["scene_exposures"] = [
             exposure_to_inner_dict(se) for se in (loc.scene_exposures or [])
         ]

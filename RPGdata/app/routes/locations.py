@@ -397,10 +397,14 @@ async def create_location(
     plugin_data = result.result.model_dump(mode="json")
     entity_data = dump_entity_fields(
         payload,
-        exclude={"map_objects", "sublocations", "scene_exposures"},
+        exclude={"map_objects", "sublocations", "scene_exposures", "map_grid"},
     )
     for k in plugin_data:
         entity_data.pop(k, None)
+    if payload.map_grid is not None:
+        data = dict(plugin_data.get("data") or {})
+        data["map_grid"] = payload.map_grid
+        plugin_data["data"] = data
 
     obj = models.Location(
         **entity_data,
@@ -469,12 +473,16 @@ async def update_location(
 
     update_fields = dump_entity_fields(
         payload,
-        exclude={"map_objects", "sublocations", "scene_exposures"},
+        exclude={"map_objects", "sublocations", "scene_exposures", "map_grid"},
         exclude_unset=True,
         exclude_none=True,
     )
     update_fields["data"] = result.result.data
     update_fields["tags"] = result.result.tags
+    if payload.map_grid is not None:
+        data = dict(update_fields.get("data") or {})
+        data["map_grid"] = payload.map_grid
+        update_fields["data"] = data
 
     for k, v in update_fields.items():
         setattr(obj, k, v)

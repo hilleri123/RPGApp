@@ -14,6 +14,7 @@ from app.auth import require_master
 from app.infrastructure.database import get_async_session as get_db
 from app.routes._helpers import get_scenario_edit, get_scenario_or_404, notify_active_sessions_for_scenario
 from app.services import front_service as svc
+from app.services.character_membership import scope_clause
 
 router = APIRouter(prefix="/scenarios/{scenario_id}/tags", tags=["scenario-tags"])
 
@@ -78,7 +79,7 @@ async def import_tags_from_entities(
     found: set[str] = set()
     for model in (models.NPC, models.GameItem, models.PlayerCharacter, models.Location, models.StoryBeat, models.Note, models.Counter, models.Obstacle):
         rows = (
-            await db.execute(select(model).where(model.scenario_id == scenario.id))
+            await db.execute(select(model).where(scope_clause(model, scenario.id)))
         ).scalars().all()
         for row in rows:
             tags = getattr(row, "tags", None) or []
@@ -145,7 +146,7 @@ async def update_tag(
             # rewrite entity tags referencing old key
             for model in (models.NPC, models.GameItem, models.PlayerCharacter, models.Location, models.StoryBeat, models.Note, models.Counter, models.Obstacle):
                 rows = (
-                    await db.execute(select(model).where(model.scenario_id == scenario.id))
+                    await db.execute(select(model).where(scope_clause(model, scenario.id)))
                 ).scalars().all()
                 for row in rows:
                     tags = list(getattr(row, "tags", None) or [])
@@ -181,7 +182,7 @@ async def delete_tag(
     # strip from entities
     for model in (models.NPC, models.GameItem, models.PlayerCharacter, models.Location, models.StoryBeat, models.Note, models.Counter, models.Obstacle):
         rows = (
-            await db.execute(select(model).where(model.scenario_id == scenario.id))
+            await db.execute(select(model).where(scope_clause(model, scenario.id)))
         ).scalars().all()
         for row in rows:
             tags = list(getattr(row, "tags", None) or [])

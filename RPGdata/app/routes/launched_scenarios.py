@@ -8,6 +8,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app import models, scheme
 from app.auth import get_current_user
+from app.auth.permissions import PERM_EDIT_PARTIAL, PERM_READ
+from app.routes.scenarios.access import require_scenario_access
 from app.infrastructure.database import get_async_session as get_db
 from app.services.launched_scenario_service import (
     ConcurrentApproachError,
@@ -144,6 +146,57 @@ async def create_party(
     await db.commit()
     await db.refresh(party)
     return scheme.ScenarioPartyOut.model_validate(party)
+
+
+@router.get("/{launched_scenario_id}/players", response_model=scheme.LaunchedPlayersOut)
+async def list_players(
+    launched_scenario_id: UUID,
+    current_user: models.User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    launched = await get_launched_scenario(db, launched_scenario_id)
+    await require_scenario_access(db, current_user, launched, PERM_READ)
+    from app.services.launched_player_service import list_launched_players
+
+    return await list_launched_players(db, launched_scenario_id)
+
+
+@router.put("/{launched_scenario_id}/players/{user_id}", response_model=scheme.LaunchedPlayerOut)
+async def assign_player(
+    launched_scenario_id: UUID,
+    user_id: UUID,
+    payload: scheme.LaunchedPlayerAssign,
+    current_user: models.User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    launched = await get_launched_scenario(db, launched_scenario_id)
+    await require_scenario_access(db, current_user, launched, PERM_EDIT_PARTIAL)
+    person = await db.get(models.User, user_id)
+    if person is None:
+        raise HTTPException(status_code=404, detail="user not found")
+    from app.services.launched_player_service import assign_launched_player, list_launched_players
+
+    try:
+        await assign_launched_player(
+            db,
+            launched=launched,
+            user_id=user_id,
+            character_id=payload.character_id,
+            color=payload.color,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    await db.commit()
+    listed = await list_launched_players(db, launched_scenario_id)
+    for item in listed["players"]:
+        if item["user_id"] == user_id:
+            return item
+    return {
+        "user_id": user_id,
+        "name": person.full_name or "Игрок",
+        "color": payload.color or "#ffffff",
+        "character_id": payload.character_id,
+    }
 
 
 @router.post("/{launched_scenario_id}/close")

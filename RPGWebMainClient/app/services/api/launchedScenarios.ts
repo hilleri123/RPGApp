@@ -2,6 +2,18 @@ import { BaseApiClient } from './base';
 import { LaunchedScenario, ScenarioParty } from '../types/launchedScenario';
 import { Scenario } from '../types2';
 
+export interface LaunchedPlayerRow {
+  user_id: string;
+  name: string;
+  color: string;
+  character_id: string | null;
+}
+
+export interface LaunchedPlayers {
+  players: LaunchedPlayerRow[];
+  characters: { id: string; name: string; bound_user_id: string | null }[];
+}
+
 export interface LaunchedScenarioDetail {
   launched: LaunchedScenario;
   prep_scenario: Scenario | null;
@@ -29,6 +41,18 @@ export class LaunchedScenariosApiService extends BaseApiClient {
 
   async getDetail(id: string): Promise<LaunchedScenarioDetail> {
     return this.get<LaunchedScenarioDetail>(`${this.endpoint}/${id}`);
+  }
+
+  async listPlayers(launchedId: string): Promise<LaunchedPlayers> {
+    return this.get<LaunchedPlayers>(`${this.endpoint}/${launchedId}/players`);
+  }
+
+  async assignPlayer(
+    launchedId: string,
+    userId: string,
+    data: { character_id: string | null; color: string },
+  ): Promise<LaunchedPlayerRow> {
+    return this.put<LaunchedPlayerRow>(`${this.endpoint}/${launchedId}/players/${userId}`, data);
   }
 
   async listParties(launchedId: string): Promise<ScenarioParty[]> {

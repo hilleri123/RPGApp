@@ -41,6 +41,17 @@ class SessionLogRow(Base):
     created_at = Column(DateTime(timezone=True), default=_now, nullable=False, index=True)
 
 
+class SessionMapOverlayRow(Base):
+    """Рисунки поверх карт. Не часть сцены: при смене сцены их снова включают как маски."""
+    __tablename__ = "session_map_overlay"
+
+    id = Column(Uuid, primary_key=True)
+    session_id = Column(Uuid, ForeignKey("game_session.id", ondelete="CASCADE"), nullable=False, index=True)
+    body = Column(JSON, nullable=False)
+    version = Column(Integer, nullable=False, default=1)
+    changed_at = Column(DateTime(timezone=True), default=_now, nullable=False)
+
+
 class SessionAudioQueueRow(Base):
     __tablename__ = "session_audio_queue"
 

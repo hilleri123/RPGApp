@@ -18,7 +18,16 @@ export type WsMsgType =
   | 'session_finished'
   | 'session_not_found'
   | 'session_return_to_lobby'
+  | 'scene_cue'
   ;
+
+export type SceneCueMessage = {
+  msg_type: 'scene_cue';
+  kind: 'hand' | 'up' | 'down';
+  name: string;
+  icon_url?: string | null;
+  color?: string | null;
+};
 
 export type ObjectChangeNotice = {
   object_type: string;
@@ -50,6 +59,7 @@ export type SessionInitMessage = {
   characters?: PlayerCharacter[];
   npcs?: NPC[];
   scenes?: Scene[];
+  map_overlays?: import('./session').MapOverlay[];
   observers?: Observer[];
   notifications?: SessionNotification[];
   logs?: LogMsg[];
@@ -90,6 +100,7 @@ export type SessionUpdateMessage = {
   locations?: Location[];
   characters?: PlayerCharacter[];
   scenes?: Scene[];
+  map_overlays?: import('./session').MapOverlay[];
   observers?: Observer[];
 
   notes?: Note[];

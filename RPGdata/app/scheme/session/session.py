@@ -19,7 +19,7 @@ from .timeline import SessionTimelineInner
 from .presentation import PresentedEntityView
 from .base_log import LogMsgBase
 from .base_notifications import NotificationBase
-from .scene import Scene, SceneInner
+from .scene import MapOverlay, Scene, SceneInner
 from .settings import Settings
 from .plugin_actions import ActionRecord
 
@@ -96,6 +96,7 @@ class GameSessionInner(GameSessionBase, InnerSecenario):
     logs: List[LogUnion] = []
     notifications: List[NotificationUnion] = []
     scenes: list[SceneInner] = Field(default_factory=list)
+    map_overlays: list[MapOverlay] = Field(default_factory=list)
     actions: list[ActionRecord] = Field(default_factory=list)
     observers: list[Observer] = Field(default_factory=list)
     settings: Settings = Field(default_factory=Settings)  

@@ -19,6 +19,7 @@ from app.services.application_entity_service import (
     attach_application_characters_to_scenario,
     character_dict_from_application,
 )
+from app.services.character_membership import ORIGIN_OTHER, is_in_scenario, link_character, unlink_character
 
 from .user_manager import SessionUserManager
 
@@ -207,7 +208,10 @@ class SessionCharacterManager(SessionUserManager):
                     selectinload(models.PlayerCharacter.owned_item_links).selectinload(models.ItemOwnership.item),
                 ],
             )
-            if new_db_ch is None or new_db_ch.scenario_id not in (None, scenario_id):
+            already_here = (
+                new_db_ch is not None and await is_in_scenario(db, new_db_ch.id, scenario_id)
+            )
+            if not already_here:
                 if application_id:
                     app = await db.get(
                         models.CharacterApplication,
@@ -235,12 +239,18 @@ class SessionCharacterManager(SessionUserManager):
                     await self.invalidate_entity_cache()
                     inner = await self.get_inner()
                     new_inner_ch = next((c for c in (inner.characters or []) if str(c.id) == str(new_character_id)), None)
+                elif new_db_ch is not None:
+                    await link_character(db, new_db_ch.id, scenario_id, ORIGIN_OTHER)
+                    await db.commit()
+                    await self.invalidate_entity_cache()
+                    inner = await self.get_inner()
+                    new_inner_ch = next((c for c in (inner.characters or []) if str(c.id) == str(new_character_id)), None)
                 else:
                     return False, []
 
             if new_inner_ch is None and new_db_ch is not None:
-                if new_db_ch.scenario_id is None:
-                    new_db_ch.scenario_id = scenario_id
+                if not await is_in_scenario(db, new_db_ch.id, scenario_id):
+                    await link_character(db, new_db_ch.id, scenario_id, ORIGIN_OTHER)
                 await db.commit()
                 await self.invalidate_entity_cache()
                 inner = await self.get_inner()
@@ -271,7 +281,7 @@ class SessionCharacterManager(SessionUserManager):
                         rule_id_str=inner.rule_id_str,
                     )
                     if not allow_swap:
-                        old_db_ch.scenario_id = None
+                        await unlink_character(db, old_db_ch.id, scenario_id)
                         old_db_ch.location_id = None
 
             approach_id = UUID(str(inner.id))

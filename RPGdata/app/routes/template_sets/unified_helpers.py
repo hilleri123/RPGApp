@@ -11,6 +11,7 @@ from sqlalchemy.orm import selectinload
 from app import models, scheme
 from app.constants.templates import TEMPLATE_TAG, ensure_template_tags
 from app.routes._helpers import _OWNER_FIELD
+from app.services.character_membership import without_scenario
 
 
 async def ensure_pack_member(
@@ -223,7 +224,7 @@ async def get_pack_character_or_404(
             .where(
                 models.PlayerCharacter.id == character_id,
                 models.PlayerCharacter.id.in_(character_ids_in_pack(pack_id)),
-                models.PlayerCharacter.scenario_id.is_(None),
+                without_scenario(),
             )
             .options(
                 selectinload(models.PlayerCharacter.owned_item_links).selectinload(

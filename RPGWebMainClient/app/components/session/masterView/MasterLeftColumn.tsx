@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Map, LayoutGrid, ScrollText, Library } from 'lucide-react';
+import { Map, LayoutGrid, ScrollText, Library, Clapperboard, Boxes } from 'lucide-react';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 
@@ -13,15 +13,15 @@ import { useMasterUiStore, type LeftColumnTab, type MapTab } from '@/app/service
 import { useUrlTab } from '@/app/services/hooks/useUrlTab';
 
 import type { Location } from '@/app/services/types2';
-import { LocationExposuresPanel } from './LocationExposuresPanel';
 import LocationSessionEditDialog from './control/dialogs/LocationSessionEditDialog';
 import { LocationLibraryDialog } from '@/app/components/scenarios/dialogs/LocationLibraryDialog';
 import { useSessionScenarioApi } from '@/app/services/hooks/session/useSessionScenarioApi';
 import { MasterContentPanel } from './MasterControlTabsView';
 import { TimelineTabPanel } from './TimelineTabPanel';
+import { SceneBoardPanel } from './scene/SceneBoardPanel';
 
-const LEFT_COLUMN_TABS: readonly LeftColumnTab[] = ['map', 'content', 'journal'];
-const MAP_TABS: readonly MapTab[] = ['location', 'scene', 'timeline'];
+const LEFT_COLUMN_TABS: readonly LeftColumnTab[] = ['map', 'scene', 'objects', 'content', 'journal'];
+const MAP_TABS: readonly MapTab[] = ['location', 'timeline'];
 
 export function MasterLeftColumn({ sessionId }: { sessionId: string }) {
   const {
@@ -37,7 +37,6 @@ export function MasterLeftColumn({ sessionId }: { sessionId: string }) {
     addScene,
     reloadSessionFields,
     toggleLocationHidden,
-    applySceneExposure,
   } = useSessionWebSocket(sessionId);
 
   const wikiTabRequest = useMasterUiStore((s) => s.wikiTabRequest);
@@ -117,8 +116,6 @@ export function MasterLeftColumn({ sessionId }: { sessionId: string }) {
     setEditingLocation(null);
   }, []);
 
-  const canUseSceneMap = !!sceneLocationId;
-
   const selectSceneFromTimeline = useCallback(
     (sceneId: string) => {
       setCurrentSceneId(sceneId);
@@ -151,6 +148,12 @@ export function MasterLeftColumn({ sessionId }: { sessionId: string }) {
               <TabsTrigger value="map" className="flex items-center gap-1.5">
                 <Map className="w-3.5 h-3.5" /> Карта
               </TabsTrigger>
+              <TabsTrigger value="scene" disabled={!currentSceneId} className="flex items-center gap-1.5">
+                <Clapperboard className="w-3.5 h-3.5" /> Сцена
+              </TabsTrigger>
+              <TabsTrigger value="objects" className="flex items-center gap-1.5">
+                <Boxes className="w-3.5 h-3.5" /> Объекты
+              </TabsTrigger>
               <TabsTrigger value="content" className="flex items-center gap-1.5">
                 <LayoutGrid className="w-3.5 h-3.5" /> Контент
               </TabsTrigger>
@@ -163,7 +166,19 @@ export function MasterLeftColumn({ sessionId }: { sessionId: string }) {
 
         {leftColumnTab === 'content' ? (
           <div className="flex-1 min-h-0 p-3 overflow-hidden">
-            <MasterContentPanel sessionId={sessionId} />
+            <MasterContentPanel sessionId={sessionId} section="content" />
+          </div>
+        ) : leftColumnTab === 'objects' ? (
+          <div className="flex-1 min-h-0 p-3 overflow-hidden">
+            <MasterContentPanel sessionId={sessionId} section="objects" />
+          </div>
+        ) : leftColumnTab === 'scene' ? (
+          <div className="flex-1 min-h-0 flex flex-col">
+            {currentScene ? (
+              <SceneBoardPanel sessionId={sessionId} scene={currentScene} />
+            ) : (
+              <div className="p-3 text-xs text-gray-500">Сначала выбери сцену.</div>
+            )}
           </div>
         ) : leftColumnTab === 'journal' ? (
           <div className="flex-1 min-h-0 p-3 overflow-hidden">
@@ -178,15 +193,6 @@ export function MasterLeftColumn({ sessionId }: { sessionId: string }) {
                 onClick={() => setMapTab('location')}
               >
                 Локация
-              </Button>
-              <Button
-                size="sm"
-                variant={mapTab === 'scene' ? 'secondary' : 'outline'}
-                disabled={!canUseSceneMap}
-                title={!canUseSceneMap ? 'Выбери сцену, чтобы была локация сцены' : undefined}
-                onClick={() => setMapTab('scene')}
-              >
-                Локация сцены
               </Button>
               <Button
                 size="sm"
@@ -245,14 +251,6 @@ export function MasterLeftColumn({ sessionId }: { sessionId: string }) {
                   />
                 </div>
 
-                {mapTab === 'scene' && (
-                  <LocationExposuresPanel
-                    location={sceneLocation}
-                    locations={locations}
-                    scene_id={currentSceneId}
-                    applySceneExposure={applySceneExposure}
-                  />
-                )}
               </>
             )}
           </div>

@@ -72,6 +72,42 @@ export interface SceneAvailableAction {
   description?: string;
 }
 
+export interface SceneToken {
+  entity_type: 'character' | 'npc' | 'item' | 'obstacle';
+  entity_id: string;
+  col: number;
+  row: number;
+  span_w: number;
+  span_h: number;
+  x?: number | null;
+  y?: number | null;
+}
+
+export interface SceneCanvasBoard {
+  id: string;
+  location_id: string;
+  name: string;
+  tokens: SceneToken[];
+  mask_ids: string[];
+  grid_on: boolean;
+  /** Карта холста. Приходит со сценой: игрок может не видеть эту локацию в мире. */
+  location?: Location | null;
+}
+
+export interface SceneLocationBucket {
+  location_id: string;
+  character_ids: string[];
+  public: { npc_ids?: string[]; item_ids?: string[]; obstacle_ids?: string[] };
+  private: { npc_ids?: string[]; item_ids?: string[]; obstacle_ids?: string[] };
+}
+
+export interface MapOverlay {
+  id: string;
+  location_id: string;
+  name: string;
+  scene: { elements?: any[]; appState?: any; files?: Record<string, any> };
+}
+
 export interface Scene {
   id: string;
   name: string;
@@ -79,6 +115,10 @@ export interface Scene {
   characters: PlayerCharacter[];
   public: SceneElements;
   private: SceneElements;
+  containers?: SceneLocationBucket[];
+  canvases?: SceneCanvasBoard[];
+  shown_canvas_id?: string | null;
+  player_canvas?: Record<string, string>;
 
   datetime: string | null;
 
@@ -324,6 +364,70 @@ export interface MasterSetSceneLocation extends MasterSessionActionBase {
   msg_type: 'set_scene_location';
   scene_id: string;
   location_id: string;
+}
+
+export interface MasterCreateSceneCanvases extends MasterSessionActionBase {
+  msg_type: 'create_scene_canvases';
+  scene_id: string;
+  location_id?: string;
+  all_maps?: boolean;
+}
+
+export interface MasterDeleteSceneCanvas extends MasterSessionActionBase {
+  msg_type: 'delete_scene_canvas';
+  scene_id: string;
+  canvas_id: string;
+}
+
+export interface MasterSetShownCanvas extends MasterSessionActionBase {
+  msg_type: 'set_shown_canvas';
+  scene_id: string;
+  canvas_id: string;
+}
+
+export interface MasterSetPlayerCanvas extends MasterSessionActionBase {
+  msg_type: 'set_player_canvas';
+  scene_id: string;
+  player_id: string;
+  canvas_id?: string | null;
+}
+
+export interface MasterUpdateSceneCanvas extends MasterSessionActionBase {
+  msg_type: 'update_scene_canvas';
+  scene_id: string;
+  canvas_id: string;
+  tokens?: SceneToken[];
+  grid_on?: boolean;
+  mask_ids?: string[];
+  name?: string;
+}
+
+export interface MasterSaveMapOverlay extends MasterSessionActionBase {
+  msg_type: 'save_map_overlay';
+  overlay: MapOverlay;
+}
+
+export interface MasterDeleteMapOverlay extends MasterSessionActionBase {
+  msg_type: 'delete_map_overlay';
+  overlay_id: string;
+}
+
+export interface MasterMergeMapOverlay extends MasterSessionActionBase {
+  msg_type: 'merge_map_overlay';
+  overlay_id: string;
+}
+
+export interface MasterSetLocationMapGrid extends MasterSessionActionBase {
+  msg_type: 'set_location_map_grid';
+  location_id: string;
+  map_grid: {
+    cols: number;
+    rows: number;
+    origin_x: number;
+    origin_y: number;
+    cell_w: number;
+    cell_h: number;
+  };
 }
 
 export interface MasterMoveCharacterToScene extends MasterSessionActionBase {
@@ -705,6 +809,15 @@ export type MasterSessionAction =
   | MasterMergeScene
   | MasterSetMainScene
   | MasterSetSceneLocation
+  | MasterCreateSceneCanvases
+  | MasterDeleteSceneCanvas
+  | MasterSetShownCanvas
+  | MasterSetPlayerCanvas
+  | MasterUpdateSceneCanvas
+  | MasterSaveMapOverlay
+  | MasterDeleteMapOverlay
+  | MasterMergeMapOverlay
+  | MasterSetLocationMapGrid
   | MasterMoveCharacterToScene
   | MasterSetSceneTime
   | MasterSetSessionTime

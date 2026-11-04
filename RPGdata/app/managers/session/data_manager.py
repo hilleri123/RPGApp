@@ -8,6 +8,7 @@ from typing import Any, Dict, Optional
 
 from redis.exceptions import ResponseError
 from sqlalchemy import select
+from app.services.character_membership import in_scenario
 from app.infrastructure.redis_service import redis_client
 from app.infrastructure.database import AsyncSessionLocal
 from app.plugins.registry_singleton import registry
@@ -38,7 +39,7 @@ _PERSISTED_ENTITY_MODELS: dict[str, Any] = {
 _UNBACKED_ENTITY_FIELDS = frozenset({"counters", "todos", "audio", "factories"})
 
 # Эти поля сессии лежат строками в Postgres. В Redis остаётся пустой список.
-_PG_RUNTIME_FIELDS = frozenset({"scenes", "actions", "logs", "audio_queue"})
+_PG_RUNTIME_FIELDS = frozenset({"scenes", "actions", "logs", "audio_queue", "map_overlays"})
 
 
 class SessionDataManager:
@@ -238,10 +239,15 @@ class SessionDataManager:
         async with AsyncSessionLocal() as db:
             # Only entities of this session's scenario may be written: the list
             # originates from the client payload and may reference foreign ids.
+            scope = (
+                in_scenario(scenario_id)
+                if field == "characters"
+                else model.scenario_id == scenario_id
+            )
             rows = (await db.execute(
                 select(model).where(
                     model.id.in_(by_id.keys()),
-                    model.scenario_id == scenario_id,
+                    scope,
                 )
             )).scalars().all()
 

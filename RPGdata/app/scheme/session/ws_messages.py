@@ -12,7 +12,7 @@ from app.scheme.session.timeline import SessionTimeline
 from app.scheme.story_beat import StoryBeatOut
 from app.scheme.session.inner.scenario import Factory, InnerCharacter, InnerNPC, InnerFreeGameItem, InnerLocation
 from app.scheme.notes import Note, Counter
-from app.scheme.session.scene import Scene, SceneInner  # твой файл из сообщения
+from app.scheme.session.scene import MapOverlay, Scene, SceneInner  # твой файл из сообщения
 from app.scheme.session import GameSession
 from app.scheme.session.presentation import PresentedEntityView
 from app.scheme.seen import PlayerSeenEntry
@@ -39,6 +39,7 @@ class MasterSessionInit(WsBase):
     characters: list[InnerCharacter] = Field(default_factory=list)
     npcs: list[InnerNPC] = Field(default_factory=list)
     scenes: list[Scene] = Field(default_factory=list)
+    map_overlays: list[MapOverlay] = Field(default_factory=list)
 
     dispatches: list = Field(default_factory=list)
     message_replies: list = Field(default_factory=list)
@@ -77,6 +78,7 @@ class MasterSessionUpdate(WsBase):
     characters: Optional[list[InnerCharacter]] = None
     npcs: Optional[list[InnerNPC]] = None
     scenes: Optional[list[Scene]] = None
+    map_overlays: Optional[list[MapOverlay]] = None
     players: Optional[list] = None
     dispatches: Optional[list] = None
     message_replies: Optional[list] = None
@@ -104,6 +106,7 @@ class PlayerSessionInit(WsBase):
     npcs: list[InnerNPC] = Field(default_factory=list)
     items: list[InnerFreeGameItem] = Field(default_factory=list)
     scenes: list[Scene] = Field(default_factory=list)  # ВАЖНО: denorm
+    map_overlays: list[MapOverlay] = Field(default_factory=list)
 
     dispatches: list = Field(default_factory=list)
     notes: list[Note] = Field(default_factory=list)
@@ -135,6 +138,7 @@ class PlayerSessionUpdate(WsBase):
     npcs: Optional[list[InnerNPC]] = None
     items: Optional[list[InnerFreeGameItem]] = None
     scenes: Optional[list[Scene]] = None  # denorm
+    map_overlays: Optional[list[MapOverlay]] = None
     dispatches: Optional[list] = None
     notes: Optional[list[Note]] = None
     message_replies: Optional[list] = None

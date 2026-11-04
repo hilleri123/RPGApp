@@ -203,7 +203,11 @@ async def read_scenario(
 
     # counts (как у тебя)
     locations_count = await db.scalar(select(func.count()).select_from(models.Location).where(models.Location.scenario_id == sc.id))
-    characters_count = await db.scalar(select(func.count()).select_from(models.PlayerCharacter).where(models.PlayerCharacter.scenario_id == sc.id))
+    characters_count = await db.scalar(
+        select(func.count()).select_from(models.CharacterScenario).where(
+            models.CharacterScenario.scenario_id == sc.id
+        )
+    )
     npcs_count = await db.scalar(select(func.count()).select_from(models.NPC).where(models.NPC.scenario_id == sc.id))
     items_count = await db.scalar(select(func.count()).select_from(models.GameItem).where(models.GameItem.scenario_id == sc.id))
     notes_count = await db.scalar(select(func.count()).select_from(models.Note).where(models.Note.scenario_id == sc.id))

@@ -65,6 +65,8 @@ export type ScenarioEntityListShellProps<T extends { id: string }> = {
   availableTags?: string[];
   /** Доп. диалоги списка (например, библиотека локаций). */
   extraDialogs?: React.ReactNode;
+  /** Подпись группы. Новый заголовок рисуется, когда она меняется. */
+  itemGroup?: (item: T) => string | null;
 };
 
 export function ScenarioEntityListShell<T extends { id: string }>(props: ScenarioEntityListShellProps<T>) {
@@ -91,6 +93,7 @@ export function ScenarioEntityListShell<T extends { id: string }>(props: Scenari
     getItemTags,
     availableTags,
     extraDialogs,
+    itemGroup,
   } = props;
 
   const [dlgOpen, setDlgOpen] = useState(false);
@@ -171,19 +174,30 @@ export function ScenarioEntityListShell<T extends { id: string }>(props: Scenari
   }, [items, nameFilter, activeTags, resolveTags]);
 
   const grid = useMemo(() => {
+    let previousGroup: string | null = null;
     return (
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {filteredItems.map((it) =>
-          renderCard({
-            item: it,
-            onOpen: (mode) => openDialog({ item: it, mode: readOnly ? 'view' : mode }),
-            onDelete: readOnly || !onDelete || (canDelete && !canDelete(it)) ? undefined : () => setDeleteTarget(it),
-            readOnly,
-          }),
-        )}
+        {filteredItems.map((it) => {
+          const group = itemGroup?.(it) ?? null;
+          const showGroup = Boolean(group) && group !== previousGroup;
+          if (group) previousGroup = group;
+          return (
+            <React.Fragment key={String(it.id)}>
+              {showGroup ? (
+                <div className="col-span-full pt-2 text-sm font-medium text-gray-400">{group}</div>
+              ) : null}
+              {renderCard({
+                item: it,
+                onOpen: (mode) => openDialog({ item: it, mode: readOnly ? 'view' : mode }),
+                onDelete: readOnly || !onDelete || (canDelete && !canDelete(it)) ? undefined : () => setDeleteTarget(it),
+                readOnly,
+              })}
+            </React.Fragment>
+          );
+        })}
       </div>
     );
-  }, [filteredItems, renderCard, onDelete, canDelete, openDialog, readOnly]);
+  }, [filteredItems, renderCard, onDelete, canDelete, openDialog, readOnly, itemGroup]);
 
   if (loading) return <div className="text-center py-8"><Loader2 className="animate-spin" /></div>;
 

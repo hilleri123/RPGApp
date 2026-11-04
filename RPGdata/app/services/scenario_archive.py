@@ -732,12 +732,21 @@ async def import_scenario_archive(
         await ingest_list("map_polygons.json", models.MapObjectPolygon, "map_polygons")
         await ingest_list("npcs.json", models.NPC, "npcs", force={"scenario_id": root_id})
         await ingest_list("items.json", models.GameItem, "items", force={"scenario_id": root_id})
-        await ingest_list(
+        char_rows = await ingest_list(
             "characters.json",
             models.PlayerCharacter,
             "characters",
-            force={"scenario_id": root_id},
         )
+        from app.services.character_membership import ORIGIN_NATIVE, link_character
+
+        for raw in char_rows:
+            if not isinstance(raw, dict):
+                continue
+            eid = _parse_uuid(raw.get("id"))
+            if eid is None:
+                continue
+            await link_character(db, eid, root_id, ORIGIN_NATIVE)
+        await db.flush()
 
         for raw in _read_zip_json(zf, "item_ownership.json", default=[]) or []:
             if not isinstance(raw, dict) or raw.get("id") is None:
@@ -971,7 +980,6 @@ async def import_scenario_archive(
                 if eid is None:
                     continue
                 data = _filter_columns(models.PlayerCharacter, _prepare_entity(raw))
-                data["scenario_id"] = None
                 await _create_if_missing(
                     db, models.PlayerCharacter, eid, data, report, "template_characters"
                 )

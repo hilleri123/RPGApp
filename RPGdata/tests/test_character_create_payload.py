@@ -39,7 +39,7 @@ def test_all_upsert_payloads_map_to_model_columns():
         (CharacterUpsertPayload, models.PlayerCharacter, {"owned_items"}),
         (NPCUpsertPayload, models.NPC, {"owned_items"}),
         (ItemUpsertPayload, models.GameItem, {"contained_items"}),
-        (LocationUpsertPayload, models.Location, {"map_objects", "sublocations", "scene_exposures"}),
+        (LocationUpsertPayload, models.Location, {"map_objects", "sublocations", "scene_exposures", "map_grid"}),
         (StoryBeatUpsertPayload, models.StoryBeat, {"scene_exposures", "location_ids", "npc_ids"}),
     ]
     for payload_cls, model, excluded in cases:

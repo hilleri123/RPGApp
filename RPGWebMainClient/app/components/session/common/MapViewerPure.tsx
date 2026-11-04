@@ -46,6 +46,23 @@ export interface MapViewerPureProps {
   isDrawing?: boolean;
   draftPoints?: MapObjectPolygonPoint[];
   onDraftPoint?: (point: MapObjectPolygonPoint) => void;
+  boardTokens?: BoardToken[];
+  mapGrid?: Location['map_grid'];
+  gridOn?: boolean;
+  tokensEditable?: boolean;
+  onTokenMove?: (index: number, next: { col: number; row: number; x: number; y: number }) => void;
+}
+
+export interface BoardToken {
+  id: string;
+  name: string;
+  color: string;
+  col: number;
+  row: number;
+  span_w: number;
+  span_h: number;
+  x?: number | null;
+  y?: number | null;
 }
 
 function getPolygonCenter(points: MapObjectPolygonPoint[]) {
@@ -86,6 +103,11 @@ export default function MapViewerPure({
   isDrawing = false,
   draftPoints = [],
   onDraftPoint,
+  boardTokens,
+  mapGrid,
+  gridOn = false,
+  tokensEditable = false,
+  onTokenMove,
 }: MapViewerPureProps) {
   const canPan = interactive && !isDrawing;
   const [zoom, setZoom] = useState(1);
@@ -381,6 +403,88 @@ export default function MapViewerPure({
                   <g key={`overlay-${polygon.id}`} className="pointer-events-none">
                     {renderRow(chars, minY, true)}
                     {renderRow(npcs, maxY, false)}
+                  </g>
+                );
+              })}
+              {gridOn && mapGrid && canvasInfo ? (
+                <g className="pointer-events-none">
+                  {Array.from({ length: mapGrid.cols + 1 }, (_, index) => (
+                    <line
+                      key={`gv-${index}`}
+                      x1={mapGrid.origin_x + index * mapGrid.cell_w}
+                      y1={mapGrid.origin_y}
+                      x2={mapGrid.origin_x + index * mapGrid.cell_w}
+                      y2={mapGrid.origin_y + mapGrid.rows * mapGrid.cell_h}
+                      stroke="rgba(255,255,255,0.35)"
+                      strokeWidth="1"
+                    />
+                  ))}
+                  {Array.from({ length: mapGrid.rows + 1 }, (_, index) => (
+                    <line
+                      key={`gh-${index}`}
+                      x1={mapGrid.origin_x}
+                      y1={mapGrid.origin_y + index * mapGrid.cell_h}
+                      x2={mapGrid.origin_x + mapGrid.cols * mapGrid.cell_w}
+                      y2={mapGrid.origin_y + index * mapGrid.cell_h}
+                      stroke="rgba(255,255,255,0.35)"
+                      strokeWidth="1"
+                    />
+                  ))}
+                </g>
+              ) : null}
+              {(boardTokens ?? []).map((token, index) => {
+                const spanW = Math.max(1, token.span_w || 1);
+                const spanH = Math.max(1, token.span_h || 1);
+                const bgW = canvasInfo?.bgWidth || 1;
+                const bgH = canvasInfo?.bgHeight || 1;
+                const snapped = Boolean(gridOn && mapGrid && mapGrid.cell_w && mapGrid.cell_h);
+                const x = snapped
+                  ? mapGrid!.origin_x + token.col * mapGrid!.cell_w
+                  : (token.x ?? 0.05) * bgW;
+                const y = snapped
+                  ? mapGrid!.origin_y + token.row * mapGrid!.cell_h
+                  : (token.y ?? 0.05) * bgH;
+                const w = snapped ? spanW * mapGrid!.cell_w : Math.max(28, (spanW / 12) * bgW);
+                const h = snapped ? spanH * mapGrid!.cell_h : Math.max(28, (spanH / 12) * bgH);
+                return (
+                  <g
+                    key={token.id}
+                    style={{ cursor: tokensEditable ? 'grab' : 'default' }}
+                    onPointerDown={tokensEditable ? (event) => {
+                      event.stopPropagation();
+                      const svg = (event.currentTarget.ownerSVGElement ?? event.currentTarget) as SVGSVGElement;
+                      const move = (ev: PointerEvent) => {
+                        const point = svg.createSVGPoint();
+                        point.x = ev.clientX;
+                        point.y = ev.clientY;
+                        const matrix = svg.getScreenCTM();
+                        if (!matrix) return;
+                        const local = point.matrixTransform(matrix.inverse());
+                        if (snapped && mapGrid) {
+                          const col = Math.max(0, Math.min(mapGrid.cols - spanW, Math.floor((local.x - mapGrid.origin_x) / mapGrid.cell_w)));
+                          const row = Math.max(0, Math.min(mapGrid.rows - spanH, Math.floor((local.y - mapGrid.origin_y) / mapGrid.cell_h)));
+                          onTokenMove?.(index, { col, row, x: local.x / bgW, y: local.y / bgH });
+                        } else {
+                          onTokenMove?.(index, {
+                            col: token.col,
+                            row: token.row,
+                            x: Math.max(0, Math.min(1, local.x / bgW)),
+                            y: Math.max(0, Math.min(1, local.y / bgH)),
+                          });
+                        }
+                      };
+                      const up = () => {
+                        window.removeEventListener('pointermove', move);
+                        window.removeEventListener('pointerup', up);
+                      };
+                      window.addEventListener('pointermove', move);
+                      window.addEventListener('pointerup', up);
+                    } : undefined}
+                  >
+                    <rect x={x} y={y} width={w} height={h} rx="6" fill={token.color} fillOpacity="0.9" stroke="white" strokeWidth="1.5" />
+                    <text x={x + w / 2} y={y + h / 2} textAnchor="middle" dominantBaseline="middle" fontSize="11" fill="white">
+                      {token.name.slice(0, 10)}
+                    </text>
                   </g>
                 );
               })}

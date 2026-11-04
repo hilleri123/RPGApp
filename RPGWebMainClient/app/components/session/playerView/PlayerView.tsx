@@ -1,7 +1,8 @@
 "use client";
 
-import { useUrlTab } from "@/app/services/hooks/useUrlTab";
-import { Dices, Logs, Map, MapPin, SearchCheck, User } from "lucide-react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { Dices, Logs, Map, MapPin, SearchCheck, User, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 import PlayerSceneTab from "./PlayerSceneTab";
@@ -27,6 +28,50 @@ const TABS: { id: Tab; label: string; Icon: typeof Map }[] = [
   { id: "dice", label: "Кубы", Icon: Dices },
 ];
 
+const WIDE_QUERY = "(min-width: 1024px)";
+
+function useWideScreen() {
+  const [wide, setWide] = useState(false);
+  useEffect(() => {
+    const media = window.matchMedia(WIDE_QUERY);
+    const apply = () => setWide(media.matches);
+    apply();
+    media.addEventListener("change", apply);
+    return () => media.removeEventListener("change", apply);
+  }, []);
+  return wide;
+}
+
+function usePlayerPanes() {
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const allowed = useMemo(() => new Set<string>(PLAYER_TABS), []);
+
+  const right = useMemo(() => {
+    const raw = searchParams.get("tab");
+    return raw && allowed.has(raw) ? (raw as Tab) : "scene";
+  }, [searchParams, allowed]);
+
+  const left = useMemo(() => {
+    const raw = searchParams.get("left");
+    if (!raw || !allowed.has(raw) || raw === right) return null;
+    return raw as Tab;
+  }, [searchParams, allowed, right]);
+
+  const write = useCallback((nextRight: Tab, nextLeft: Tab | null) => {
+    const params = new URLSearchParams(searchParams.toString());
+    if (nextRight === "scene") params.delete("tab");
+    else params.set("tab", nextRight);
+    if (!nextLeft || nextLeft === nextRight) params.delete("left");
+    else params.set("left", nextLeft);
+    const qs = params.toString();
+    router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+  }, [router, pathname, searchParams]);
+
+  return { right, left, write };
+}
+
 interface PlayerPageProps {
   sessionId: string;
   currentLocation: Location | null;
@@ -41,7 +86,9 @@ export default function PlayerPage({
 }: PlayerPageProps) {
   const { selfPlayer } = usePlayerSessionWebSocket(sessionId);
   const { count: seedCount } = usePreparedSeeds(sessionId);
-  const [activeTab, setActiveTab] = useUrlTab<Tab>(PLAYER_TABS, "scene");
+  const wide = useWideScreen();
+  const { right, left, write } = usePlayerPanes();
+  const split = wide && left != null;
 
   // Это основной экран роли, а не необязательный виджет: return null оставлял
   // игрока, вошедшего до назначения персонажа, перед пустотой без объяснений.
@@ -58,21 +105,45 @@ export default function PlayerPage({
     );
   }
 
+  const pane = (tab: Tab) => (
+    <div key={tab} className="h-full min-h-0 min-w-0 flex-1 overflow-hidden">
+      {tab === "map" && <PlayerMapTab sessionId={sessionId} />}
+      {tab === "scene" && <PlayerSceneTab sessionId={sessionId} />}
+      {tab === "character" && <PlayerCharacterTab sessionId={sessionId} />}
+      {tab === "log" && <PlayerLogTab sessionId={sessionId} />}
+      {tab === "seen" && (
+        <PlayerSeenTab
+          sessionId={sessionId}
+          currentLocation={currentLocation}
+          setCurrentLocation={setCurrentLocation}
+        />
+      )}
+      {tab === "dice" && <PlayerDiceTab sessionId={sessionId} />}
+    </div>
+  );
+
   return (
     <div className="flex flex-col min-h-0 h-full bg-gray-900">
-      <div className="flex-1 min-h-0 overflow-hidden px-2 pt-1 pb-1">
-        {activeTab === "map" && <PlayerMapTab sessionId={sessionId} />}
-        {activeTab === "scene" && <PlayerSceneTab sessionId={sessionId} />}
-        {activeTab === "character" && <PlayerCharacterTab sessionId={sessionId} />}
-        {activeTab === "log" && <PlayerLogTab sessionId={sessionId} />}
-        {activeTab === "seen" && (
-          <PlayerSeenTab
-            sessionId={sessionId}
-            currentLocation={currentLocation}
-            setCurrentLocation={setCurrentLocation}
-          />
+      <div className={cn("flex min-h-0 flex-1 overflow-hidden px-2 pt-1 pb-1", split && left ? "flex-row" : "flex-col")}>
+        {split && left ? (
+          <>
+            <div className="relative flex h-full min-h-0 min-w-0 flex-1 flex-col">
+              <button
+                type="button"
+                onClick={() => write(right, null)}
+                className="absolute left-1 top-1 z-30 rounded-md bg-gray-950/80 p-1 text-white/80 hover:text-white"
+                aria-label="Закрыть левый экран"
+              >
+                <X className="h-4 w-4" />
+              </button>
+              {pane(left)}
+            </div>
+            <div className="mx-1 w-px shrink-0 bg-gray-700" />
+            <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col">{pane(right)}</div>
+          </>
+        ) : (
+          pane(right)
         )}
-        {activeTab === "dice" && <PlayerDiceTab sessionId={sessionId} />}
       </div>
 
       <nav
@@ -82,19 +153,34 @@ export default function PlayerPage({
       >
         <div className="grid grid-cols-6 gap-0.5 px-1 pt-1">
           {TABS.map(({ id, label, Icon }) => {
-            const active = activeTab === id;
+            const isLeft = split && left === id;
+            const isRight = split && right === id;
+            const sole = !split && right === id;
+            const openLeft = () => {
+              if (!wide) write(id, null);
+              else write(right, id);
+            };
+            const openRight = () => {
+              if (!wide) write(id, null);
+              else write(id, left);
+            };
             return (
               <button
                 key={id}
                 type="button"
-                onClick={() => setActiveTab(id)}
+                onClick={openLeft}
+                onContextMenu={(event) => {
+                  event.preventDefault();
+                  openRight();
+                }}
                 className={cn(
                   "flex flex-col items-center justify-center gap-0.5 rounded-md py-1.5 px-0.5 min-h-[52px] transition-colors",
-                  active
-                    ? "bg-blue-600 text-white"
-                    : "text-gray-400 hover:bg-gray-700/60 hover:text-gray-200",
+                  sole && "bg-blue-600 text-white",
+                  isLeft && "bg-[linear-gradient(to_bottom_right,#2563eb_50%,transparent_50%)] text-white",
+                  isRight && "bg-[linear-gradient(to_bottom_right,transparent_50%,#2563eb_50%)] text-white",
+                  !sole && !isLeft && !isRight && "text-gray-400 hover:bg-gray-700/60 hover:text-gray-200",
                 )}
-                aria-current={active ? "page" : undefined}
+                aria-current={sole || isLeft || isRight ? "page" : undefined}
               >
                 <span className="relative">
                   <Icon className="h-5 w-5 shrink-0" aria-hidden />

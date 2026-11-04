@@ -452,7 +452,7 @@ export function MapEditor({
                   <Label>Название</Label>
                   <Input
                     value={editingPolygon.name}
-                    onChange={(e) => setEditingPolygon({ ...editingPolygon, name: e.target.value })}
+                    onChange={(e) => setEditingPolygon({ ...editingPolygon, name: e.target.value, name_is_manual: true })}
                     className="bg-gray-700 border-gray-600"
                   />
                 </div>

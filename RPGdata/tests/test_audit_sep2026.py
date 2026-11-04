@@ -126,7 +126,7 @@ async def test_update_counter_checks_character_inside_scenario():
 
     assert exc.value.status_code == 400
     character_lookup = _sql(db.statements[1])
-    assert "player_character.scenario_id" in character_lookup
+    assert "character_scenario" in character_lookup
 
 
 # --- 3. счётчики внутри сессии ---------------------------------------------

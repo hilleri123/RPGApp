@@ -51,6 +51,17 @@ import {
   MasterDeselectPlayerCharacter,
   MasterAssignPlayerCharacter,
   MasterSetPlayerColor,
+  MasterCreateSceneCanvases,
+  MasterDeleteSceneCanvas,
+  MasterSetShownCanvas,
+  MasterSetPlayerCanvas,
+  MasterUpdateSceneCanvas,
+  MasterSaveMapOverlay,
+  MasterDeleteMapOverlay,
+  MasterMergeMapOverlay,
+  MasterSetLocationMapGrid,
+  SceneToken,
+  MapOverlay,
 } from '@/app/services/types/session';
 import type { NoteCreate } from '@/app/services/types2';
 
@@ -60,7 +71,7 @@ export function useSessionWebSocket(sessionId: string) {
     state => state.sessions[sessionId]
   );
   const { 
-    session, locations, characters, npcs, items, scenes, 
+    session, locations, characters, npcs, items, scenes, mapOverlays,
     notes, counters, storyBeats, factories, actions,
     logs, notifications, dispatches, message_replies, observers, settings, 
     audio_queue, audio_player, timeline, audio,
@@ -210,6 +221,100 @@ export function useSessionWebSocket(sessionId: string) {
       user_role: MASTER_ROLE,
       msg_type: 'set_main_scene',
       scene_id: sceneId,
+    };
+    sendAction(action);
+  }, [sendAction]);
+
+  const createSceneCanvases = useCallback((sceneId: string, locationId?: string, allMaps?: boolean) => {
+    const action: MasterCreateSceneCanvases = {
+      user_role: MASTER_ROLE,
+      msg_type: 'create_scene_canvases',
+      scene_id: sceneId,
+      location_id: locationId,
+      all_maps: allMaps,
+    };
+    sendAction(action);
+  }, [sendAction]);
+
+  const deleteSceneCanvas = useCallback((sceneId: string, canvasId: string) => {
+    const action: MasterDeleteSceneCanvas = {
+      user_role: MASTER_ROLE,
+      msg_type: 'delete_scene_canvas',
+      scene_id: sceneId,
+      canvas_id: canvasId,
+    };
+    sendAction(action);
+  }, [sendAction]);
+
+  const setShownCanvas = useCallback((sceneId: string, canvasId: string) => {
+    const action: MasterSetShownCanvas = {
+      user_role: MASTER_ROLE,
+      msg_type: 'set_shown_canvas',
+      scene_id: sceneId,
+      canvas_id: canvasId,
+    };
+    sendAction(action);
+  }, [sendAction]);
+
+  const setPlayerCanvas = useCallback((sceneId: string, playerId: string, canvasId: string | null) => {
+    const action: MasterSetPlayerCanvas = {
+      user_role: MASTER_ROLE,
+      msg_type: 'set_player_canvas',
+      scene_id: sceneId,
+      player_id: playerId,
+      canvas_id: canvasId,
+    };
+    sendAction(action);
+  }, [sendAction]);
+
+  const updateSceneCanvas = useCallback((
+    sceneId: string,
+    canvasId: string,
+    patch: { tokens?: SceneToken[]; grid_on?: boolean; mask_ids?: string[]; name?: string },
+  ) => {
+    const action: MasterUpdateSceneCanvas = {
+      user_role: MASTER_ROLE,
+      msg_type: 'update_scene_canvas',
+      scene_id: sceneId,
+      canvas_id: canvasId,
+      ...patch,
+    };
+    sendAction(action);
+  }, [sendAction]);
+
+  const saveMapOverlay = useCallback((overlay: MapOverlay) => {
+    const action: MasterSaveMapOverlay = {
+      user_role: MASTER_ROLE,
+      msg_type: 'save_map_overlay',
+      overlay,
+    };
+    sendAction(action);
+  }, [sendAction]);
+
+  const deleteMapOverlay = useCallback((overlayId: string) => {
+    const action: MasterDeleteMapOverlay = {
+      user_role: MASTER_ROLE,
+      msg_type: 'delete_map_overlay',
+      overlay_id: overlayId,
+    };
+    sendAction(action);
+  }, [sendAction]);
+
+  const mergeMapOverlay = useCallback((overlayId: string) => {
+    const action: MasterMergeMapOverlay = {
+      user_role: MASTER_ROLE,
+      msg_type: 'merge_map_overlay',
+      overlay_id: overlayId,
+    };
+    sendAction(action);
+  }, [sendAction]);
+
+  const setLocationMapGrid = useCallback((locationId: string, mapGrid: MasterSetLocationMapGrid['map_grid']) => {
+    const action: MasterSetLocationMapGrid = {
+      user_role: MASTER_ROLE,
+      msg_type: 'set_location_map_grid',
+      location_id: locationId,
+      map_grid: mapGrid,
     };
     sendAction(action);
   }, [sendAction]);
@@ -693,10 +798,12 @@ export function useSessionWebSocket(sessionId: string) {
   // Мемоизация результата чтобы не пересоздавать объект на каждый рендер
   return useMemo(() => ({
     connected, selfPlayer,
-    session, locations, characters, npcs, items, scenes, notes, counters, logs, actions, observers, settings,
+    session, locations, characters, npcs, items, scenes, mapOverlays, notes, counters, logs, actions, observers, settings,
     audio_queue, audio_player, presentedEntity, dataRevealedEntities, playerSeen,
     isMaster, isPlayer, notifications, dispatches, message_replies, storyBeats, factories, pluginUI, timeline, audio,
     setLocationCheck, addScene, updateScene, delScene, expandScene, setShowParentSceneMap, collapseScene, moveCharacterToScene, makeNPCDead,
+    createSceneCanvases, deleteSceneCanvas, setShownCanvas, setPlayerCanvas, updateSceneCanvas,
+    saveMapOverlay, deleteMapOverlay, mergeMapOverlay, setLocationMapGrid,
     moveToScene, moveOutScene, mergeScene, setMainScene, setSceneLocation, setSceneTime, setSessionTime, makeElementPublic,
     moveItem, dropItem, takeItem, submitActionStep, patchActionStep, updateSettings, setDefaultSettings,
     masterKickPlayer, masterDeselectPlayerCharacter, masterAssignPlayerCharacter, masterSetPlayerColor,
@@ -707,10 +814,12 @@ export function useSessionWebSocket(sessionId: string) {
     sendRequest, createFactoryObject, applySceneExposure, audioCommand, audioPlayEntry, enqueueAudioTrack, setMasterVolume, syncPosition, toggleLocationHidden,
     reloadSessionFields, presentEntity, dismissPresentedEntity, grantEntityDataAccess, revokeEntityDataAccess,
   }), [
-    connected, selfPlayer, session, locations, characters, npcs, items, scenes, observers, settings,
+    connected, selfPlayer, session, locations, characters, npcs, items, scenes, mapOverlays, observers, settings,
     audio_queue, audio_player, presentedEntity, dataRevealedEntities, playerSeen,
     notes, counters, logs, actions, isMaster, isPlayer, notifications, dispatches, message_replies, storyBeats, factories, pluginUI, timeline, audio,
     setLocationCheck, addScene, updateScene, delScene, expandScene, setShowParentSceneMap, collapseScene, moveCharacterToScene, makeNPCDead,
+    createSceneCanvases, deleteSceneCanvas, setShownCanvas, setPlayerCanvas, updateSceneCanvas,
+    saveMapOverlay, deleteMapOverlay, mergeMapOverlay, setLocationMapGrid,
     moveToScene, moveOutScene, mergeScene, setMainScene, setSceneLocation, setSceneTime, setSessionTime, makeElementPublic,
     moveItem, dropItem, takeItem, submitActionStep, patchActionStep, updateSettings, setDefaultSettings,
     masterKickPlayer, masterDeselectPlayerCharacter, masterAssignPlayerCharacter, masterSetPlayerColor,

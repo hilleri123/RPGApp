@@ -36,7 +36,16 @@ class Scenario(Base):
     items = relationship("GameItem", back_populates="scenario", cascade="all, delete-orphan")
     locations = relationship("Location", back_populates="scenario", cascade="all, delete-orphan")
     npcs = relationship("NPC", back_populates="scenario", cascade="all, delete-orphan")
-    characters = relationship("PlayerCharacter", back_populates="scenario", cascade="all, delete-orphan")
+    character_links = relationship(
+        "CharacterScenario",
+        back_populates="scenario",
+        passive_deletes=True,
+    )
+    characters = relationship(
+        "PlayerCharacter",
+        secondary="character_scenario",
+        viewonly=True,
+    )
     game_sessions = relationship(
         "GameSession",
         foreign_keys="GameSession.scenario_id",

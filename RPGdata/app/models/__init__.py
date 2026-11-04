@@ -2,7 +2,13 @@
 from .user import User, Player, MasterGroup, MasterGroupScenarioAccess, UserMasterGroup
 from .session import GameSession, GameSessionStatus
 from .campaign import Campaign, CampaignScenario
-from .launched_scenario import ScenarioParty, ScenarioPartyMember, PlayerSeenState, PlayerSeen
+from .launched_scenario import (
+    LaunchedScenarioPlayer,
+    ScenarioParty,
+    ScenarioPartyMember,
+    PlayerSeenState,
+    PlayerSeen,
+)
 from .character_application import *
 from .roll import RollRecord
 from .roll_gesture import RollGesture

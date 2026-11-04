@@ -5,6 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from app.infrastructure.database import get_async_session as get_db
 from app import models, scheme
+from app.services.character_membership import in_scenario
 from app.auth import require_master
 from app.routes._helpers import get_scenario_or_404, get_scenario_edit, notify_active_sessions_for_scenario
 from app.services.scenario_entities import counters as counters_service
@@ -68,7 +69,7 @@ async def create_counter(
         res = await db.execute(
             select(models.PlayerCharacter).where(
                 models.PlayerCharacter.id == counter_in.character_id,
-                models.PlayerCharacter.scenario_id == scenario.id,
+                in_scenario(scenario.id),
             )
         )
         if not res.scalars().first():
@@ -104,7 +105,7 @@ async def update_counter(
         res = await db.execute(
             select(models.PlayerCharacter).where(
                 models.PlayerCharacter.id == data["character_id"],
-                models.PlayerCharacter.scenario_id == scenario.id,
+                in_scenario(scenario.id),
             )
         )
         if not res.scalars().first():

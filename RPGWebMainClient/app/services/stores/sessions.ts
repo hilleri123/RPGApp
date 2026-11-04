@@ -10,6 +10,7 @@ import type {
   Observer,
   SessionSettings,
   SessionTimeline,
+  MapOverlay,
 } from '@/app/services/types/session';
 
 import type {
@@ -54,6 +55,7 @@ type EnrichedSession = {
   npcs: NPC[];
   items: GameItem[];
   scenes: Scene[];
+  mapOverlays: MapOverlay[];
   observers: Observer[];
 
   notes: Note[];
@@ -159,6 +161,7 @@ function buildGameSessionFromWsInit(msg: SessionInitMessage): GameSession {
     npcs:          msg.npcs          ?? [],
     items:         msg.items         ?? [],
     scenes:        msg.scenes        ?? [],
+    map_overlays:  (msg as any).map_overlays ?? [],
     observers:     msg.observers     ?? [],
     audio:         msg.audio         ?? [],
     notes:         msg.notes         ?? [],
@@ -451,6 +454,7 @@ function toEnrichedSession(
     npcs:          sessionData.npcs         ?? [],
     items:         sessionData.items        ?? [],
     scenes:        sessionData.scenes       ?? [],
+    mapOverlays:   (sessionData as any).map_overlays ?? [],
     observers:     sessionData.observers    ?? [],
     notes:         sessionData.notes        ?? [],
     counters:      sessionData.counters     ?? [],

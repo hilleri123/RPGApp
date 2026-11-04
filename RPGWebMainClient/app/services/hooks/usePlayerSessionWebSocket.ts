@@ -30,7 +30,7 @@ function usePlayerSessionWebSocketLive(sessionId: string) {
     state => state.sessionsPlayer[sessionId]
   );
   const { 
-    session, locations, characters, npcs, items, scenes, notes, message_replies,
+    session, locations, characters, npcs, items, scenes, mapOverlays, notes, message_replies,
     audio_queue, audio_player,
     logs, selfPlayer, isPlayer , notifications, dispatches, actions, settings,
     playerSeen,
@@ -50,6 +50,14 @@ function usePlayerSessionWebSocketLive(sessionId: string) {
   );
 
 
+
+  const sendSceneCue = useCallback((kind: 'hand' | 'up' | 'down') => {
+    sendAction({
+      user_role: PLAYER_ROLE,
+      msg_type: 'scene_cue',
+      kind,
+    });
+  }, [sendAction]);
 
   const takeItem = useCallback((item_id: string) => {
     const action: TakeItem = {
@@ -252,20 +260,20 @@ function usePlayerSessionWebSocketLive(sessionId: string) {
   // Мемоизация результата
   return useMemo(() => ({
     connected, selfPlayer,
-    session, locations, characters, npcs, items, scene, scenes, notes, message_replies, logs,
+    session, locations, characters, npcs, items, scene, scenes, mapOverlays, notes, message_replies, logs,
     isPlayer, notifications, dispatches, actions, settings, audio_queue, audio_player, pluginUI, playerSeen, presentedEntity,
     takeItem, dropItem, runSceneAction, changeNoteStatus, dispatchNote, markDispatchOpened, editDispatch,
     editNote, playerCreateNote, publishNote,
     addMessageReply, editMessageReply, deleteMessageReply,
-    readNotififcations, sendRequest, submitActionStep, patchActionStep, cancelSceneAction,
+    readNotififcations, sendRequest, submitActionStep, patchActionStep, cancelSceneAction, sendSceneCue,
     listReplaceCharacterOptions, replaceCharacter,
   }), [
     connected, selfPlayer, session, locations, characters, npcs, items,
-    scene, scenes, notes, message_replies, logs, isPlayer, notifications, dispatches, actions, settings, audio_queue, audio_player, pluginUI, playerSeen, presentedEntity,
+    scene, scenes, mapOverlays, notes, message_replies, logs, isPlayer, notifications, dispatches, actions, settings, audio_queue, audio_player, pluginUI, playerSeen, presentedEntity,
     takeItem, dropItem, runSceneAction, changeNoteStatus, dispatchNote, markDispatchOpened, editDispatch,
     editNote, playerCreateNote, publishNote,
     addMessageReply, editMessageReply, deleteMessageReply,
-    readNotififcations, sendRequest, submitActionStep, patchActionStep, cancelSceneAction,
+    readNotififcations, sendRequest, submitActionStep, patchActionStep, cancelSceneAction, sendSceneCue,
     listReplaceCharacterOptions, replaceCharacter,
   ]);
 }

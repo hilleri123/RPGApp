@@ -26,6 +26,7 @@ import type {
 import { getPluginUI } from '@/app/plugins/uiRegistry';
 import { useWsTabResync } from '@/app/services/ws/useWsTabResync';
 import { toast } from 'sonner';
+import { SceneCueToast, sceneCueKind } from '@/app/components/session/playerView/SceneCueEmoji';
 
 export type RpcOptions = { timeoutMs?: number };
 
@@ -100,6 +101,9 @@ export const SessionWebSocketProvider = ({
       { resolve: (v: any) => void; reject: (e: any) => void; timer: ReturnType<typeof setTimeout> }
     >()
   );
+  const bootstrappingRef = useRef(false);
+  const bootstrapGenRef = useRef(0);
+  const changeBufferRef = useRef<any[][]>([]);
 
   const clearReconnectTimer = useCallback(() => {
     if (reconnectTimeoutRef.current) {
@@ -269,6 +273,33 @@ export const SessionWebSocketProvider = ({
 
     if (!sessionId || !user) return;
 
+    const applyChangeList = async (changes: any[]) => {
+      const need = changes.filter((change: { op?: string }) => change.op !== 'gone');
+      const bodies: { object_type: string; object_id: string; body: any }[] = [];
+      for (let offset = 0; offset < need.length; offset += 40) {
+        const chunk = need.slice(offset, offset + 40);
+        const ids = chunk
+          .map((change: { object_type: string; object_id: string }) => `${change.object_type}:${change.object_id}`)
+          .join(',');
+        if (!ids) continue;
+        const part = await sessionApiService.getObjects(sessionId, ids);
+        bodies.push(...(part ?? []));
+      }
+      if (!disposedRef.current) {
+        applyObjectBatch(sessionId, changes, bodies, user.id);
+      }
+    };
+
+    const drainBufferedChanges = async (generation: number) => {
+      while (bootstrapGenRef.current === generation && changeBufferRef.current.length) {
+        const batches = changeBufferRef.current.splice(0);
+        for (const batch of batches) {
+          if (bootstrapGenRef.current !== generation) return;
+          await applyChangeList(batch);
+        }
+      }
+    };
+
     const connect = () => {
       if (disposedRef.current) return;
       if (!sessionId || !user) return;
@@ -386,8 +417,44 @@ export const SessionWebSocketProvider = ({
           }
 
 
+          if (data.msg_type === 'scene_cue') {
+            const who = String(data.name || 'Игрок');
+            toast(
+              <SceneCueToast
+                name={who}
+                kind={sceneCueKind(data.kind)}
+                iconUrl={data.icon_url}
+                color={data.color}
+              />,
+            );
+            return;
+          }
+
           if (data.msg_type === 'session_init') {
+            const generation = ++bootstrapGenRef.current;
             setWsInit(data as SessionInitMessage, user.id);
+            bootstrappingRef.current = true;
+            changeBufferRef.current = [];
+            try {
+              const objects = await sessionApiService.getVisible(sessionId);
+              if (disposedRef.current || bootstrapGenRef.current !== generation) return;
+              const snapshot = (objects ?? []).map((row) => ({
+                object_type: row.object_type,
+                object_id: row.object_id,
+                op: 'appeared',
+              }));
+              applyObjectBatch(sessionId, snapshot, objects ?? [], user.id);
+              await drainBufferedChanges(generation);
+            } catch (e) {
+              console.error('visible snapshot failed', e);
+              if (bootstrapGenRef.current === generation) {
+                await drainBufferedChanges(generation);
+              }
+            } finally {
+              if (bootstrapGenRef.current === generation) {
+                bootstrappingRef.current = false;
+              }
+            }
             return;
           }
 
@@ -398,18 +465,11 @@ export const SessionWebSocketProvider = ({
 
           if (data.msg_type === 'object_changes') {
             const changes = Array.isArray(data.changes) ? data.changes : [];
-            const need = changes.filter((change: { op?: string }) => change.op !== 'gone');
-            const bodies: { object_type: string; object_id: string; body: any }[] = [];
-            for (let offset = 0; offset < need.length; offset += 40) {
-              const chunk = need.slice(offset, offset + 40);
-              const ids = chunk
-                .map((change: { object_type: string; object_id: string }) => `${change.object_type}:${change.object_id}`)
-                .join(',');
-              if (!ids) continue;
-              const part = await sessionApiService.getObjects(sessionId, ids);
-              bodies.push(...(part ?? []));
+            if (bootstrappingRef.current) {
+              changeBufferRef.current.push(changes);
+              return;
             }
-            applyObjectBatch(sessionId, changes, bodies, user.id);
+            await applyChangeList(changes);
             return;
           }
         } catch (e) {

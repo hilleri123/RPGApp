@@ -15,6 +15,13 @@ from app.infrastructure import s3_service
 from app.plugins.contracts import EntityPayload
 from app.scheme.common import dump_entity_fields
 from app.scheme.character import CharacterUpsertPayload, CharacterUpsertResult
+from app.services.character_membership import (
+    ORIGIN_NATIVE,
+    has_any_link,
+    in_scenario,
+    link_character,
+    unlink_character,
+)
 from ._helpers import get_scenario_or_404, get_scenario_edit, validate_entity_data, apply_item_ownership, notify_active_sessions_for_scenario
 
 
@@ -28,7 +35,7 @@ router = APIRouter(prefix="/scenarios/{scenario_id}/characters", tags=["characte
 def _stmt_character_list(scenario_id: UUID, skip: int, limit: int):
     return (
         select(models.PlayerCharacter)
-        .where(models.PlayerCharacter.scenario_id == scenario_id)
+        .where(in_scenario(scenario_id))
         .order_by(models.PlayerCharacter.name.asc())
         .offset(skip)
         .limit(limit)
@@ -40,7 +47,7 @@ def _stmt_character_full(character_id: UUID, scenario_id: UUID):
         select(models.PlayerCharacter)
         .where(
             models.PlayerCharacter.id == character_id,
-            models.PlayerCharacter.scenario_id == scenario_id,
+            in_scenario(scenario_id),
         )
         .options(
             selectinload(models.PlayerCharacter.owned_item_links)
@@ -136,9 +143,10 @@ async def create_character(
     obj = models.PlayerCharacter(
         **entity_data,
         **plugin_data,
-        scenario_id=scenario.id,
     )
     db.add(obj)
+    await db.flush()
+    await link_character(db, obj.id, scenario.id, ORIGIN_NATIVE)
     await db.commit()
     await db.refresh(obj)
 
@@ -154,7 +162,7 @@ async def create_character(
         db,
         owner_id=obj.id,
         owner_type=models.OwnerTypeEnum.character,
-        scenario_id=obj.scenario_id,
+        scenario_id=scenario.id,
         owned_items=payload.owned_items,
     )
     await db.commit()
@@ -180,7 +188,7 @@ async def update_character(
     obj = (await db.execute(
         select(models.PlayerCharacter).where(
             models.PlayerCharacter.id == character_id,
-            models.PlayerCharacter.scenario_id == scenario.id,
+            in_scenario(scenario.id),
         )
     )).scalars().first()
     if not obj:
@@ -221,7 +229,7 @@ async def update_character(
         db,
         owner_id=obj.id,
         owner_type=models.OwnerTypeEnum.character,
-        scenario_id=obj.scenario_id,
+        scenario_id=scenario.id,
         owned_items=payload.owned_items,
     )
     await db.commit()
@@ -244,7 +252,7 @@ async def delete_character(
     obj = (await db.execute(
         select(models.PlayerCharacter).where(
             models.PlayerCharacter.id == character_id,
-            models.PlayerCharacter.scenario_id == scenario.id,
+            in_scenario(scenario.id),
         )
     )).scalars().first()
     if not obj:
@@ -257,7 +265,17 @@ async def delete_character(
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
 
-    await db.delete(obj)
+    await unlink_character(db, obj.id, scenario.id)
+    still_linked = await has_any_link(db, obj.id)
+    application = (
+        await db.execute(
+            select(models.CharacterApplication.id).where(
+                models.CharacterApplication.player_character_id == obj.id
+            ).limit(1)
+        )
+    ).scalar_one_or_none()
+    if not still_linked and application is None:
+        await db.delete(obj)
     await db.commit()
     await notify_active_sessions_for_scenario(db, scenario, ["characters"])
     return {"ok": True}

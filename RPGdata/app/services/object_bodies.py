@@ -61,8 +61,29 @@ def _hide_master_fields(body: dict) -> dict:
 
 
 def _player_scene(body: dict) -> dict:
+    empty = {"npc_ids": [], "item_ids": [], "obstacle_ids": [], "obstacles": []}
     out = dict(body)
-    out["private"] = {"npc_ids": [], "item_ids": [], "obstacle_ids": [], "obstacles": []}
+    out["private"] = empty
+    public_ids = set()
+    for side in [out.get("public") or {}, *(bucket.get("public") or {} for bucket in out.get("containers") or [])]:
+        public_ids.update(str(item) for item in (side.get("npc_ids") or []))
+        public_ids.update(str(item) for item in (side.get("item_ids") or []))
+        public_ids.update(str(item) for item in (side.get("obstacle_ids") or []))
+    containers = []
+    for bucket in out.get("containers") or []:
+        hidden = dict(bucket)
+        hidden["private"] = empty
+        containers.append(hidden)
+    out["containers"] = containers
+    canvases = []
+    for canvas in out.get("canvases") or []:
+        shown = dict(canvas)
+        shown["tokens"] = [
+            token for token in (canvas.get("tokens") or [])
+            if token.get("entity_type") == "character" or str(token.get("entity_id")) in public_ids
+        ]
+        canvases.append(shown)
+    out["canvases"] = canvases
     return out
 
 
@@ -183,6 +204,15 @@ async def _project_one(
         body = _hide_master_fields(body)
         if object_type == "scene":
             body = _player_scene(body)
+            locations = getattr(inner, "locations", None) or []
+            canvases = []
+            for canvas in body.get("canvases") or []:
+                item = dict(canvas)
+                item["location"] = manager.canvas_map_location(
+                    canvas.get("location_id"), locations, hide_master=True,
+                )
+                canvases.append(item)
+            body["canvases"] = canvases
         if object_type == "action":
             body.pop("scene", None)
     return body
