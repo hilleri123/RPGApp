@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Commit (optional), push master, then pull+deploy on the production VM.
+# Commit (optional), push master, build images on this machine, send them
+# to production, then pull and recreate containers there. Production does not build.
 #
 # Usage:
 #   ./ship-prod.sh "commit message here"   # commit dirty tree, push, deploy
@@ -116,6 +117,22 @@ do_push() {
   log "Local HEAD: $(git log -1 --oneline)"
 }
 
+# Built here. migrate and table-asr use the app image.
+PROD_IMAGES=(
+  rpgzona/app:latest
+  rpgzona/web-client:latest
+  rpgzona/telegram-bot:latest
+  rpgzona/table-bridge:latest
+)
+
+do_local_images() {
+  require_cmd docker
+  log "Building images on this machine"
+  docker compose -f compose.prod.yml build app web-client telegram-bot table-bridge
+  log "Sending images to ${PROD_HOST}"
+  docker save "${PROD_IMAGES[@]}" | gzip -1 | ssh -o BatchMode=yes "$PROD_HOST" 'gunzip | docker load'
+}
+
 do_remote_deploy() {
   log "Deploying on ${PROD_HOST}:${PROD_DIR}"
   # Expand ~ on the remote via bash -lc
@@ -141,10 +158,12 @@ case "$MODE" in
   commit-push-deploy)
     do_commit
     do_push
+    do_local_images
     do_remote_deploy
     ;;
   push-deploy)
     do_push
+    do_local_images
     do_remote_deploy
     ;;
   deploy-only)

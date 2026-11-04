@@ -23,8 +23,10 @@ Usage: $(basename "$0") [--skip-pull]
 
   --skip-pull   Skip git pull (redeploy current checkout only)
 
-Pulls origin/master, builds images, runs Alembic via the migrate service,
-then recreates app / web-client / telegram-bot.
+Pulls origin/master, runs Alembic via the migrate service, then recreates
+app / web-client / telegram-bot from images already loaded on this host.
+Images are built on the dev machine and sent with docker save | docker load.
+This host does not build them.
 EOF
 }
 
@@ -79,21 +81,19 @@ pull_master() {
 }
 
 build_and_deploy() {
-  log "Building images"
-  "${COMPOSE[@]}" build app web-client telegram-bot migrate table-bridge
-
+  log "Using images already loaded on this host"
   log "Running Alembic migrations (migrate service)"
-  # Force-recreate so migrate always uses the freshly built image (not a stale container).
-  "${COMPOSE[@]}" up -d --force-recreate --no-deps db
-  "${COMPOSE[@]}" up --build --force-recreate --abort-on-container-exit migrate
+  # Force-recreate so migrate always uses the freshly loaded image (not a stale container).
+  "${COMPOSE[@]}" up -d --no-build --force-recreate --no-deps db
+  "${COMPOSE[@]}" up --no-build --force-recreate --abort-on-container-exit migrate
 
   verify_migrate
 
   log "Starting / recreating application services"
-  "${COMPOSE[@]}" up -d --force-recreate app web-client telegram-bot table-bridge table-asr
+  "${COMPOSE[@]}" up -d --no-build --force-recreate app web-client telegram-bot table-bridge table-asr
 
   log "Ensuring infrastructure services are up"
-  "${COMPOSE[@]}" up -d db redis rabbitmq pg-backup
+  "${COMPOSE[@]}" up -d --no-build db redis rabbitmq pg-backup
 }
 
 verify_migrate() {
