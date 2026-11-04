@@ -127,6 +127,11 @@ PROD_IMAGES=(
 
 do_local_images() {
   require_cmd docker
+  # Эти переменные нужны только чтобы compose разобрал файл. В образ они не
+  # попадают: это не build-args, а окружение уже запущенного контейнера.
+  export RABBIT_URL="${RABBIT_URL:-amqp://user:pass@rabbitmq:5672/}"
+  export RABBITMQ_DEFAULT_USER="${RABBITMQ_DEFAULT_USER:-user}"
+  export RABBITMQ_DEFAULT_PASS="${RABBITMQ_DEFAULT_PASS:-pass}"
   log "Building images on this machine"
   docker compose -f compose.prod.yml build app web-client telegram-bot table-bridge
   log "Sending images to ${PROD_HOST}"
