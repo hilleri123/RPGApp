@@ -1,4 +1,4 @@
-import { BaseApiClient } from './base';
+import { BaseApiClient, toWebSocketUrl } from './base';
 import { Lobby, LobbyCreate, LobbyPreview, LobbyUserHit } from '../types/lobby';
 import type { Application } from '../types2';
 
@@ -39,8 +39,7 @@ export class LobbyApiService extends BaseApiClient {
   }
 
   openWebSocket(lobbyId: string): WebSocket {
-    const url = `${this.baseURL}${this.endpoint}/ws/${lobbyId}`;
-    return new WebSocket(url);
+    return new WebSocket(toWebSocketUrl(`${this.baseURL}${this.endpoint}/ws/${lobbyId}`));
   }
 }
 

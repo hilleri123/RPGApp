@@ -1,4 +1,4 @@
-import { BaseApiClient } from './base';
+import { BaseApiClient, toWebSocketUrl } from './base';
 import { GameSessionPreview } from '../types/session';
 import { SessionFinishResponse } from '../types/campaign';
 
@@ -31,8 +31,7 @@ export class SessionApiService extends BaseApiClient {
   }
 
   openWebSocket(sessionId: string): WebSocket {
-    const url = `${this.baseURL}${this.endpoint}/ws/${sessionId}`;
-    return new WebSocket(url);
+    return new WebSocket(toWebSocketUrl(`${this.baseURL}${this.endpoint}/ws/${sessionId}`));
   }
 }
 

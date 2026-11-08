@@ -1,4 +1,4 @@
-import { BaseApiClient } from './base';
+import { BaseApiClient, toWebSocketUrl } from './base';
 import type {
   ObserverRoomPreview,
   ObserverRoomSort,
@@ -17,8 +17,7 @@ export class ObserverApiService extends BaseApiClient {
   }
 
   openWebSocket(code: string): WebSocket {
-    const url = `${this.baseURL}${this.endpoint}/ws/${encodeURIComponent(code)}`;
-    return new WebSocket(url);
+    return new WebSocket(toWebSocketUrl(`${this.baseURL}${this.endpoint}/ws/${encodeURIComponent(code)}`));
   }
 }
 

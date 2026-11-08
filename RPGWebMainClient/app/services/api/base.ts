@@ -1,13 +1,63 @@
 import { refreshAccessToken } from './tokenRefresh';
 
+const PUBLIC_HOSTS = new Set([
+  'rpgzona.ru',
+  'www.rpgzona.ru',
+  'rpgzona.xyz',
+  'www.rpgzona.xyz',
+]);
+
 function resolveApiBaseUrl(): string {
+  // В браузере API всегда на том домене, который открыли. Иначе rpgzona.ru
+  // уводит запросы на rpgzona.xyz и упирается в файрвол.
+  if (typeof window !== 'undefined') {
+    return `${window.location.origin}/api`;
+  }
   if (process.env.NEXT_PUBLIC_API_URL) {
     return process.env.NEXT_PUBLIC_API_URL;
   }
-  if (typeof window !== 'undefined') {
-    return '/api';
-  }
   return 'http://app:8000/api';
+}
+
+export function toWebSocketUrl(httpUrl: string): string {
+  if (httpUrl.startsWith('ws://') || httpUrl.startsWith('wss://')) return httpUrl;
+  if (httpUrl.startsWith('/') && typeof window !== 'undefined') {
+    const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    return `${proto}//${window.location.host}${httpUrl}`;
+  }
+  return httpUrl.replace(/^http/i, 'ws');
+}
+
+function retargetOwnUrl(value: string): string {
+  if (typeof window === 'undefined') return value;
+  const isHttp = value.startsWith('http://') || value.startsWith('https://');
+  const isWs = value.startsWith('ws://') || value.startsWith('wss://');
+  if (!isHttp && !isWs) return value;
+  let url: URL;
+  try {
+    url = new URL(value);
+  } catch {
+    return value;
+  }
+  if (!PUBLIC_HOSTS.has(url.hostname)) return value;
+  if (isWs) {
+    const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    return `${proto}//${window.location.host}${url.pathname}${url.search}${url.hash}`;
+  }
+  return `${window.location.origin}${url.pathname}${url.search}${url.hash}`;
+}
+
+function retargetPayload(value: unknown): unknown {
+  if (typeof value === 'string') return retargetOwnUrl(value);
+  if (Array.isArray(value)) return value.map(retargetPayload);
+  if (value && typeof value === 'object') {
+    const out: Record<string, unknown> = {};
+    for (const [key, item] of Object.entries(value as Record<string, unknown>)) {
+      out[key] = retargetPayload(item);
+    }
+    return out;
+  }
+  return value;
 }
 
 function canRetryWithRefresh(url: string): boolean {
@@ -113,7 +163,7 @@ export class BaseApiClient {
         if (response.status == 204)
           return null as T;
 
-        return await response.json();
+        return retargetPayload(await response.json()) as T;
       } catch (error) {
         if (attempt === retries) {
           if (error instanceof ApiError) {
