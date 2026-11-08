@@ -8,7 +8,6 @@ from plugins.common.protocols.workflow_stage import StageOutcome, issue
 from plugins.common.types import ActionParticipants, SubmitResult, Workflow
 from plugins.pbta.base.backend.workflows.perform_move.stages.setup import (
     PerformMoveSetupStage as PbtaPerformMoveSetupStage,
-    SetupInput,
 )
 
 from ..stage_store import DwStage
@@ -44,13 +43,8 @@ class PerformMoveSetupStage(DwStage, PbtaPerformMoveSetupStage):
         return StageOutcome.fail("", "Setup stage does not support patch")
 
     def validate_submit(self, wf: Workflow, ctx: StageCtx, raw: dict[str, Any]) -> StageOutcome:
-        is_gm = ctx.actor_user_id == ctx.participants.gmUserId
-        if not is_gm:
-            parsed = ctx.rb.parse_input(SetupInput, raw, wf, ctx)
-            if isinstance(parsed, SubmitResult):
-                return StageOutcome(ok=False, issues=parsed.issues)
-            if not parsed.actor_character_id or parsed.actor_npc_id:
-                return StageOutcome.fail("", "Player must select own character")
+        if ctx.actor_user_id != ctx.participants.gmUserId:
+            return StageOutcome.fail("", "Выбор персонажа делает мастер")
         return StageOutcome.ok_data(raw)
 
     def assemble(self, wf: Workflow, ctx: StageCtx, entry: Any) -> None:
@@ -184,36 +178,14 @@ class PerformMoveSetupStage(DwStage, PbtaPerformMoveSetupStage):
         return self._filter_moves_for_scene(result, ctx)
 
     def submit(self, wf: Workflow, ctx, input_dict: dict[str, Any]) -> SubmitResult:
-        is_gm = ctx.actor_user_id == ctx.participants.gmUserId
-        if not is_gm:
-            parsed = ctx.rb.parse_input(SetupInput, input_dict, wf, ctx)
-            if isinstance(parsed, SubmitResult):
-                return parsed
-            if not parsed.actor_character_id or parsed.actor_npc_id:
-                return ctx.rb.result(
-                    ok=False,
-                    wf=wf,
-                    participants=ctx.participants,
-                    participants_dict_fallback=ctx.participants_dict,
-                    issues=[issue("actor", "Choose your character")],
-                )
-            owner = ctx.links.characterToUserId.get(parsed.actor_character_id)
-            if owner is None or str(owner) != str(ctx.actor_user_id):
-                return ctx.rb.result(
-                    ok=False,
-                    wf=wf,
-                    participants=ctx.participants,
-                    participants_dict_fallback=ctx.participants_dict,
-                    issues=[issue("actor_character_id", "Only your own character")],
-                )
-            result = self.apply_actor_character(
-                wf,
-                ctx,
-                actor_character_id=parsed.actor_character_id,
-                target_character_id=parsed.target_character_id,
-                target_npc_id=parsed.target_npc_id,
+        if ctx.actor_user_id != ctx.participants.gmUserId:
+            return ctx.rb.result(
+                ok=False,
+                wf=wf,
+                participants=ctx.participants,
+                participants_dict_fallback=ctx.participants_dict,
+                issues=[issue("actor", "Выбор персонажа делает мастер")],
             )
-            return result
 
         if input_dict.get("actor_npc_id"):
             return ctx.rb.result(

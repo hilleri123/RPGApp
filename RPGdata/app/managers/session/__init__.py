@@ -36,6 +36,7 @@ from .timeline_manager import SessionTimelineManager
 
 from app.plugins.registry_singleton import registry
 
+from app.services.damage_roll_visibility import redact_damage_rolls
 from app.services.entity_visibility import (
     entity_visible_for_party,
     filter_entities_for_master,
@@ -375,6 +376,8 @@ class CurrentSessionManager(
 
             action_dict = action.model_dump(mode="json")  # UUID -> str для клиента [web:228]
             action_dict["scene"] = _dump_json(scene_payload)
+            if current_uid is not None:
+                redact_damage_rolls(action_dict, str(current_uid))
             out.append(action_dict)
 
         return out

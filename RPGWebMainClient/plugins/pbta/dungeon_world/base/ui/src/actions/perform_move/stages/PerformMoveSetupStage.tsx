@@ -191,9 +191,11 @@ export function PerformMoveSetupStage(props: Props) {
 
   const isGm = String(action?.participants?.gmUserId ?? '') === String(user_id ?? '');
   const playerCharacterId = !isGm ? findPlayerCharacterId(action, user_id) : null;
+  const participantIds = Array.isArray(action?.participantIds) ? action.participantIds.map(String) : [];
+  const mayDrive = participantIds.includes(String(user_id ?? ''));
 
   useEffect(() => {
-    if (isGm || !playerCharacterId || autoSubmittedRef.current) return;
+    if (isGm || !mayDrive || !playerCharacterId || autoSubmittedRef.current) return;
     autoSubmittedRef.current = true;
     onSubmit({
       actor_character_id: playerCharacterId,
@@ -201,12 +203,20 @@ export function PerformMoveSetupStage(props: Props) {
       target_character_id: null,
       target_npc_id: null,
     });
-  }, [isGm, onSubmit, playerCharacterId]);
+  }, [isGm, mayDrive, onSubmit, playerCharacterId]);
 
-  if (!isGm && playerCharacterId) {
+  if (!isGm && mayDrive && playerCharacterId) {
     return (
       <div className="rounded border p-3 text-sm text-gray-300">
         Подставляем вашего персонажа и переходим к выбору хода…
+      </div>
+    );
+  }
+
+  if (!isGm) {
+    return (
+      <div className="rounded border p-3 text-sm text-gray-300">
+        Мастер выбирает, кто действует.
       </div>
     );
   }

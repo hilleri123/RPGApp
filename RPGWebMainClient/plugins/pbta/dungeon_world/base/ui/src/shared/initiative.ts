@@ -110,9 +110,11 @@ export function sceneEntities(scene: any, players?: unknown): SceneEntityRef[] {
 export function contextEntities(scene: any, players?: unknown): SceneEntityRef[] {
   const colors = playerColorByCharacter(players);
   const out: SceneEntityRef[] = [];
+  const seen = new Set<string>();
   const push = (raw: any, kind: SceneEntityRef['kind']) => {
     const id = String(raw?.id ?? '').trim();
-    if (!id) return;
+    if (!id || seen.has(id)) return;
+    seen.add(id);
     const tags = (Array.isArray(raw?.tags) ? raw.tags : []).map(String);
     out.push({
       id,
@@ -125,7 +127,9 @@ export function contextEntities(scene: any, players?: unknown): SceneEntityRef[]
     });
   };
   for (const c of Array.isArray(scene?.characters) ? scene.characters : []) push(c, 'character');
-  for (const n of Array.isArray(scene?.npcs) ? scene.npcs : []) push(n, 'npc');
+  for (const bucket of [scene?.npcs, scene?.public?.npcs, scene?.private?.npcs]) {
+    for (const n of Array.isArray(bucket) ? bucket : []) push(n, 'npc');
+  }
   return out;
 }
 

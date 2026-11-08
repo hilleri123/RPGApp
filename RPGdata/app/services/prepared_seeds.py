@@ -34,6 +34,7 @@ SINGLE_SEED_FIELDS = {
 
 SEED_STAGES = set(SINGLE_SEED_FIELDS) | {
     "perform_move.damage_roll",
+    "perform_move.change_manifest",
     "gumshoe.terrify.roll",
     "initiative.roll",
 }
@@ -98,6 +99,19 @@ def consume_plan(stage: str, data: dict) -> tuple[int, Callable[[list[str]], int
         if str(data.get("op") or "") != "roll":
             return 0, _unused
         return _one_field("roll_seed", data)
+
+    if stage == "perform_move.change_manifest":
+        spec = data.get("commit_roll")
+        if not isinstance(spec, dict) or not spec.get("id") or str(spec.get("roll_seed") or ""):
+            return 0, _unused
+
+        def apply_claim(images: list[str]) -> int:
+            if not images:
+                return 0
+            spec["roll_seed"] = images[0]
+            return 1
+
+        return 1, apply_claim
 
     if stage == "perform_move.damage_roll":
         rolls = data.get("rollsById")

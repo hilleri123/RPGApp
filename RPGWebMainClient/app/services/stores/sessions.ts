@@ -349,10 +349,31 @@ function hydrateScene(scene: any, session: any, role?: WsRole): any {
   };
 }
 
+function characterLinks(players: any[]): { characterToUserId: Record<string, string> } {
+  const characterToUserId: Record<string, string> = {};
+  for (const player of players ?? []) {
+    const characterId = player?.character_id ?? player?.character?.id;
+    const userId = player?.user?.id ?? player?.user_id;
+    if (characterId && userId) characterToUserId[String(characterId)] = String(userId);
+  }
+  return { characterToUserId };
+}
+
 function hydrateAction(action: any, session: any): any {
-  if (action?.scene) return action;
-  const scene = (session.scenes ?? []).find((item: any) => String(item?.id) === String(action?.scene_id));
-  return scene ? { ...action, scene } : action;
+  const players = session.players ?? [];
+  const attached = action?.scene?.scene?.id ? action.scene.scene : action?.scene?.id ? action.scene : null;
+  const scene = (session.scenes ?? []).find(
+    (item: any) => String(item?.id) === String(attached?.id ?? action?.scene_id),
+  ) ?? attached;
+  if (!scene) return action;
+  return {
+    ...action,
+    scene: {
+      scene,
+      players: action?.scene?.players ?? players,
+      links: action?.scene?.links ?? characterLinks(players),
+    },
+  };
 }
 
 function hydrateSessionObjects(session: any, role?: WsRole): any {

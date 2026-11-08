@@ -35,7 +35,7 @@ from .stage_store import (
     stage_index,
     substep_index,
 )
-from .manifest_sync import claims_need_roll, prefill_manifest_from_entry, read_manifest, sync_claims_to_manifest_lines, write_manifest
+from .manifest_sync import prefill_manifest_from_entry, read_manifest, sync_claims_to_manifest_lines, write_manifest
 from .stages import (
     PerformMoveAidStage,
     PerformMoveApplyStage,
@@ -245,7 +245,7 @@ class PerformMoveWorkflow(PerformMoveWorkflowBase):
         except Exception as e:
             return self._err(wf, ctx, "context", str(e))
 
-        if not self._can_patch_substep(ctx, c, sub_key):
+        if not self._can_patch_substep(ctx, c, sub_key, wf):
             return self._err(wf, ctx, "", "Нет прав на редактирование этой стадии")
 
         if not self._is_substep_editable(wf, c, sub_key):
@@ -537,9 +537,8 @@ class PerformMoveWorkflow(PerformMoveWorkflowBase):
         return None
 
     def _post_roll_wizard_steps(self, wf: Workflow, c: PerformMoveContext) -> list[str]:
-        # Выбор не отдельный шаг: варианты 7–9 видны в заявке и ничего не требуют.
         steps: list[str] = ["perform_move.change_manifest"]
-        if claims_need_roll(c):
+        if self._wizard_current_key(wf) == "perform_move.damage_roll":
             steps.append("perform_move.damage_roll")
         return steps
 
@@ -918,9 +917,25 @@ class PerformMoveWorkflow(PerformMoveWorkflowBase):
             for cl in (c.entry.damage_claims or [])
         )
 
-    def _can_patch_substep(self, ctx: StageCtx, c: PerformMoveContext, sub_key: str) -> bool:
+    def _can_patch_substep(self, ctx: StageCtx, c: PerformMoveContext, sub_key: str, wf: Workflow | None = None) -> bool:
         if self._can_edit_actor(ctx, c):
             return True
+        if sub_key == "perform_move.change_manifest":
+            uid = str(ctx.actor_user_id)
+            if uid in {str(user) for user in (ctx.participants.participants or [])}:
+                return True
+            if wf is None:
+                return False
+            try:
+                state = read_manifest(wf)
+            except Exception:
+                return False
+            return any(
+                line.kind == "damage"
+                and line.status != "skipped"
+                and str((line.payload or {}).get("roller_user_id") or "") == uid
+                for line in state.lines
+            )
         return sub_key == "perform_move.damage_roll" and self._is_damage_roller(ctx, c)
 
     def _can_submit_substep(self, ctx: StageCtx, c: PerformMoveContext, sub_key: str) -> bool:

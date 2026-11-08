@@ -1,7 +1,7 @@
 'use client';
 
 import type { ComponentType } from 'react';
-import { ArrowUpCircle, BookOpen, Sparkles, Swords } from 'lucide-react';
+import { ArrowUpCircle, BookOpen, ScrollText, Sparkles, Swords } from 'lucide-react';
 import type { ActionLaunchProps } from '@/app/plugins/pluginTypes';
 import {
   ActionLaunchShell,
@@ -56,6 +56,22 @@ function PerformMoveLaunchButton(props: ActionLaunchProps) {
   );
 }
 
+function IssueChangesLaunchButton(props: ActionLaunchProps) {
+  return (
+    <ActionLaunchShell
+      {...props}
+      icon={<ScrollText className="h-4 w-4" />}
+      tone={{
+        border: 'border-rose-500/45',
+        bg: 'bg-rose-950/35',
+        bgHover: 'hover:bg-rose-900/45 hover:border-rose-400/55',
+        title: 'text-rose-100',
+        icon: 'text-rose-300',
+      }}
+    />
+  );
+}
+
 function GrantXpLaunchButton(props: ActionLaunchProps) {
   return (
     <ActionLaunchShell
@@ -77,6 +93,7 @@ const LAUNCHERS: Record<string, ComponentType<ActionLaunchProps>> = {
   grant_xp: GrantXpLaunchButton,
   prepare_spells: PrepareSpellsLaunchButton,
   perform_move: PerformMoveLaunchButton,
+  issue_changes: IssueChangesLaunchButton,
 };
 
 export default function ActionLaunchHandler(props: ActionLaunchProps) {

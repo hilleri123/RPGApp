@@ -145,7 +145,15 @@ export function ActionModal({
     canUserCancelAction(a, state.user.id, !!isMaster);
 
   async function handleSubmit(overrideValue?: any) {
-    if (!canSubmit) return;
+    const viewerId = mirrorReadOnly && mirror?.playerUserId
+      ? String(mirror.playerUserId)
+      : String(state.user.id);
+    const spectator =
+      !mirrorReadOnly &&
+      Array.isArray(action.participantIds) &&
+      action.participantIds.length > 0 &&
+      !action.participantIds.map(String).includes(viewerId);
+    if (!canSubmit || spectator) return;
     try {
       setSubmitting(true);
       await submitActionStep(a.id, { ...(overrideValue ?? draft), _stageKey: viewKey });

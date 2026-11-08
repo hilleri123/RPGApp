@@ -258,6 +258,32 @@ def test_already_rolled_does_not_claim():
     assert context_already_rolled("john.action.canvas", {"context": {"entry": {"dice_results": [6]}}})
 
 
+def test_change_manifest_takes_one_stock_gesture():
+    workflow = {
+        "stageKey": "perform_move.post_roll",
+        "stageData": {"wizard": {"currentKey": "perform_move.change_manifest"}},
+    }
+    assert resolve_seed_stage(workflow, {"_stageKey": "perform_move.change_manifest"}) == "perform_move.change_manifest"
+    data = {"usePreparedSeed": True, "commit_roll": {"id": "l1", "roll_seed": ""}}
+
+    async def claim(n):
+        assert n == 1
+        return [PNG]
+
+    claimed = asyncio.run(
+        fill_prepared_seeds(
+            session_id="s",
+            user_id="u",
+            workflow=workflow,
+            input_data=data,
+            claim_fn=claim,
+        )
+    )
+    assert claimed == [PNG]
+    assert data["commit_roll"]["roll_seed"] == PNG
+    assert "usePreparedSeed" not in data
+
+
 def test_consume_plan_counts_damage_slots():
     data = {"rollsById": {"a": {"committed": True, "roll_seed": ""}, "b": {"committed": True, "roll_seed": ""}}}
     needed, apply = consume_plan("perform_move.damage_roll", data)

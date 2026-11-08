@@ -602,9 +602,7 @@ def test_post_roll_wizard_order_damage_before_resources():
     )
     c = PerformMoveContext.model_validate(wf.context)
     steps = PerformMoveWorkflow()._post_roll_wizard_steps(wf, c)
-    assert "perform_move.change_manifest" in steps
-    assert "perform_move.damage_roll" in steps
-    assert steps.index("perform_move.change_manifest") < steps.index("perform_move.damage_roll")
+    assert steps == ["perform_move.change_manifest"]
 
 
 def test_merge_rolls_by_id_keeps_other_claims():
@@ -682,9 +680,12 @@ def test_can_patch_damage_roll_for_roller_only():
             links=None,  # type: ignore[arg-type]
         )
 
+    stranger = uuid4()
     assert wf._can_patch_substep(ctx_for(roller), c, "perform_move.damage_roll")
     assert not wf._can_patch_substep(ctx_for(other), c, "perform_move.damage_roll")
-    assert not wf._can_patch_substep(ctx_for(roller), c, "perform_move.change_manifest")
+    assert wf._can_patch_substep(ctx_for(roller), c, "perform_move.change_manifest")
+    assert wf._can_patch_substep(ctx_for(other), c, "perform_move.change_manifest")
+    assert not wf._can_patch_substep(ctx_for(stranger), c, "perform_move.change_manifest")
     assert not wf._can_submit_substep(ctx_for(roller), c, "perform_move.damage_roll")
     assert wf._can_submit_substep(ctx_for(gm), c, "perform_move.damage_roll")
 

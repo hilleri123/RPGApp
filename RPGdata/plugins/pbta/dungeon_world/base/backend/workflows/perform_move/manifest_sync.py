@@ -88,13 +88,20 @@ def sync_manifest_lines_to_entry(wf: Workflow, c: PerformMoveContext, scene, *, 
             continue
 
         if line.kind == "damage":
-            if line.status == "skipped":
+            if line.status in ("skipped", "pending"):
                 continue
             p = dict(line.payload)
             p.setdefault("id", line.id)
             if line.target.id:
                 p.setdefault("target_kind", line.target.kind)
                 p.setdefault("target_id", line.target.id)
+            # Повторное объявление (ещё не rolled) бросается заново, старые кости не держатся.
+            if line.status != "rolled" and not p.get("rolled"):
+                p["rolled"] = False
+                p["dice"] = []
+                p["total_raw"] = 0
+                p["total_final"] = 0
+                p["_fresh_roll"] = True
             attacks.append(p)
             tk = line.target.kind
             tid = line.target.id
@@ -148,10 +155,14 @@ def sync_manifest_lines_to_entry(wf: Workflow, c: PerformMoveContext, scene, *, 
             )
 
     existing_by_id = {str(cl.id): cl for cl in (c.entry.damage_claims or [])}
+    fresh_roll_ids = {str(raw.get("id")) for raw in attacks if isinstance(raw, dict) and raw.get("_fresh_roll")}
     rebuilt = attacks_to_damage_claims(attacks, scene=scene, source_move_id=move_id)
     merged_claims = []
     for claim in rebuilt:
         prev = existing_by_id.get(str(claim.id))
+        if str(claim.id) in fresh_roll_ids:
+            merged_claims.append(claim)
+            continue
         # Prefer live damage_roll results already on entry when payload didn't carry them.
         if prev is not None and prev.rolled and not claim.rolled:
             claim.roll_seed = prev.roll_seed or claim.roll_seed
@@ -217,6 +228,42 @@ def sync_claims_to_manifest_lines(wf: Workflow, c: PerformMoveContext) -> None:
         elif claim.needs_roll:
             line.status = "needs_roll"
     write_manifest(wf, state)
+
+
+def assign_claim_rollers(c: PerformMoveContext, links) -> None:
+    """Кубы кидает игрок, чей персонаж наносит урон или его получает."""
+    raw = getattr(links, "characterToUserId", None)
+    if raw is None and isinstance(links, dict):
+        raw = links.get("characterToUserId") or {}
+    owners = {str(k): str(v) for k, v in (raw or {}).items() if k and v}
+    for claim in c.entry.damage_claims or []:
+        if claim.cancelled or claim.roller_user_id:
+            continue
+        source = str(claim.source_character_id or "")
+        target = str(claim.target_character_id or "")
+        uid = owners.get(source) or owners.get(target)
+        if not uid:
+            continue
+        claim.roller_user_id = uid
+        claim.roller_character_id = source or target
+
+
+def roll_declared_damage(wf: Workflow, scene) -> PerformMoveContext:
+    """Строка урона, которую мастер только что записал, сразу бросается."""
+    import secrets
+
+    from .engine import roll_damage_claim
+
+    c = PerformMoveContext.model_validate(wf.context or {})
+    sync_manifest_lines_to_entry(wf, c, scene, mode=read_manifest(wf).mode or "edit")
+    c = PerformMoveContext.model_validate(wf.context or {})
+    for claim in c.entry.damage_claims or []:
+        if claim.cancelled or claim.rolled or not claim.formula:
+            continue
+        roll_damage_claim(claim, scene, seed=claim.roll_seed or secrets.token_hex(16))
+    wf.context = c.model_dump(mode="json")
+    sync_claims_to_manifest_lines(wf, c)
+    return c
 
 
 def claims_need_roll(c: PerformMoveContext) -> bool:

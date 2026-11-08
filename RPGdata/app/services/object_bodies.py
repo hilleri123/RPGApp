@@ -87,6 +87,21 @@ def _player_scene(body: dict) -> dict:
     return out
 
 
+async def _refresh_scene_actions(manager, inner) -> None:
+    """Подмешивает новые действия в уже открытые сцены, не дожидаясь правки сцены."""
+    stale = []
+    for scene in inner.scenes or []:
+        listed = (getattr(scene, "available_actions_by_role", None) or {}).get("gm") or []
+        keys = {str(item.get("key") or "") for item in listed if isinstance(item, dict)}
+        if "issue_changes" not in keys:
+            stale.append(scene)
+    if not stale:
+        return
+    for scene in stale:
+        await manager._recompute_available_actions_for_scene(inner, scene)
+    await manager._save_scenes(list(inner.scenes or []))
+
+
 async def _inventory_body(object_id: UUID) -> dict | None:
     async with AsyncSessionLocal() as db:
         row = await db.get(Inventory, object_id)
@@ -137,6 +152,8 @@ async def project_objects(session_id: UUID, user, pairs: list[tuple[str, UUID]])
     is_master = await manager.is_master(user)
     zone = await load_visible_keys(session_id, user.id)
     inner = await manager.get_inner()
+    if any(object_type == "scene" for object_type, _ in pairs):
+        await _refresh_scene_actions(manager, inner)
     access_map = None
     own_ids: set[UUID] = set()
     if not is_master:

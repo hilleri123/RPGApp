@@ -74,12 +74,23 @@ export function buildSceneEntities(scene: any): SceneEntityRef[] {
     img_url: x.img_url ?? null,
     icon_url: x.icon_url ?? null,
   }));
-  const npcs = (Array.isArray(scene?.npcs) ? scene.npcs : []).map((x: any) => ({
-    kind: 'npc' as const,
-    id: String(x.id),
-    name: String(x.name ?? 'Безымянный NPC'),
-    img_url: x.img_url ?? null,
-    icon_url: x.icon_url ?? null,
-  }));
+  const npcRows = [
+    ...(Array.isArray(scene?.npcs) ? scene.npcs : []),
+    ...(Array.isArray(scene?.public?.npcs) ? scene.public.npcs : []),
+    ...(Array.isArray(scene?.private?.npcs) ? scene.private.npcs : []),
+  ];
+  const seen = new Set<string>();
+  const npcs = npcRows.flatMap((x: any) => {
+    const id = String(x?.id ?? '');
+    if (!id || seen.has(id)) return [];
+    seen.add(id);
+    return [{
+      kind: 'npc' as const,
+      id,
+      name: String(x.name ?? 'Безымянный NPC'),
+      img_url: x.img_url ?? null,
+      icon_url: x.icon_url ?? null,
+    }];
+  });
   return [...characters, ...npcs];
 }

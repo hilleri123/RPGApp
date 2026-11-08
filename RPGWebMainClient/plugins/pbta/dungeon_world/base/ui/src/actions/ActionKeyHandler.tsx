@@ -15,6 +15,7 @@ const HANDLERS: Record<string, Handler> = {
   roll_initiative: RollInitiativeStage,
   initiative_turn: InitiativeTurnStage,
   perform_move: PerformActionStage,
+  issue_changes: PerformActionStage,
   prepare_spells: PrepareSpellsStage,
   level_up: LevelUpStage,
   grant_xp: GrantXpStage,

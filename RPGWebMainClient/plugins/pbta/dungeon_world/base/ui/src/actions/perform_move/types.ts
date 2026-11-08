@@ -130,5 +130,5 @@ export interface PerformMoveAction {
 }
 
 export function isPerformMoveAction(action: any): action is PerformMoveAction {
-  return action?.actionKey === 'perform_move';
+  return action?.actionKey === 'perform_move' || action?.actionKey === 'issue_changes';
 }

@@ -1,7 +1,10 @@
 'use client';
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { useParams } from 'next/navigation';
+import { notifyPreparedSeedsChanged, usePreparedSeeds } from '@/app/services/hooks/usePreparedSeeds';
 import { ArrowLeft, ClipboardList, Gift, Heart, Sword, Trash2, X } from 'lucide-react';
+import { CanvasSeed, DiceRollDisplay, neutralDiceInterpreter } from '@/plugins/common/ui';
 import { getSceneBundle } from '@/plugins/common/types/actionSelectors';
 import { MoveResolutionCard } from '../components/MoveResolutionCard';
 import { extractMoveResolution } from '../components/moveResolution';
@@ -21,7 +24,7 @@ import {
 import { DW_DEBILITIES, debilityTitle } from '../../../shared/debilities';
 
 type ManifestLineKind = 'resource_draft' | 'damage' | 'resource_grant' | 'debility';
-type ManifestLineStatus = 'draft' | 'needs_roll' | 'rolled' | 'skipped' | 'applied';
+type ManifestLineStatus = 'draft' | 'pending' | 'needs_roll' | 'rolled' | 'skipped' | 'applied';
 type ManifestMode = 'edit' | 'review';
 
 type ManifestTarget = {
@@ -112,6 +115,7 @@ function DamageLineForm({
   entry,
   quickOptions,
   initial,
+  approved,
   onSave,
   onCancel,
 }: {
@@ -123,6 +127,7 @@ function DamageLineForm({
   entry: any;
   quickOptions: DamageQuickOption[];
   initial?: ManifestLine | null;
+  approved: boolean;
   onSave: (line: ManifestLine) => void;
   onCancel: () => void;
 }) {
@@ -388,7 +393,7 @@ function DamageLineForm({
               id,
               kind: 'damage',
               target: { kind: entity.kind, id: entity.id, name: entity.name },
-              status: 'needs_roll',
+              status: approved ? 'needs_roll' : 'pending',
               label: `${srcName ? `${srcName}${sourceKind === 'npc' && attackName ? ` (${attackName})` : ''}: ` : ''}${hpEffect === 'heal' ? 'Лечение' : 'Урон'} ${damageExpr} → ${entity.name}`,
               payload: {
                 id,
@@ -632,7 +637,7 @@ export function PerformMoveChangeManifestStage({
   setSubmitEnabled,
   readOnly,
 }: any) {
-  const { scene, players } = getSceneBundle(action);
+  const { scene, players, links } = getSceneBundle(action);
   const moveInfo = useMemo(() => extractMoveResolution(action), [action]);
   const stageData = action?.workflow?.stageData ?? {};
   const entry = action?.workflow?.context?.entry ?? {};
@@ -681,9 +686,6 @@ export function PerformMoveChangeManifestStage({
     'edit';
 
   const isGm = String(action?.participants?.gmUserId ?? '') === String(user_id ?? '');
-  const sentToGm = Boolean(
-    stageData?.stages?.['perform_move.change_manifest']?.sent_to_gm ?? value?.sent_to_gm,
-  );
   const isPartial = rollOutcome === 'hit_7_9';
   const appetiteComplication = Boolean(entry?.roll?.appetite_complication);
   const needsComplication = isPartial || appetiteComplication;
@@ -711,10 +713,9 @@ export function PerformMoveChangeManifestStage({
     setLines(serverLines);
   }, [JSON.stringify(serverLines)]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Игрок в режиме проверки только ждёт мастера; заявку, уже отправленную мастеру, повторно не шлём.
   useEffect(() => {
-    setSubmitEnabled(isGm || (mode === 'edit' && !sentToGm));
-  }, [setSubmitEnabled, isGm, mode, sentToGm]);
+    setSubmitEnabled(isGm);
+  }, [setSubmitEnabled, isGm]);
 
   const syncLines = (next: ManifestLine[], nextMode: ManifestMode = mode) => {
     setLines(next);
@@ -773,6 +774,42 @@ export function PerformMoveChangeManifestStage({
     setUiStep('pick_type');
   };
 
+  const ownerOf = (id: string) => {
+    const map = (links?.characterToUserId ?? {}) as Record<string, string>;
+    return String(map[id] ?? '');
+  };
+  const rollerOf = (line: ManifestLine) => {
+    const sourceKind = String(line.payload.source_kind || '');
+    const sourceId = String(line.payload.source_id || '');
+    if (sourceKind === 'character' && ownerOf(sourceId)) return ownerOf(sourceId);
+    if (line.target.kind === 'character') return ownerOf(line.target.id);
+    return '';
+  };
+  const [seeds, setSeeds] = useState<Record<string, string>>({});
+  const myId = String(user_id ?? '');
+  const orderedLines = [...lines].sort((a, b) => {
+    const rank = (status: string) => (status === 'needs_roll' ? 0 : status === 'pending' ? 1 : status === 'rolled' ? 2 : 3);
+    return rank(a.status) - rank(b.status);
+  });
+  const myRolls = orderedLines.filter((line) => {
+    if (line.kind !== 'damage' || line.status !== 'needs_roll') return false;
+    const roller = rollerOf(line);
+    return roller ? roller === myId : isGm;
+  });
+  const params = useParams<{ id?: string }>();
+  const sessionId = typeof params?.id === 'string' ? params.id : undefined;
+  const { count: stock } = usePreparedSeeds(sessionId);
+  const stockSent = useRef(new Set<string>());
+  useEffect(() => {
+    if (readOnly || stock < 1 || !onPatch) return;
+    if (myRolls.some((line) => stockSent.current.has(line.id))) return;
+    const line = myRolls.find((item) => !stockSent.current.has(item.id));
+    if (!line) return;
+    stockSent.current.add(line.id);
+    onPatch({ commit_roll: { id: line.id, roll_seed: '' }, usePreparedSeed: true });
+    notifyPreparedSeedsChanged();
+  }, [readOnly, stock, myRolls, onPatch]);
+
   const activeLines = lines.filter((l) => l.status !== 'skipped');
   const lineBadges = useMemo(() => {
     const out: Record<string, string> = {};
@@ -782,7 +819,6 @@ export function PerformMoveChangeManifestStage({
     }
     return out;
   }, [lines]);
-  const damageCount = activeLines.filter((l) => l.kind === 'damage').length;
 
   if (uiStep === 'pick_type' && selectedEntity) {
     return (
@@ -847,6 +883,7 @@ export function PerformMoveChangeManifestStage({
           entry={entry}
           quickOptions={quickOptions}
           initial={editingLine}
+          approved={isGm}
           onSave={upsertLine}
           onCancel={() => {
             setUiStep('hub');
@@ -896,6 +933,36 @@ export function PerformMoveChangeManifestStage({
 
   return (
     <div className="rounded border p-3 flex flex-col gap-4">
+      {myRolls.length > 0 ? (
+        <div className="space-y-2">
+          {myRolls.map((line) => {
+            const fromStock = stock > 0 && !stockSent.current.has(line.id);
+            return (
+            <div key={line.id} className="rounded border border-amber-400/40 bg-amber-500/5 px-3 py-3 space-y-2">
+              <div className="text-sm font-medium text-amber-100">{lineSummary(line)}</div>
+              {fromStock ? (
+                <div className="text-sm text-amber-100/80">Бросаем жестом из запаса.</div>
+              ) : (
+                <>
+                  <CanvasSeed
+                    hint={String(line.payload.damage_expr || 'бросок')}
+                    onChange={(seed) => setSeeds((prev) => ({ ...prev, [line.id]: seed ?? '' }))}
+                  />
+                  <button
+                    type="button"
+                    disabled={!seeds[line.id]}
+                    className="rounded border border-amber-400/70 px-3 py-2 text-sm text-amber-100 disabled:opacity-40"
+                    onClick={() => onPatch?.({ commit_roll: { id: line.id, roll_seed: seeds[line.id] } })}
+                  >
+                    Бросить
+                  </button>
+                </>
+              )}
+            </div>
+            );
+          })}
+        </div>
+      ) : null}
       <MoveResolutionCard data={moveInfo} />
       <div className="font-medium flex items-center gap-2">
         <ClipboardList className="w-4 h-4 text-cyan-300" />
@@ -907,14 +974,9 @@ export function PerformMoveChangeManifestStage({
         </p>
       ) : null}
 
-      {mode === 'edit' && isGm && sentToGm ? (
+      {mode === 'edit' && isGm && lines.some((line) => line.status === 'pending') ? (
         <div className="rounded border border-amber-400/40 bg-amber-500/10 px-3 py-2 text-sm text-amber-100">
-          Игрок отправил заявку. Проверьте строки урона и ресурсов, поправьте или уберите лишнее и подтвердите.
-        </div>
-      ) : null}
-      {mode === 'edit' && !isGm && sentToGm ? (
-        <div className="rounded border border-cyan-400/30 bg-cyan-500/10 px-3 py-2 text-sm text-cyan-100">
-          Заявка отправлена мастеру. Ждём подтверждения (правка заявки вернёт её в черновик).
+          Игрок объявил заявку. Подтвердите её — тогда связанный игрок бросит кубы здесь же.
         </div>
       ) : null}
 
@@ -976,8 +1038,14 @@ export function PerformMoveChangeManifestStage({
             markedId={actorId || null}
             badges={lineBadges}
             onSelect={(e) => {
-              const entity = entities.find((x) => x.id === e.id && x.kind === e.kind);
-              if (entity) openEntity(entity);
+              const entity = entities.find((x) => x.id === e.id && x.kind === e.kind) ?? {
+                kind: e.kind,
+                id: e.id,
+                name: e.name,
+                icon_url: e.iconUrl,
+                img_url: e.iconUrl,
+              };
+              openEntity(entity);
             }}
           />
         </div>
@@ -991,34 +1059,64 @@ export function PerformMoveChangeManifestStage({
           <div className="text-sm text-white/40 italic">Пока пусто — кликните участника</div>
         ) : (
           <div className="space-y-1.5">
-            {lines.map((line) => {
+            {orderedLines.map((line) => {
               const skipped = line.status === 'skipped';
+              const dice = Array.isArray(line.payload.dice)
+                ? (line.payload.dice as unknown[]).map(Number).filter((n) => Number.isFinite(n))
+                : [];
+              const rolled = line.kind === 'damage' && line.status === 'rolled' && dice.length > 0;
+              const armor = Number(line.payload.armor_applied || 0);
+              const totalRaw = line.payload.total_raw != null ? Number(line.payload.total_raw) : null;
               return (
                 <div
                   key={line.id}
-                  className={`rounded border px-3 py-2 flex items-center gap-2 text-sm ${
+                  className={`rounded border px-3 py-2 flex items-start gap-2 text-sm ${
                     skipped ? 'border-white/5 opacity-40' : 'border-white/10 bg-zinc-950/20'
                   }`}
                 >
-                  <div className="min-w-0 flex-1">
+                  <div className="min-w-0 flex-1 space-y-2">
                     <div className="truncate font-medium text-white/85">{lineSummary(line)}</div>
-                    <div className="text-[10px] text-white/35">
-                      {line.kind === 'damage'
-                        ? line.status === 'rolled'
-                          ? 'бросок готов'
-                          : 'нужен бросок'
-                        : line.kind === 'debility'
-                          ? 'травма'
-                        : line.kind === 'resource_draft'
-                          ? 'из хода'
-                          : 'выдача'}
-                      {line.target.name ? ` · ${line.target.name}` : ''}
-                      {line.status === 'rolled' && line.payload.dice
-                        ? ` · [${(line.payload.dice as number[]).join(', ')}]`
-                        : ''}
-                    </div>
+                    {rolled ? (
+                      <div className="space-y-1">
+                        <DiceRollDisplay
+                          dice={dice}
+                          total={totalRaw}
+                          rollLabel={String(line.payload.damage_expr || 'бросок')}
+                          interpreter={neutralDiceInterpreter}
+                          canvasSeed={String(line.payload.roll_seed || '')}
+                          animKey={`${line.id}:${dice.join(',')}`}
+                        />
+                        {armor > 0 ? (
+                          <div className="text-[11px] text-white/45">Броня −{armor}</div>
+                        ) : null}
+                      </div>
+                    ) : (
+                      <div className="text-[10px] text-white/35">
+                        {line.kind === 'damage'
+                          ? line.status === 'rolled'
+                            ? `бросок ${line.payload.total_final != null ? line.payload.total_final : 'готов'}`
+                            : line.status === 'pending'
+                              ? 'ждёт мастера'
+                              : 'нужен бросок'
+                          : line.kind === 'debility'
+                            ? 'травма'
+                          : line.kind === 'resource_draft'
+                            ? 'из хода'
+                            : 'выдача'}
+                        {line.target.name ? ` · ${line.target.name}` : ''}
+                      </div>
+                    )}
                   </div>
-                  {!readOnly && mode === 'edit' && (
+                  {!readOnly && mode === 'edit' && isGm && line.status === 'pending' ? (
+                    <button
+                      type="button"
+                      className="text-xs text-emerald-200"
+                      onClick={() => syncLines(lines.map((item) => (item.id === line.id ? { ...item, status: 'needs_roll' } : item)))}
+                    >
+                      Подтвердить
+                    </button>
+                  ) : null}
+                  {!readOnly && mode === 'edit' && (isGm || (line.status === 'pending' && String(line.payload.declared_by || '') === myId)) && (
                     <>
                       <button
                         type="button"
@@ -1055,29 +1153,27 @@ export function PerformMoveChangeManifestStage({
       </div>
 
       <div className="flex flex-wrap gap-2 pt-1">
-        {mode === 'edit' ? (
+        {mode === 'edit' && isGm ? (
           <button
             type="button"
-            disabled={readOnly || (!isGm && sentToGm)}
+            disabled={readOnly}
             onClick={() =>
               onSubmit({
-                action: 'continue',
+                action: 'apply',
                 mode: 'edit',
                 lines,
                 unprepare_cast_spell: Boolean(unprepareCastSpell),
-                ...(isGm && needsComplication ? { gm_complication: complication } : {}),
+                ...(needsComplication ? { gm_complication: complication } : {}),
               })
             }
-            className="rounded border border-cyan-400/60 px-3 py-2 text-sm text-cyan-100 disabled:opacity-40"
+            className="rounded border border-emerald-400/60 px-3 py-2 text-sm text-emerald-100 disabled:opacity-40"
           >
-            {!isGm
-              ? sentToGm
-                ? 'Отправлено мастеру'
-                : 'Отправить заявку мастеру'
-              : damageCount > 0
-                ? `Подтвердить заявку и перейти к броскам (${damageCount})`
-                : 'Подтвердить и перейти к проверке'}
+            Завершить
           </button>
+        ) : mode === 'edit' ? (
+          <div className="text-sm text-white/50">
+            {myRolls.length ? 'Бросьте кубы выше.' : 'Можно объявить заявку на любого участника. Бросок делает связанный игрок.'}
+          </div>
         ) : isGm ? (
           <button
             type="button"

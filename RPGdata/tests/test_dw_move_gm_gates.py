@@ -165,49 +165,95 @@ def test_stale_complication_is_ignored_if_outcome_changed():
 # --- подтверждение мастером -------------------------------------------------
 
 
-def test_player_continue_sends_claim_to_gm_and_stays():
+def test_related_player_is_a_recipient_as_soon_as_the_line_appears():
+    gm, actor, hero, goblin, scene, _, _, wf = _world()
+    other, victim = uuid4(), uuid4()
+    scene.characters.append(CharacterContext(id=victim, name="Victim", data={}))
+    participants = ActionParticipants(gmUserId=gm, participants=[gm], initiatorUserId=actor)
+    links = Links(characterToUserId={hero: actor, victim: other})
+    line = {
+        "id": "l1",
+        "kind": "damage",
+        "target": {"kind": "character", "id": str(victim), "name": "Victim"},
+        "payload": {"hp_effect": "damage", "damage_expr": "d6", "source_kind": "npc", "source_id": str(goblin)},
+        "status": "needs_roll",
+        "label": "",
+    }
+    w = PerformMoveWorkflow(FullCodex())
+    res = w.patch(_ctx(scene, participants, links, gm, wf, lines=[line]))
+    assert res.ok, res.issues
+    assert str(other) in {str(item) for item in res.participantIds}
+    saved = _wf(res)
+    assert _manifest(saved)["lines"][0]["payload"]["roller_user_id"] == str(other)
+    rolled = w.patch(_ctx(
+        scene, participants, links, other, saved,
+        commit_roll={"id": "l1", "roll_seed": "recipient-seed"},
+    ))
+    assert rolled.ok, rolled.issues
+
+
+def test_player_declares_a_pending_line_on_any_target():
+    _, player, hero, goblin, scene, participants, links, wf = _world()
+    w = PerformMoveWorkflow(FullCodex())
+    res = w.patch(_ctx(scene, participants, links, player, wf, lines=[_line(goblin, hero)]))
+    assert res.ok, res.issues
+    line = _manifest(_wf(res))["lines"][0]
+    assert line["status"] == "pending"
+    assert line["target"]["kind"] == "npc"
+    assert not w.submit(_ctx(scene, participants, links, player, wf, action="apply", mode="edit", lines=[_line(goblin, hero)])).ok
+
+
+def test_gm_line_is_approved_and_the_player_rolls_it_here():
     gm, player, hero, goblin, scene, participants, links, wf = _world()
     w = PerformMoveWorkflow(FullCodex())
-    res = w.submit(_ctx(scene, participants, links, player, wf, action="continue", mode="edit", lines=[_line(goblin, hero)]))
-    assert res.ok, res.issues
-    sent = _wf(res)
-    assert sent.status == "active"
-    assert sent.stageKey == "perform_move.post_roll"
+    sent = _wf(w.patch(_ctx(scene, participants, links, gm, wf, lines=[_line(goblin, hero)])))
+    assert _manifest(sent)["lines"][0]["status"] == "needs_roll"
     assert sent.stageData["wizard"]["currentKey"] == MANIFEST
-    assert _manifest(sent)["sent_to_gm"] is True
-    assert _manifest(sent)["mode"] == "edit"
-    assert [ln["id"] for ln in _manifest(sent)["lines"]] == ["l1"]
-    # заявки на урон ещё не созданы: мастер не подтвердил
-    assert _entry(sent).damage_claims == []
+    assert not w.submit(_ctx(scene, participants, links, gm, sent, action="apply", mode="edit")).ok
+    rolled = w.patch(_ctx(
+        scene, participants, links, player, sent,
+        commit_roll={"id": "l1", "roll_seed": "player-seed"},
+    ))
+    assert rolled.ok, rolled.issues
+    done = _wf(rolled)
+    assert done.stageData["wizard"]["currentKey"] == MANIFEST
+    claim = _entry(done).damage_claims[0]
+    assert claim.rolled and claim.dice
+    assert str(claim.roller_user_id) == str(player)
+    assert _manifest(done)["lines"][0]["status"] == "rolled"
 
 
-def test_player_edit_after_sending_resets_the_flag():
-    gm, player, hero, goblin, scene, participants, links, wf = _world()
-    w = PerformMoveWorkflow(FullCodex())
-    sent = _wf(w.submit(_ctx(scene, participants, links, player, wf, action="continue", mode="edit", lines=[_line(goblin, hero)])))
-    res = w.patch(_ctx(scene, participants, links, player, sent, lines=[_line(goblin, hero), {**_line(goblin, hero), "id": "l2"}]))
+def test_issue_changes_starts_on_the_manifest():
+    from plugins.pbta.dungeon_world.base.backend.workflows.issue_changes import IssueChangesWorkflow
+
+    gm, player, hero, goblin, scene, participants, links, _wf_unused = _world()
+    participants = ActionParticipants(gmUserId=gm, participants=[gm, player], initiatorUserId=gm)
+    res = IssueChangesWorkflow(FullCodex()).start(ActionContext(
+        actionKey="issue_changes",
+        actorUserId=gm,
+        scene=scene,
+        players=[],
+        links=links,
+        participants=participants,
+        workflow=None,
+        input={},
+    ))
     assert res.ok, res.issues
-    assert _manifest(_wf(res))["sent_to_gm"] is False
-
-
-def test_gm_confirms_claim_and_moves_to_damage_rolls():
-    gm, player, hero, goblin, scene, participants, links, wf = _world()
-    w = PerformMoveWorkflow(FullCodex())
-    sent = _wf(w.submit(_ctx(scene, participants, links, player, wf, action="continue", mode="edit", lines=[_line(goblin, hero)])))
-    res = w.submit(_ctx(scene, participants, links, gm, sent, action="continue", mode="edit"))
-    assert res.ok, res.issues
-    nxt = _wf(res)
-    assert nxt.stageData["wizard"]["currentKey"] == "perform_move.damage_roll"
-    assert [c.target_npc_id for c in _entry(nxt).damage_claims] == [str(goblin)]
-    assert _manifest(nxt)["sent_to_gm"] is False
-
-
-def test_gm_own_claim_needs_no_second_confirmation():
-    gm, player, hero, goblin, scene, participants, links, wf = _world()
-    w = PerformMoveWorkflow(FullCodex())
-    res = w.submit(_ctx(scene, participants, links, gm, wf, action="continue", mode="edit", lines=[_line(goblin, hero)]))
-    assert res.ok, res.issues
-    assert _wf(res).stageData["wizard"]["currentKey"] == "perform_move.damage_roll"
+    started = _wf(res)
+    assert started.actionKey == "issue_changes"
+    assert started.stageKey == "perform_move.post_roll"
+    assert started.stageData["wizard"]["currentKey"] == MANIFEST
+    denied = IssueChangesWorkflow(FullCodex()).start(ActionContext(
+        actionKey="issue_changes",
+        actorUserId=player,
+        scene=scene,
+        players=[],
+        links=links,
+        participants=participants,
+        workflow=None,
+        input={},
+    ))
+    assert not denied.ok
 
 
 def test_player_cannot_accept_final_review():
@@ -227,6 +273,109 @@ def test_player_cannot_edit_lines_during_review():
     res = w.patch(_ctx(scene, participants, links, player, wf, lines=[]))
     assert not res.ok
     assert w.patch(_ctx(scene, participants, links, gm, wf, lines=[])).ok
+
+
+def test_player_cannot_submit_setup():
+    gm, player = uuid4(), uuid4()
+    hero = uuid4()
+    scene = SceneContext(
+        id=uuid4(),
+        name="fight",
+        data={},
+        characters=[CharacterContext(id=hero, name="Hero", data={})],
+        npcs=[],
+    )
+    participants = ActionParticipants(gmUserId=gm, participants=[gm, player], initiatorUserId=gm)
+    links = Links(characterToUserId={hero: player})
+    wf = Workflow(
+        actionKey="perform_move",
+        stageKey="perform_move.setup",
+        status="active",
+        context=PerformMoveContext(
+            scene_id=scene.id,
+            entry=PerformMoveEntry(actor_user_id=gm),
+        ).model_dump(mode="json"),
+        stageData={},
+    )
+    res = PerformMoveWorkflow(FullCodex()).submit(ActionContext(
+        actionKey="perform_move",
+        actorUserId=player,
+        scene=scene,
+        players=[],
+        links=links,
+        participants=participants,
+        workflow=wf,
+        input={"_stageKey": "perform_move.setup", "actor_character_id": str(hero)},
+    ))
+    assert not res.ok
+    assert _wf(res).stageKey == "perform_move.setup"
+
+
+def test_unrelated_viewer_does_not_see_damage_dice():
+    from app.services.damage_roll_visibility import redact_damage_rolls
+
+    gm, player, other = uuid4(), uuid4(), uuid4()
+    hero, bystander = uuid4(), uuid4()
+    action = {
+        "actionKey": "perform_move",
+        "participants": {"gmUserId": str(gm)},
+        "scene": {"links": {"characterToUserId": {str(hero): str(player), str(bystander): str(other)}}},
+        "workflow": {
+            "context": {"entry": {"damage_claims": [{
+                "id": "c1",
+                "source_kind": "character",
+                "source_character_id": str(hero),
+                "target_kind": "npc",
+                "target_npc_id": "goblin",
+                "dice": [4],
+                "total_raw": 4,
+                "total_final": 4,
+                "roll_seed": "seed",
+            }]}},
+            "stageData": {"stages": {"perform_move.change_manifest": {"lines": [{
+                "id": "c1",
+                "kind": "damage",
+                "target": {"kind": "npc", "id": "goblin"},
+                "payload": {
+                    "source_kind": "character",
+                    "source_id": str(hero),
+                    "damage_expr": "d6",
+                    "dice": [4],
+                    "total_final": 4,
+                    "roll_seed": "seed",
+                },
+            }]}}},
+        },
+    }
+    redact_damage_rolls(action, str(other))
+    assert action["workflow"]["context"]["entry"]["damage_claims"] == []
+    assert action["workflow"]["stageData"]["stages"]["perform_move.change_manifest"]["lines"] == []
+    action["workflow"]["context"]["entry"]["damage_claims"] = [{
+        "id": "c1", "rolled": True, "source_kind": "character", "source_character_id": str(hero),
+        "target_kind": "npc", "dice": [4], "roll_seed": "seed",
+    }]
+    action["workflow"]["stageData"]["stages"]["perform_move.change_manifest"]["lines"] = [{
+        "id": "c1", "kind": "damage", "status": "rolled",
+        "target": {"kind": "npc", "id": "goblin"},
+        "payload": {"source_kind": "character", "source_id": str(hero), "dice": [4], "rolled": True},
+    }]
+    redact_damage_rolls(action, str(other))
+    assert action["workflow"]["context"]["entry"]["damage_claims"][0]["dice"] == [4]
+    assert action["workflow"]["stageData"]["stages"]["perform_move.change_manifest"]["lines"][0]["payload"]["dice"] == [4]
+
+    visible = {
+        "actionKey": "perform_move",
+        "participants": {"gmUserId": str(gm)},
+        "scene": {"links": {"characterToUserId": {str(hero): str(player)}}},
+        "workflow": {"context": {"entry": {"damage_claims": [{
+            "id": "c1", "source_kind": "character", "source_character_id": str(hero),
+            "target_kind": "npc", "dice": [6], "roll_seed": "s",
+        }]}}},
+    }
+    redact_damage_rolls(visible, str(player))
+    assert visible["workflow"]["context"]["entry"]["damage_claims"][0]["dice"] == [6]
+    redact_damage_rolls(visible, str(gm))
+    assert visible["workflow"]["context"]["entry"]["damage_claims"][0]["dice"] == [6]
 
 
 def test_gm_accepts_final_review():

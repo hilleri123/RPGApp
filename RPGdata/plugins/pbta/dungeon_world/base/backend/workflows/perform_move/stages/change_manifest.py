@@ -8,10 +8,11 @@ from plugins.common.protocols import StageCtx
 from plugins.common.protocols.workflow_stage import StageOutcome, issue
 from plugins.common.types import ActionParticipants, SubmitResult, Workflow
 
+from ..engine import roll_damage_claim
 from ..helpers import collect_participating_factories, damage_quick_options, moves_map_for_workflow, primary_move_id
 from ..manifest_sync import (
     STAGE_KEY,
-    claims_need_roll,
+    assign_claim_rollers,
     prefill_manifest_from_entry,
     read_manifest,
     sync_claims_to_manifest_lines,
@@ -46,6 +47,109 @@ def clean_complication(text: Any) -> str:
     return " ".join(str(text or "").split())[:COMPLICATION_MAX_LEN]
 
 
+def _owner_map(links) -> dict[str, str]:
+    raw = getattr(links, "characterToUserId", None)
+    if raw is None and isinstance(links, dict):
+        raw = links.get("characterToUserId") or {}
+    return {str(k): str(v) for k, v in (raw or {}).items() if k and v}
+
+
+def _roller_user_id(line: dict, owners: dict[str, str]) -> str:
+    payload = line.get("payload") if isinstance(line.get("payload"), dict) else {}
+    target = line.get("target") if isinstance(line.get("target"), dict) else {}
+    source_kind = str(payload.get("source_kind") or "")
+    source_id = str(payload.get("source_id") or "")
+    target_kind = str(target.get("kind") or "")
+    target_id = str(target.get("id") or "")
+    if source_kind == "character" and owners.get(source_id):
+        return owners[source_id]
+    if target_kind == "character":
+        return owners.get(target_id, "")
+    return ""
+
+
+def stamp_line_rollers(lines: list, links) -> list:
+    """Игрок персонажа, с которым связана заявка, сразу становится её получателем."""
+    owners = _owner_map(links)
+    out: list = []
+    for raw in lines:
+        if not isinstance(raw, dict):
+            out.append(raw)
+            continue
+        line = dict(raw)
+        if line.get("kind") == "damage" and line.get("status") != "skipped":
+            payload = dict(line.get("payload") or {})
+            uid = _roller_user_id(line, owners)
+            if uid:
+                payload["roller_user_id"] = uid
+            line["payload"] = payload
+        out.append(line)
+    return out
+
+
+def _finish_block(lines) -> str | None:
+    for line in lines:
+        if getattr(line, "kind", None) != "damage" or line.status == "skipped":
+            continue
+        if line.status == "pending":
+            return "Есть заявка, которую мастер ещё не подтвердил"
+        if line.status == "needs_roll":
+            return "Сначала бросок игрока"
+    return None
+
+
+def _reconcile_lines(previous: list, incoming: list, *, gm: bool, user_id: str) -> list:
+    """Игрок добавляет черновик. Мастерская строка сразу одобрена. Чужие строки игрок не стирает."""
+    old = {str(item.get("id")): item for item in previous if isinstance(item, dict)}
+    seen: set[str] = set()
+    out: list = []
+    for raw in incoming:
+        if not isinstance(raw, dict):
+            continue
+        line = dict(raw)
+        lid = str(line.get("id") or "")
+        seen.add(lid)
+        prev = old.get(lid)
+        payload = dict(line.get("payload") or {})
+        kind = line.get("kind")
+        if gm:
+            if line.get("status") == "skipped":
+                status = "skipped"
+            elif kind == "damage" and (line.get("status") == "rolled" or payload.get("rolled")):
+                status = "rolled"
+            elif kind == "damage":
+                status = "needs_roll"
+            else:
+                status = line.get("status") or "draft"
+            payload["declared_by"] = user_id if prev is None else str((prev.get("payload") or {}).get("declared_by") or user_id)
+            line["payload"] = payload
+            line["status"] = status
+            out.append(line)
+            continue
+        if prev is None:
+            payload["declared_by"] = user_id
+            line["payload"] = payload
+            line["status"] = "pending" if kind == "damage" else "draft"
+            out.append(line)
+            continue
+        declared = str((prev.get("payload") or {}).get("declared_by") or "")
+        if prev.get("status") in ("needs_roll", "rolled", "applied", "skipped") or declared != user_id:
+            out.append(prev)
+            continue
+        payload["declared_by"] = declared or user_id
+        line["payload"] = payload
+        line["status"] = "pending" if kind == "damage" else (line.get("status") or "draft")
+        out.append(line)
+    if not gm:
+        for lid, prev in old.items():
+            if lid in seen:
+                continue
+            declared = str((prev.get("payload") or {}).get("declared_by") or "")
+            if prev.get("status") in ("needs_roll", "rolled", "applied") or declared != user_id:
+                out.append(prev)
+    return out
+
+
 class ManifestPatchInput(BaseModel):
     gm_complication: str | None = None
     mode: str | None = None
@@ -53,6 +157,7 @@ class ManifestPatchInput(BaseModel):
     editing_line_id: str | None = None
     editing_step: str | None = None
     unprepare_cast_spell: bool | None = None
+    commit_roll: dict[str, Any] | None = None
 
 
 class ManifestSubmitInput(BaseModel):
@@ -87,8 +192,11 @@ class PerformMoveChangeManifestStage(DwStage):
             cur["mode"] = parsed.mode
         if parsed.lines is not None:
             cur["lines"] = list(parsed.lines)
-            if not gm:
-                cur["sent_to_gm"] = False  # игрок поправил заявку — мастеру нужно отправить заново
+        if parsed.commit_roll is not None:
+            problem = self._roll_problem(wf, ctx, parsed.commit_roll)
+            if problem:
+                return StageOutcome.fail("commit_roll", problem)
+            cur["commit_roll"] = dict(parsed.commit_roll)
         if parsed.editing_line_id is not None:
             cur["editing_line_id"] = parsed.editing_line_id or None
         if parsed.editing_step is not None:
@@ -113,8 +221,27 @@ class PerformMoveChangeManifestStage(DwStage):
 
     def apply_patch(self, wf: Workflow, ctx: StageCtx, data: dict[str, Any]) -> None:
         # Drop fields that belong on entry, not ChangeManifestState
-        manifest_data = {k: v for k, v in data.items() if k not in ("unprepare_cast_spell", "gm_complication")}
+        if data.get("lines") is not None:
+            previous = read_manifest(wf).model_dump(mode="json").get("lines") or []
+            data = {
+                **data,
+                "lines": stamp_line_rollers(
+                    _reconcile_lines(
+                        previous,
+                        list(data["lines"]),
+                        gm=is_gm(ctx),
+                        user_id=str(ctx.actor_user_id),
+                    ),
+                    ctx.links,
+                ),
+            }
+        manifest_data = {
+            k: v for k, v in data.items()
+            if k not in ("unprepare_cast_spell", "gm_complication", "commit_roll")
+        }
         write_manifest(wf, ChangeManifestState.model_validate(manifest_data))
+        if data.get("commit_roll"):
+            self._apply_roll(wf, ctx, data["commit_roll"])
         if data.get("gm_complication") is not None:
             try:
                 c = self._context(wf)
@@ -174,9 +301,8 @@ class PerformMoveChangeManifestStage(DwStage):
         stored_mode = read_manifest(wf).mode
         mode = str(payload.get("mode") or stored_mode or "edit")
 
-        # Финальное принятие — только мастер (и проверка заявки тоже его).
-        if not gm and (action == "apply" or stored_mode == "review" or mode == "review"):
-            return err("", "Принять изменения может только мастер")
+        if not gm:
+            return err("", "Завершает заявку мастер")
 
         if payload.get("gm_complication") is not None:
             problem = self._complication_problem(wf, ctx)
@@ -194,36 +320,21 @@ class PerformMoveChangeManifestStage(DwStage):
                 wf,
                 ChangeManifestState.model_validate({
                     **read_manifest(wf).model_dump(mode="json"),
-                    "lines": payload["lines"],
+                    "lines": stamp_line_rollers(list(payload["lines"]), ctx.links),
                     "mode": payload.get("mode") or read_manifest(wf).mode,
                 }),
             )
 
         prefill_manifest_from_entry(wf, c)
+        sync_manifest_lines_to_entry(wf, c, ctx.scene, mode=read_manifest(wf).mode or mode)
         c = PerformMoveContext.model_validate(wf.context or {})
-
-        # Заявку на урон/ресурсы игрока подтверждает мастер: игрок лишь отправляет её.
-        if not gm:
-            state = read_manifest(wf)
-            state.mode = "edit"
-            state.sent_to_gm = True
-            write_manifest(wf, state)
-            wf.stageData = {**(wf.stageData or {}), "manifestAction": action, "manifestMode": "edit", "manifestNext": "stay"}
-            return ctx.rb.result(
-                ok=True,
-                wf=wf,
-                participants=ctx.participants,
-                participants_dict_fallback=ctx.participants_dict,
-                issues=[],
-            )
+        assign_claim_rollers(c, ctx.links)
+        wf.context = c.model_dump(mode="json")
 
         state = read_manifest(wf)
         if state.sent_to_gm:
-            state.sent_to_gm = False  # мастер принял заявку
+            state.sent_to_gm = False
             write_manifest(wf, state)
-
-        sync_manifest_lines_to_entry(wf, c, ctx.scene, mode=mode)
-        c = PerformMoveContext.model_validate(wf.context or {})
         if payload.get("unprepare_cast_spell") is not None:
             c.entry.unprepare_cast_spell = bool(payload["unprepare_cast_spell"])
             wf.context = c.model_dump(mode="json")
@@ -241,21 +352,10 @@ class PerformMoveChangeManifestStage(DwStage):
         wf.stageData["resourceFactories"] = factories
         wf.stageData["grantTemplates"] = factories
 
-        if action == "apply":
-            wf.stageData["manifestNext"] = "apply"
-        elif mode == "edit" and action == "continue":
-            if claims_need_roll(c):
-                wf.stageData["manifestNext"] = "damage_roll"
-            else:
-                write_manifest(
-                    wf,
-                    ChangeManifestState.model_validate({
-                        **read_manifest(wf).model_dump(mode="json"),
-                        "mode": "review",
-                    }),
-                )
-                wf.stageData["manifestNext"] = "review"
-        elif mode == "review":
+        blocked = _finish_block(read_manifest(wf).lines)
+        if action == "apply" and blocked:
+            return err("", blocked)
+        if action == "apply" or mode == "review":
             wf.stageData["manifestNext"] = "apply"
         else:
             wf.stageData["manifestNext"] = "stay"
@@ -271,7 +371,70 @@ class PerformMoveChangeManifestStage(DwStage):
         )
 
     def visibility(self, wf: Workflow, ctx: StageCtx, participants: ActionParticipants) -> list[str]:
-        return self._gm_actor_helper_visibility(wf, ctx, participants)
+        from ..stage_store import uniq
+
+        ids = self._gm_actor_helper_visibility(wf, ctx, participants)
+        ids.extend(str(user) for user in (participants.participants or []))
+        for line in read_manifest(wf).lines:
+            if line.kind != "damage" or line.status == "skipped":
+                continue
+            uid = str((line.payload or {}).get("roller_user_id") or "")
+            if uid:
+                ids.append(uid)
+        return uniq(ids)
+
+    def _roll_problem(self, wf: Workflow, ctx: StageCtx, spec: dict[str, Any]) -> str | None:
+        line_id = str(spec.get("id") or "")
+        seed = str(spec.get("roll_seed") or "")
+        if not line_id or not seed:
+            return "Нужен seed броска"
+        line = next((item for item in read_manifest(wf).lines if item.id == line_id), None)
+        if line is None or line.kind != "damage" or line.status != "needs_roll":
+            return "Эту заявку сейчас нельзя бросить"
+        try:
+            c = self._context(wf)
+        except Exception:
+            return "Контекст хода повреждён"
+        sync_manifest_lines_to_entry(wf, c, ctx.scene, mode=read_manifest(wf).mode or "edit")
+        c = PerformMoveContext.model_validate(wf.context or {})
+        assign_claim_rollers(c, ctx.links)
+        claim = next((item for item in c.entry.damage_claims or [] if str(item.id) == line_id), None)
+        if claim is None:
+            return "Заявка не найдена"
+        roller = str(claim.roller_user_id or "")
+        uid = str(ctx.actor_user_id)
+        if roller and uid != roller:
+            return "Бросает игрок, связанный с заявкой"
+        if not roller and not is_gm(ctx):
+            return "Бросает игрок, связанный с заявкой"
+        return None
+
+    def _apply_roll(self, wf: Workflow, ctx: StageCtx, spec: dict[str, Any]) -> None:
+        line_id = str(spec.get("id") or "")
+        c = self._context(wf)
+        sync_manifest_lines_to_entry(wf, c, ctx.scene, mode=read_manifest(wf).mode or "edit")
+        c = PerformMoveContext.model_validate(wf.context or {})
+        assign_claim_rollers(c, ctx.links)
+        claim = next((item for item in c.entry.damage_claims or [] if str(item.id) == line_id), None)
+        if claim is None:
+            return
+        roll_damage_claim(claim, ctx.scene, seed=str(spec.get("roll_seed") or ""))
+        wf.context = c.model_dump(mode="json")
+        state = read_manifest(wf)
+        for line in state.lines:
+            if line.id != line_id:
+                continue
+            line.status = "rolled"
+            line.payload = {
+                **line.payload,
+                "rolled": True,
+                "dice": list(claim.dice or []),
+                "total_raw": claim.total_raw,
+                "total_final": claim.total_final,
+                "armor_applied": claim.armor_applied,
+                "roll_seed": claim.roll_seed,
+            }
+        write_manifest(wf, state)
 
     @staticmethod
     def ensure_initialized(wf: Workflow, c: PerformMoveContext) -> None:
