@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import hmac
+
 from datetime import datetime, timezone
 from typing import Literal
 from uuid import UUID
@@ -20,7 +22,20 @@ from app.services import table_session as svc
 from app.services.table_recap import build_recap
 
 router = APIRouter(tags=["table"])
-internal = APIRouter(prefix="/internal/tables", tags=["table-internal"])
+
+
+def require_bridge(x_table_token: str | None = Header(default=None)) -> None:
+    """Ключ мостика стола: эти ручки зовёт сервис, а не пользователь."""
+    expected = settings.table_bridge_token
+    if not expected or not x_table_token or not hmac.compare_digest(x_table_token, expected):
+        raise HTTPException(status_code=401, detail="Неверный ключ стола")
+
+
+internal = APIRouter(
+    prefix="/internal/tables",
+    tags=["table-internal"],
+    dependencies=[Depends(require_bridge)],
+)
 
 
 class TableStart(BaseModel):
@@ -113,12 +128,6 @@ async def _owned_session(
     if row.master_id != user.id and not user.is_admin:
         raise HTTPException(status_code=403, detail="Только мастер этой сессии")
     return row
-
-
-def _require_bridge(token: str | None) -> None:
-    expected = settings.table_bridge_token
-    if not expected or token != expected:
-        raise HTTPException(status_code=401, detail="Неверный ключ стола")
 
 
 async def _table_or_404(db: AsyncSession, table_id: UUID) -> models.TableSession:
@@ -628,10 +637,8 @@ async def lobby_test(
 
 @internal.get("")
 async def active_tables(
-    x_table_token: str | None = Header(default=None),
     db: AsyncSession = Depends(get_db),
 ):
-    _require_bridge(x_table_token)
     rows = (await db.execute(
         select(models.TableSession).where(models.TableSession.status.in_(svc.LIVE_STATUSES))
     )).scalars().all()
@@ -656,10 +663,8 @@ async def active_tables(
 @internal.get("/{table_id}/mix")
 async def mix_cursor(
     table_id: UUID,
-    x_table_token: str | None = Header(default=None),
     db: AsyncSession = Depends(get_db),
 ):
-    _require_bridge(x_table_token)
     table = await _table_or_404(db, table_id)
     if table.preview or table.game_session_id is None:
         return {"audio": None}
@@ -670,10 +675,8 @@ async def mix_cursor(
 async def mix_report(
     table_id: UUID,
     body: MixIn,
-    x_table_token: str | None = Header(default=None),
     db: AsyncSession = Depends(get_db),
 ):
-    _require_bridge(x_table_token)
     table = await _table_or_404(db, table_id)
     if table.status == "discarded":
         return {"ok": True}
@@ -706,10 +709,8 @@ async def mix_report(
 async def music_span(
     table_id: UUID,
     body: MusicSpanIn,
-    x_table_token: str | None = Header(default=None),
     db: AsyncSession = Depends(get_db),
 ):
-    _require_bridge(x_table_token)
     table = await _table_or_404(db, table_id)
     if table.preview or table.status == "discarded":
         return {"ok": True}
@@ -731,10 +732,8 @@ async def music_span(
 async def set_status(
     table_id: UUID,
     body: StatusIn,
-    x_table_token: str | None = Header(default=None),
     db: AsyncSession = Depends(get_db),
 ):
-    _require_bridge(x_table_token)
     table = await db.get(models.TableSession, table_id, with_for_update=True)
     if table is None:
         raise HTTPException(status_code=404, detail="Стол не найден")
@@ -767,10 +766,8 @@ async def set_status(
 async def save_test_report(
     table_id: UUID,
     body: TestReportIn,
-    x_table_token: str | None = Header(default=None),
     db: AsyncSession = Depends(get_db),
 ):
-    _require_bridge(x_table_token)
     table = await _table_or_404(db, table_id)
     table.test_report = body.text
     table.test_requested = False
@@ -782,10 +779,8 @@ async def save_test_report(
 async def report_participant(
     table_id: UUID,
     body: ParticipantIn,
-    x_table_token: str | None = Header(default=None),
     db: AsyncSession = Depends(get_db),
 ):
-    _require_bridge(x_table_token)
     await _table_or_404(db, table_id)
     row = await svc.upsert_participant(db, table_id, body.jitsi_id, body.display_name)
     await db.commit()
@@ -796,10 +791,8 @@ async def report_participant(
 async def report_progress(
     table_id: UUID,
     body: ProgressIn,
-    x_table_token: str | None = Header(default=None),
     db: AsyncSession = Depends(get_db),
 ):
-    _require_bridge(x_table_token)
     await _table_or_404(db, table_id)
     row = await svc.upsert_participant(db, table_id, body.jitsi_id, body.display_name)
     row.live_bytes = max(int(body.bytes), 0)
@@ -816,10 +809,8 @@ async def upload_segment(
     started_at: datetime = Form(...),
     ended_at: datetime = Form(...),
     file: UploadFile = File(...),
-    x_table_token: str | None = Header(default=None),
     db: AsyncSession = Depends(get_db),
 ):
-    _require_bridge(x_table_token)
     table = await _table_or_404(db, table_id)
     if table.preview or table.status == "discarded":
         return {"ok": True, "preview": table.preview}
