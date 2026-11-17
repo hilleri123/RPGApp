@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+import asyncio
 from typing import Any, Iterable
 from uuid import UUID
 
 from sqlalchemy import delete, select
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 
 from app.infrastructure.database import AsyncSessionLocal
 from app.models.inventory import InventoryItem, InventoryParticipant
@@ -193,7 +195,7 @@ async def replace_zone(session_id: UUID, user_id: UUID, wanted: set[tuple[str, U
         if not appeared and not gone:
             return
         for object_type, object_id in gone:
-            await db.execute(
+            removed = await db.execute(
                 delete(VisibilityMember).where(
                     VisibilityMember.session_id == session_id,
                     VisibilityMember.user_id == user_id,
@@ -201,6 +203,8 @@ async def replace_zone(session_id: UUID, user_id: UUID, wanted: set[tuple[str, U
                     VisibilityMember.object_id == object_id,
                 )
             )
+            if not removed.rowcount:
+                continue
             db.add(
                 ObjectChange(
                     object_type=object_type,
@@ -211,14 +215,24 @@ async def replace_zone(session_id: UUID, user_id: UUID, wanted: set[tuple[str, U
                 )
             )
         for object_type, object_id in appeared:
-            db.add(
-                VisibilityMember(
-                    session_id=session_id,
-                    user_id=user_id,
-                    object_type=object_type,
-                    object_id=object_id,
+            # Параллельная пересборка (другой процесс, GET /visible рядом с тиком)
+            # могла уже вставить ту же строку: тогда это не 500, а «уже есть»,
+            # и журнал второй раз не пишем.
+            inserted = (
+                await db.execute(
+                    pg_insert(VisibilityMember)
+                    .values(
+                        session_id=session_id,
+                        user_id=user_id,
+                        object_type=object_type,
+                        object_id=object_id,
+                    )
+                    .on_conflict_do_nothing(constraint="uq_visibility_member")
+                    .returning(VisibilityMember.id)
                 )
-            )
+            ).first()
+            if inserted is None:
+                continue
             db.add(
                 ObjectChange(
                     object_type=object_type,
@@ -268,7 +282,19 @@ async def _scenario_inventory_keys(scenario_id) -> set[tuple[str, UUID]]:
     return {("inventory", inventory_id) for inventory_id in rows}
 
 
+_rebuild_locks: dict[tuple[UUID, UUID], asyncio.Lock] = {}
+
+
 async def rebuild_for_user(session_id: UUID, user_id: UUID, role: str) -> None:
+    # Одну зону в процессе пересобирает один вызов: тик шедулера, подключение
+    # сокета и GET /visible приходят одновременно и сверяли одну и ту же базу.
+    key = (UUID(str(session_id)), UUID(str(user_id)))
+    lock = _rebuild_locks.setdefault(key, asyncio.Lock())
+    async with lock:
+        await _rebuild_for_user(session_id, user_id, role)
+
+
+async def _rebuild_for_user(session_id: UUID, user_id: UUID, role: str) -> None:
     from app.managers import session_manager
 
     manager = await session_manager.ensure_manager(str(session_id))

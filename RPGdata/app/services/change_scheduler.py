@@ -15,6 +15,17 @@ from app.models.object_change import ObjectChange
 TICK_SEC = 0.1
 
 
+# Таблицы сущностей сценария: только их правка делает кэш get_inner() устаревшим.
+# Сцены, действия, журнал и строки зоны живут в своих таблицах сессии.
+ENTITY_TYPES = frozenset(
+    {"player_character", "npc", "game_item", "location", "obstacle", "note", "story_beat"}
+)
+
+
+def entities_changed(rows) -> bool:
+    return any(row.object_type in ENTITY_TYPES and row.op not in ("gone", "appeared") for row in rows)
+
+
 def inventory_changed(rows) -> bool:
     """Изменился ли сам инвентарь, а не чья-то зона видимости.
 
@@ -90,10 +101,11 @@ class ChangeScheduler:
         from app.managers import master_connection_manager, session_manager
         from app.services.visibility_service import load_visible_keys, rebuild_for_user
 
-        for sid in {watch.session_id for watch in self.watches.values()}:
-            manager = session_manager.managers.get(str(sid))
-            if manager is not None and rows:
-                await manager.invalidate_entity_cache()
+        if entities_changed(rows):
+            for sid in {watch.session_id for watch in self.watches.values()}:
+                manager = session_manager.managers.get(str(sid))
+                if manager is not None:
+                    await manager.invalidate_entity_cache()
 
         pending = set(self.dirty_sessions)
         self.dirty_sessions.clear()
