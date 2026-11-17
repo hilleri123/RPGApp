@@ -117,14 +117,13 @@ async def _invite_user(lobby_m, connection_manager, master: models.User, target_
 async def websocket_endpoint(
     websocket: WebSocket,
     lobby_id: str,
-    db: AsyncSession = Depends(get_db)
 ):
     current_user = None
     connection_manager = master_connection_manager["lobby"]
     lobby_m = lobby_manager[lobby_id]
     try:
         await websocket.accept()
-        current_user = await get_current_user_ws(websocket, db)
+        current_user = await get_current_user_ws(websocket)
 
         await connection_manager.connect(current_user.id, websocket)
 
