@@ -8,6 +8,7 @@ import { toast } from 'sonner';
 import Header from '@/app/components/layout/Header';
 import { Characters } from '@/app/components/lobby/Characters';
 import { Players } from '@/app/components/lobby/Players';
+import { LobbyRoomPrompt } from '@/app/components/lobby/LobbyRoomPrompt';
 import { useLobbyWebSocket } from '@/app/services/hooks/useLobbyWebSocket';
 import { applicationApiService } from '@/app/services/api/application';
 import { lobbyApiService } from '@/app/services/api/lobby';
@@ -220,18 +221,25 @@ export function LobbyPlayerView({ lobbyId }: { lobbyId: string }) {
               {lobby.scenario?.name ?? 'Не выбран'}
             </p>
           </div>
-          {hasCharacter ? (
-            <Badge
-              variant="secondary"
-              className="shrink-0 bg-emerald-500/15 text-emerald-200 border-emerald-500/30"
-            >
-              Персонаж выбран
-            </Badge>
-          ) : (
-            <Badge variant="secondary" className="shrink-0 bg-amber-500/15 text-amber-200 border-amber-500/30">
-              Выберите персонажа
-            </Badge>
-          )}
+          <div className="flex shrink-0 items-center gap-2">
+            <LobbyRoomPrompt
+              lobbyId={lobbyId}
+              roomUrl={lobby.jitsi_room_url}
+              password={lobby.jitsi_password}
+            />
+            {hasCharacter ? (
+              <Badge
+                variant="secondary"
+                className="shrink-0 bg-emerald-500/15 text-emerald-200 border-emerald-500/30"
+              >
+                Персонаж выбран
+              </Badge>
+            ) : (
+              <Badge variant="secondary" className="shrink-0 bg-amber-500/15 text-amber-200 border-amber-500/30">
+                Выберите персонажа
+              </Badge>
+            )}
+          </div>
         </div>
         <div className="flex items-center gap-2 text-xs text-gray-400">
           {lobby.master?.img_url || lobby.master?.icon_url ? (
