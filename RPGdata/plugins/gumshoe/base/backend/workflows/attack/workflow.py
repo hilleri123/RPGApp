@@ -99,6 +99,8 @@ class AttackWorkflow:
         actor_id = action_context.actorUserId
         links    = action_context.links
         is_gm    = actor_id == action_context.participants.gmUserId
+        participants_dict = action_context.participants.model_dump(mode="json")
+        participants = ActionParticipants.model_validate(participants_dict)
 
         if is_gm:
             # GM сам выберет атакующего на стадии setup
@@ -130,9 +132,6 @@ class AttackWorkflow:
             status="active",
             context=ctx.model_dump(mode="json"),
         )
-
-        participants_dict = action_context.participants.model_dump(mode="json")
-        participants = ActionParticipants.model_validate(participants_dict)
 
         return self._rb.result(
             ok=True,

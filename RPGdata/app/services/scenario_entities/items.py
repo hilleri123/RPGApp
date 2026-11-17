@@ -6,6 +6,7 @@ from uuid import UUID, uuid4
 from fastapi import HTTPException
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app import models, scheme
 from app.plugins.contracts import EntityPayload

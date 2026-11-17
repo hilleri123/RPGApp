@@ -10,6 +10,7 @@ from app.auth import require_master, get_current_user
 from app.infrastructure.database import get_async_session as get_db
 from app.managers import lobby_manager
 from app.services import campaign_service
+from app.services.campaign_service import _character_id_from_carryover
 
 router = APIRouter(prefix="/campaigns", tags=["campaigns"])
 
