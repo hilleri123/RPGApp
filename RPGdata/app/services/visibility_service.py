@@ -118,6 +118,10 @@ def wanted_ids(
     if audio_mode == "local":
         for entry in audio_queue:
             add("audio_queue", _id_of(entry))
+    show_everyone = bool(
+        settings.get("show_action_to_everyone") if isinstance(settings, dict)
+        else getattr(settings, "show_action_to_everyone", False)
+    )
     for action in actions:
         participants = set()
         raw_ids = action.get("participantIds") if isinstance(action, dict) else getattr(action, "participantIds", None)
@@ -125,7 +129,11 @@ def wanted_ids(
             uid = _uid(pid)
             if uid:
                 participants.add(uid)
-        if user_id in participants or participants & character_ids or not raw_ids:
+        tags = action.get("tags") if isinstance(action, dict) else getattr(action, "tags", None)
+        # «Показывать действие всем»: чужое действие видно только для чтения,
+        # кроме скрытых мастером.
+        shared = show_everyone and "hidden" not in (tags or [])
+        if shared or user_id in participants or participants & character_ids or not raw_ids:
             add("action", _id_of(action))
     for line in logs:
         add("log", _id_of(line))

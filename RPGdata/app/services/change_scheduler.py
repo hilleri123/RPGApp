@@ -120,7 +120,10 @@ class ChangeScheduler:
             for row in mine:
                 in_zone = (row.object_type, row.object_id) in zone
                 if row.op == "gone":
-                    if row.session_id != watch.session_id:
+                    # gone пишется при пересборке зоны одного человека, а в строке
+                    # журнала нет, чьей. Если объект в моей зоне, он ушёл не от меня:
+                    # иначе мастер терял НПС и сцены, которые ушли из зоны игрока.
+                    if row.session_id != watch.session_id or in_zone:
                         continue
                 elif not in_zone:
                     continue
