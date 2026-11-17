@@ -15,6 +15,15 @@ from app.models.object_change import ObjectChange
 TICK_SEC = 0.1
 
 
+def inventory_changed(rows) -> bool:
+    """Изменился ли сам инвентарь, а не чья-то зона видимости.
+
+    gone/appeared пишет пересборка зоны. Если реагировать на них, пересборка
+    будит себя же: так шла петля по инвентарю несколько раз в секунду.
+    """
+    return any(row.object_type == "inventory" and row.op not in ("gone", "appeared") for row in rows)
+
+
 @dataclass
 class _Watch:
     session_id: UUID
@@ -88,7 +97,7 @@ class ChangeScheduler:
 
         pending = set(self.dirty_sessions)
         self.dirty_sessions.clear()
-        inventory_rows = any(row.object_type == "inventory" for row in rows)
+        inventory_rows = inventory_changed(rows)
         for watch in list(self.watches.values()):
             if watch.session_id in pending or inventory_rows:
                 await rebuild_for_user(watch.session_id, watch.user_id, watch.role)

@@ -223,9 +223,10 @@ async def replace_zone(session_id: UUID, user_id: UUID, wanted: set[tuple[str, U
         await db.commit()
 
 
-async def add_inventory_visibility(session_id: UUID, user_id: UUID, character_ids: set[UUID]) -> None:
+async def _player_inventory_keys(character_ids: set[UUID]) -> set[tuple[str, UUID]]:
+    """Инвентари персонажей игрока и предметы в них."""
     if not character_ids:
-        return
+        return set()
     async with AsyncSessionLocal() as db:
         participant_rows = (
             await db.execute(
@@ -237,40 +238,26 @@ async def add_inventory_visibility(session_id: UUID, user_id: UUID, character_id
         ).scalars().all()
         inventory_ids = {row.inventory_id for row in participant_rows}
         if not inventory_ids:
-            return
+            return set()
         item_rows = (
             await db.execute(select(InventoryItem).where(InventoryItem.inventory_id.in_(inventory_ids)))
         ).scalars().all()
-        extra = {("inventory", iid) for iid in inventory_ids}
-        extra |= {("game_item", row.item_id) for row in item_rows}
-        existing = (
-            await db.execute(
-                select(VisibilityMember).where(
-                    VisibilityMember.session_id == session_id,
-                    VisibilityMember.user_id == user_id,
-                )
-            )
+    keys = {("inventory", iid) for iid in inventory_ids}
+    keys |= {("game_item", row.item_id) for row in item_rows}
+    return keys
+
+
+async def _scenario_inventory_keys(scenario_id) -> set[tuple[str, UUID]]:
+    """Мастер видит все инвентари сценария."""
+    if not scenario_id:
+        return set()
+    from app.models.inventory import Inventory
+
+    async with AsyncSessionLocal() as db:
+        rows = (
+            await db.execute(select(Inventory.id).where(Inventory.scenario_id == scenario_id))
         ).scalars().all()
-        have = {(row.object_type, row.object_id) for row in existing}
-        for object_type, object_id in extra - have:
-            db.add(
-                VisibilityMember(
-                    session_id=session_id,
-                    user_id=user_id,
-                    object_type=object_type,
-                    object_id=object_id,
-                )
-            )
-            db.add(
-                ObjectChange(
-                    object_type=object_type,
-                    object_id=object_id,
-                    version=0,
-                    op="appeared",
-                    session_id=session_id,
-                )
-            )
-        await db.commit()
+    return {("inventory", inventory_id) for inventory_id in rows}
 
 
 async def rebuild_for_user(session_id: UUID, user_id: UUID, role: str) -> None:
@@ -280,46 +267,15 @@ async def rebuild_for_user(session_id: UUID, user_id: UUID, role: str) -> None:
     inner = await manager.get_inner()
     chars = character_ids_for_user(inner, user_id)
     wanted = wanted_ids(inner, role=role, user_id=user_id, character_ids=chars)
-    await replace_zone(session_id, user_id, wanted)
+    # Инвентари входят в ту же зону, что и остальное. Раньше replace_zone
+    # выкидывал их (их нет в wanted_ids) с записью gone в журнал, а следующий
+    # шаг тут же добавлял обратно. Строка инвентаря в журнале заставляла
+    # шедулер пересобрать зону снова — петля несколько раз в секунду.
     if role == "master":
-        await _add_scenario_inventories(session_id, user_id, getattr(inner, "scenario_id", None))
+        wanted |= await _scenario_inventory_keys(getattr(inner, "scenario_id", None))
     else:
-        await add_inventory_visibility(session_id, user_id, chars)
-
-
-async def _add_scenario_inventories(session_id: UUID, user_id: UUID, scenario_id) -> None:
-    if not scenario_id:
-        return
-    from app.models.inventory import Inventory
-
-    async with AsyncSessionLocal() as db:
-        rows = (
-            await db.execute(select(Inventory.id).where(Inventory.scenario_id == scenario_id))
-        ).scalars().all()
-        if not rows:
-            return
-        existing = (
-            await db.execute(
-                select(VisibilityMember.object_id).where(
-                    VisibilityMember.session_id == session_id,
-                    VisibilityMember.user_id == user_id,
-                    VisibilityMember.object_type == "inventory",
-                )
-            )
-        ).scalars().all()
-        have = set(existing)
-        for inventory_id in rows:
-            if inventory_id in have:
-                continue
-            db.add(
-                VisibilityMember(
-                    session_id=session_id,
-                    user_id=user_id,
-                    object_type="inventory",
-                    object_id=inventory_id,
-                )
-            )
-        await db.commit()
+        wanted |= await _player_inventory_keys(chars)
+    await replace_zone(session_id, user_id, wanted)
 
 
 async def load_visible_keys(session_id: UUID, user_id: UUID) -> set[tuple[str, UUID]]:
