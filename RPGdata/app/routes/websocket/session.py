@@ -5,7 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth import get_current_user, get_current_user_ws
 from app.managers import observer_channels, ChannelKey, session_manager, master_connection_manager
-from app.managers.connection_manager import is_websocket_gone
+from app.managers.connection_manager import is_websocket_gone, session_sockets, session_tag
 from app.managers.session import expand_dependent_fields
 from app.infrastructure.database import get_async_session as get_db
 from app import models, scheme
@@ -47,7 +47,7 @@ async def websocket_endpoint(
     db: AsyncSession = Depends(get_db)
 ):
 
-    connection_manager = master_connection_manager["session"]
+    connection_manager = session_sockets(session_id)
     session_m = await session_manager.ensure_manager(session_id)
     current_user = None
     active_claim: str | None = None
@@ -556,8 +556,12 @@ async def websocket_endpoint(
         if current_user is not None:
             from app.services.change_scheduler import scheduler
 
-            scheduler.unwatch(session_id, current_user.id)
             await connection_manager.disconnect(current_user.id, websocket)
+            # Подписка общая на все вкладки человека в этой сессии (окно сцены,
+            # основное окно): снимаем её только вместе с последним сокетом.
+            if not connection_manager.is_online(current_user.id):
+                scheduler.unwatch(session_id, current_user.id)
+        master_connection_manager.release(session_tag(session_id))
 
 
 @router.get("/{session_id}/objects")

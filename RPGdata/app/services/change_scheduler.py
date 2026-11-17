@@ -35,6 +35,13 @@ class ChangeScheduler:
 
     def watch(self, session_id: UUID | str, user_id: UUID | str, role: str, cursor: int) -> None:
         key = (UUID(str(session_id)), UUID(str(user_id)))
+        existing = self.watches.get(key)
+        if existing is not None:
+            # Вторая вкладка того же человека: не перескакиваем курсор вперёд,
+            # иначе первая потеряет ещё не доставленные изменения.
+            existing.cursor = min(existing.cursor, cursor)
+            existing.role = role
+            return
         self.watches[key] = _Watch(session_id=key[0], user_id=key[1], role=role, cursor=cursor)
 
     def unwatch(self, session_id: UUID | str, user_id: UUID | str) -> None:
@@ -78,7 +85,8 @@ class ChangeScheduler:
             ).scalars().all()
         if not rows and not self.dirty_sessions:
             return
-        from app.managers import master_connection_manager, session_manager
+        from app.managers import session_manager
+        from app.managers.connection_manager import session_sockets
         from app.services.visibility_service import load_visible_keys, rebuild_for_user
 
         for sid in {watch.session_id for watch in self.watches.values()}:
@@ -96,7 +104,6 @@ class ChangeScheduler:
             return
         newest = int(rows[-1].id)
 
-        sockets = master_connection_manager["session"]
         visible_cache: dict[tuple[UUID, UUID], set[tuple[str, UUID]]] = {}
         for watch in list(self.watches.values()):
             mine = [row for row in rows if int(row.id) > watch.cursor]
@@ -126,7 +133,7 @@ class ChangeScheduler:
                 )
             if not batch:
                 continue
-            await sockets.send_json(
+            await session_sockets(watch.session_id).send_json(
                 watch.user_id,
                 {
                     "msg_type": "object_changes",

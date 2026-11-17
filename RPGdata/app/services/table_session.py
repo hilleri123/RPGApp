@@ -296,7 +296,7 @@ async def open_table(
 async def route_session_music(session_id: UUID, to_jitsi: bool) -> None:
     """Куда слышна очередь: в браузере или только в комнате Переговорки."""
     try:
-        from app.managers import master_connection_manager
+        from app.managers.connection_manager import session_sockets
         from app.managers.session_manager import session_manager
 
         manager = await session_manager.ensure_manager(str(session_id))
@@ -308,7 +308,7 @@ async def route_session_music(session_id: UUID, to_jitsi: bool) -> None:
             return
         inner.audio_player.via = target
         await manager.set_inner(inner)
-        await manager.push_entity_updates(master_connection_manager["session"], ["audio_queue"])
+        await manager.push_entity_updates(session_sockets(session_id), ["audio_queue"])
     except Exception:
         return
 
