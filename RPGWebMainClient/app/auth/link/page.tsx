@@ -1,16 +1,40 @@
 'use client';
 
 import { useEffect, useState, Suspense } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useSearchParams } from 'next/navigation';
 import { Loader2 } from 'lucide-react';
 import { authApiService } from '@/app/services/api/auth';
-import { useAuth } from '@/app/services/hooks/useAuth';
 import { safeReturnTo } from '@/app/lib/auth/routes';
 
+/**
+ * Один вход на токен за загрузку страницы. Эффект может отработать дважды
+ * (StrictMode, перерендер): второй прогон ждёт тот же промис, а не тратит
+ * одноразовый токен повторно и не получает «Ссылка устарела».
+ */
+const linkLogins = new Map<string, Promise<void>>();
+
+function loginOnce(token: string | null): Promise<void> {
+  const key = token ?? '';
+  let pending = linkLogins.get(key);
+  if (!pending) {
+    pending = (async () => {
+      // Уже залогинен — токен не тратим.
+      try {
+        await authApiService.getCurrentUser();
+        return;
+      } catch {
+        // нет сессии — пробуем одноразовую ссылку
+      }
+      if (!token) throw new Error('Ссылка устарела');
+      await authApiService.linkLogin(token);
+    })();
+    linkLogins.set(key, pending);
+  }
+  return pending;
+}
+
 function LinkLoginInner() {
-  const router = useRouter();
   const searchParams = useSearchParams();
-  const { refreshAuth } = useAuth();
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -18,39 +42,23 @@ function LinkLoginInner() {
     const next = safeReturnTo(searchParams.get('next'), '/');
     let cancelled = false;
 
-    void (async () => {
-      // Уже залогинен — токен не тратим, идём в лобби/корень.
-      try {
-        await authApiService.getCurrentUser();
-        if (!cancelled) {
-          await refreshAuth();
-          router.replace(next);
-        }
-        return;
-      } catch {
-        // нет сессии — пробуем одноразовую ссылку
-      }
-
-      if (!token) {
-        if (!cancelled) setError('Ссылка устарела');
-        return;
-      }
-
-      try {
-        await authApiService.linkLogin(token);
-        await refreshAuth();
-        if (!cancelled) router.replace(next);
-      } catch (e: unknown) {
+    loginOnce(token).then(
+      () => {
+        // Полная загрузка: AuthProvider поднимется заново уже с куками,
+        // и /session/<id> откроется залогиненным.
+        window.location.replace(next);
+      },
+      (e: unknown) => {
         if (cancelled) return;
         const msg = e instanceof Error ? e.message : 'Ссылка устарела';
         setError(msg.includes('устарел') ? msg : 'Ссылка устарела');
-      }
-    })();
+      },
+    );
 
     return () => {
       cancelled = true;
     };
-  }, [searchParams, router, refreshAuth]);
+  }, [searchParams]);
 
   if (error) {
     return (

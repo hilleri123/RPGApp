@@ -78,7 +78,9 @@ export function useAuthState() {
 
       const setGuest = () => {
         if (cancelled) return;
-        authApiService.logout();
+        // Только локально: сервер куки уже отверг, а POST /auth/logout здесь
+        // гоняется с параллельным входом (например, /auth/link) и стирает свежие куки.
+        authApiService.forgetUser();
         setState({ user: null, isAuthenticated: false, loading: false, error: null });
       };
 

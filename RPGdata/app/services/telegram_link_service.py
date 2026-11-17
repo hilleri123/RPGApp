@@ -36,10 +36,10 @@ async def create_link_token(
 
 async def consume_link_token(token: str) -> dict[str, Any] | None:
     key = f"{TG_LINK_PREFIX}{token}"
-    raw = await redis_client.get(key)
+    # GETDEL атомарен: два одновременных входа по одной ссылке не пройдут оба.
+    raw = await redis_client.getdel(key)
     if not raw:
         return None
-    await redis_client.delete(key)
     if isinstance(raw, bytes):
         raw = raw.decode()
     return json.loads(raw)

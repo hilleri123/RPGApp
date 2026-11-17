@@ -124,6 +124,11 @@ export class AuthApiService extends BaseApiClient {
     }
   }
 
+  /** Забыть пользователя в браузере, не трогая серверные куки. */
+  public forgetUser(): void {
+    this.clearUser();
+  }
+
   private clearUser(): void {
     if (typeof window !== 'undefined') {
       localStorage.removeItem(this.USER_KEY);
