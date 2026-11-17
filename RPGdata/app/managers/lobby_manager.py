@@ -16,6 +16,23 @@ from .session_manager import session_manager
 
 LOBBY_KEY_PREFIX = "lobby"
 
+
+async def _can_run_scenario(db, user: models.User | None, scenario: models.Scenario) -> bool:
+    """Мастер лобби берёт в игру только сценарий, который ему доступен."""
+    if user is None:
+        return False
+    from fastapi import HTTPException
+
+    from app.auth.permissions import PERM_READ
+    from app.routes.scenarios.access import require_scenario_access
+
+    try:
+        await require_scenario_access(db, user, scenario, PERM_READ)
+    except HTTPException:
+        return False
+    return True
+
+
 class CurrentLobbyManager:
 
     def __init__(self, lobby_id: str):
@@ -72,7 +89,9 @@ class CurrentLobbyManager:
         )
         return True
     
-    async def select_lobby_scenario(self, scenario_id: int) -> bool:
+    async def select_lobby_scenario(self, scenario_id: uuid.UUID, user: models.User | None) -> bool:
+        scenario: models.Scenario | None = None
+        characters: list[dict] = []
         async for db in get_db():
             stmt = select(models.Scenario).options(
                 selectinload(models.Scenario.user),
@@ -81,8 +100,15 @@ class CurrentLobbyManager:
                 .selectinload(models.ItemOwnership.item)
             ).where(models.Scenario.id == scenario_id)
             result = await db.execute(stmt)
-            scenario: models.Scenario = result.scalars().first()
+            scenario = result.scalars().first()
+            # Запущенная копия выбирается отдельным действием: тут только заготовка.
+            if scenario is None or scenario.is_session_snapshot:
+                return False
+            if not await _can_run_scenario(db, user, scenario):
+                return False
             characters = [scheme.PlayerCharacterOut.model_validate(c).model_dump(mode="json") for c in scenario.characters]
+        if scenario is None:
+            return False
         await redis_client.json().set(
                 self._lobby_key(),
                 self._m_path('scenario'),
@@ -98,14 +124,21 @@ class CurrentLobbyManager:
                 self._m_path('campaign_id'),
                 None,
             )
+        # Без сброса старт поднимал бы ранее выбранный запущенный сценарий,
+        # хотя в лобби уже показана эта заготовка.
+        await redis_client.json().set(self._lobby_key(), self._m_path('launched_scenario_id'), None)
+        await redis_client.json().set(self._lobby_key(), self._m_path('party_id'), None)
+        await redis_client.json().set(self._lobby_key(), Path('.imported_characters'), [])
         players = await redis_client.json().get(
             self._lobby_key(),
             self._m_path('players')
-        )
+        ) or []
         players_to_set = []
         for player_data in players:
             player = scheme.Player(**player_data)
             player.character_id = None
+            player.application_id = None
+            player.is_ready = False
             players_to_set.append(player.model_dump(mode='json'))
         await redis_client.json().set(
                 self._lobby_key(),
@@ -283,7 +316,11 @@ class CurrentLobbyManager:
             imported,
         )
 
-    async def select_lobby_launched_scenario(self, launched_scenario_id: uuid.UUID) -> bool:
+    async def select_lobby_launched_scenario(
+        self,
+        launched_scenario_id: uuid.UUID,
+        user: models.User | None,
+    ) -> bool:
         scenario_payload: dict | None = None
         characters: list[dict] = []
         bindings: dict[str, dict] = {}
@@ -298,6 +335,8 @@ class CurrentLobbyManager:
             if not scenario or not scenario.is_session_snapshot:
                 return False
             if scenario.lifecycle_status == "closed":
+                return False
+            if not await _can_run_scenario(db, user, scenario):
                 return False
 
             char_stmt = (
@@ -348,6 +387,17 @@ class CurrentLobbyManager:
         return True
 
     async def select_lobby_party(self, party_id: uuid.UUID) -> bool:
+        # Партия должна принадлежать выбранному запущенному сценарию: иначе
+        # start_approach падал на чужой партии уже при старте сессии.
+        launched_raw = await redis_client.json().get(
+            self._lobby_key(), self._m_path("launched_scenario_id")
+        )
+        if not launched_raw:
+            return False
+        async for db in get_db():
+            party = await db.get(models.ScenarioParty, party_id)
+            if party is None or str(party.launched_scenario_id) != str(launched_raw):
+                return False
         await redis_client.json().set(
             self._lobby_key(),
             self._m_path("party_id"),
@@ -381,13 +431,15 @@ class CurrentLobbyManager:
                 players,
             )
 
-    async def select_lobby_campaign(self, campaign_id: uuid.UUID) -> bool:
+    async def select_lobby_campaign(self, campaign_id: uuid.UUID, user: models.User | None) -> bool:
         from app.services.campaign_service import _load_campaign
 
         launched_id: uuid.UUID | None = None
         async for db in get_db():
             campaign = await _load_campaign(db, campaign_id)
             if not campaign:
+                return False
+            if user is None or (campaign.master_id != user.id and not user.is_admin):
                 return False
             links = sorted(campaign.scenario_links or [], key=lambda x: x.order_num)
             if not links:
@@ -396,9 +448,9 @@ class CurrentLobbyManager:
             if launched_id is None:
                 step = min(campaign.current_step_index, len(links) - 1)
                 scenario_id = links[step].scenario_id
-                ok = await self.select_lobby_scenario(scenario_id)
+                ok = await self.select_lobby_scenario(scenario_id, user)
             else:
-                ok = await self.select_lobby_launched_scenario(launched_id)
+                ok = await self.select_lobby_launched_scenario(launched_id, user)
             if not ok:
                 return False
             await redis_client.json().set(
