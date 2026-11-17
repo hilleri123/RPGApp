@@ -359,6 +359,10 @@ function characterLinks(players: any[]): { characterToUserId: Record<string, str
   return { characterToUserId };
 }
 
+const EMPTY_SCENE_SIDE = {
+  npc_ids: [], item_ids: [], obstacle_ids: [], obstacles: [], npcs: [], items: [],
+};
+
 function hydrateAction(action: any, session: any): any {
   const players = session.players ?? [];
   const attached = action?.scene?.scene?.id ? action.scene.scene : action?.scene?.id ? action.scene : null;
@@ -369,7 +373,9 @@ function hydrateAction(action: any, session: any): any {
   return {
     ...action,
     scene: {
-      scene,
+      // Действие видят игроки: приватная часть сцены мастера в него не попадает,
+      // иначе формы правил предлагают скрытых НПС и раскрывают их игрокам.
+      scene: { ...scene, private: EMPTY_SCENE_SIDE },
       players: action?.scene?.players ?? players,
       links: action?.scene?.links ?? characterLinks(players),
     },
