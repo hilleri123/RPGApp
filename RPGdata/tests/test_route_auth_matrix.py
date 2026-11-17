@@ -32,6 +32,7 @@ PUBLIC_ROUTES = {
     ("POST", "/auth/distribution"): "подписка на рассылку до регистрации",
     ("GET", "/health"): "liveness-проба для healthcheck в compose",
     ("GET", "/rulesystems"): "каталог систем правил, данных пользователей нет",
+    ("GET", "/integrations/flaticon/credits"): "атрибуция авторов иконок на странице контактов",
 }
 
 # WS-каналы, открытые осознанно. Каталог комнат (`GET /session-obs/rooms`)

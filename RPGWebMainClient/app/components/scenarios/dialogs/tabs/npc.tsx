@@ -15,6 +15,7 @@ import { getNameGeneratorEntries } from '../common/nameGenerators';
 import { ScenarioTagPicker } from '../common/ScenarioTagPicker';
 import { useScenario, useScenarioOptional } from '@/app/components/scenarios/ScenarioContext';
 import { ScenarioScopedApiService } from '@/app/services/api/scenario_scoped';
+import { FlaticonIconPicker } from '../FlaticonIconPicker';
 import { GameItemEditDialog } from '../GameItemEditDialog';
 import { CreateItemFromTemplatePickerDialog } from '../CreateItemFromTemplatePickerDialog';
 import type { GameItemTemplateSeed } from '@/app/services/hooks/scenario/dialogs/useGameItemDialog';
@@ -78,7 +79,7 @@ export function NpcMainTab({ dlg }: any) {
           <div className="relative">
             <img src={iconSrc} alt="Иконка" className="w-14 h-14 rounded-md border border-gray-700 bg-gray-900 object-cover" />
             {!readOnly && (
-              <div className="absolute -right-2 -bottom-2">
+              <div className="absolute -right-2 -bottom-2 flex">
                 <ImagePicker
                   icon={PersonStanding}
                   filter="icon"
@@ -89,6 +90,12 @@ export function NpcMainTab({ dlg }: any) {
                     dlg.setAssets((a: any) => ({ ...a, iconFile: null }));
                   }}
                   onUpload={async (file: File) => dlg.setAssets((a: any) => ({ ...a, iconFile: file }))}
+                />
+                <FlaticonIconPicker
+                  onPicked={(file) => {
+                    dlg.setForm((p: any) => ({ ...p, icon_url: null }));
+                    dlg.setAssets((a: any) => ({ ...a, iconFile: file }));
+                  }}
                 />
               </div>
             )}

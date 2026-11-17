@@ -1,14 +1,21 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import Header from '@/app/components/layout/Header';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { BookOpen, Download, Mail } from 'lucide-react';
+import { BookOpen, Download, Images, Mail } from 'lucide-react';
+import { flaticonApi, FlaticonCredit } from '@/app/services/api/flaticon';
 import { CONTACT_CHANNELS, USER_GUIDE } from './contacts-config';
 
 export default function ContactsPage() {
   const channels = CONTACT_CHANNELS.filter((channel) => channel.value);
+  const [credits, setCredits] = useState<FlaticonCredit[]>([]);
+
+  useEffect(() => {
+    void flaticonApi.credits().then((result) => setCredits(result.items)).catch(() => setCredits([]));
+  }, []);
 
   return (
     <div
@@ -82,6 +89,37 @@ export default function ContactsPage() {
                 ))}
               </ul>
             )}
+          </CardContent>
+        </Card>
+
+        <Card className="bg-gray-800 border-gray-700 mt-6">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-white">
+              <Images className="w-5 h-5 text-blue-400" />
+              Иконки
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="text-sm text-gray-300 space-y-2">
+            <p>
+              Иконки взяты с{' '}
+              <a
+                href="https://www.flaticon.com/ru/free-icons/"
+                className="text-blue-400 hover:text-blue-300"
+                target="_blank"
+                rel="noreferrer"
+              >
+                https://www.flaticon.com/ru/free-icons/
+              </a>
+            </p>
+            {credits.map((credit) => (
+              <p key={credit.author_name}>
+                designed by{' '}
+                <a href={credit.author_url} className="text-blue-400 hover:text-blue-300" target="_blank" rel="noreferrer">
+                  {credit.author_name}
+                </a>{' '}
+                from Flaticon
+              </p>
+            ))}
           </CardContent>
         </Card>
 

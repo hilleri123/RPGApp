@@ -30,6 +30,7 @@ from .launched_scenarios import router as launched_scenarios_router
 from .entity_lineage import router as entity_lineage_router
 from .scenario_tags import router as scenario_tags_router
 from .fronts import router as fronts_router
+from .flaticon import router as flaticon_router
 
 
 routers = [
@@ -60,4 +61,5 @@ routers = [
     entity_lineage_router,
     scenario_tags_router,
     fronts_router,
+    flaticon_router,
 ] + scenarios_routers + access_groups_routers + image_routers + template_routers

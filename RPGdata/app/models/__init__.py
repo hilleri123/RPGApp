@@ -17,6 +17,7 @@ from .inventory import Inventory, InventoryItem, InventoryParticipant
 from .visibility import VisibilityMember
 from .session_object import SessionActionRow, SessionAudioQueueRow, SessionLogRow, SessionSceneRow
 from .prepared_seed import PreparedRollSeed
+from .flaticon_credit import FlaticonCredit
 
 from .entity_pack import *
 from .name_pack import *
