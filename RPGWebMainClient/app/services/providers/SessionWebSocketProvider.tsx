@@ -368,6 +368,33 @@ export const SessionWebSocketProvider = ({
             return;
           }
 
+          // НЕТ ДОСТУПА: мастер убрал из сессии или человек в ней не играет.
+          // Сервер закрывает сокет; без этой ветки клиент переподключался бы по кругу.
+          if (data.msg_type === "session_forbidden") {
+            toast.error(
+              data.reason === 'kicked'
+                ? 'Мастер убрал вас из сессии'
+                : 'Нет доступа к этой сессии',
+            );
+            sessionEndedRef.current = true;
+            setConnected(false);
+            clearReconnectTimer();
+            failAllPending(new Error("Session forbidden"));
+
+            const ws = socketRef.current;
+            if (ws) {
+              cleanupSocket(ws);
+              socketRef.current = null;
+            }
+
+            setTimeout(() => {
+              if (!disposedRef.current) {
+                router.push("/");
+              }
+            }, 500);
+            return;
+          }
+
           // СЕССИЯ НЕ НАЙДЕНА
           if (data.msg_type === "session_not_found") {
             toast.error('Сессия не найдена');
