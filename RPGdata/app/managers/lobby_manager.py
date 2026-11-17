@@ -450,6 +450,12 @@ class CurrentLobbyManager:
         )
         if not players:
             return False
+        # Один персонаж — один игрок: второй выбор того же персонажа отклоняем.
+        for player in players:
+            if str((player.get("user") or {}).get("id")) == str(user.id):
+                continue
+            if str(player.get("character_id") or "") == str(character_id):
+                return False
         for player_ind, player in enumerate(players):
             if str((player.get("user") or {}).get("id")) != str(user.id):
                 continue
@@ -546,6 +552,13 @@ class CurrentLobbyManager:
     
     async def player_select_character(self, user: models.User, character_id: uuid.UUID) -> bool:
         cid = character_id if isinstance(character_id, uuid.UUID) else uuid.UUID(str(character_id))
+        # Только персонаж выбранного сценария. Персонажи из заявок идут через
+        # player_select_application_character, где проверяется владелец заявки.
+        characters = await redis_client.json().get(
+            self._lobby_key(), self._m_path("characters")
+        ) or []
+        if not any(str(c.get("id")) == str(cid) for c in characters):
+            return False
         return await self._assign_player_character(user, character_id=cid, application_id=None)
     
     async def player_deselect_character(self, user: models.User) -> bool:
@@ -815,6 +828,9 @@ class CurrentLobbyManager:
         for player in lobby.players:
             if not player.character_id or not player.is_ready:
                 return None
+        chosen = [str(p.character_id) for p in lobby.players]
+        if len(set(chosen)) != len(chosen):
+            return None
 
         return await session_manager.create_session(lobby)
 
