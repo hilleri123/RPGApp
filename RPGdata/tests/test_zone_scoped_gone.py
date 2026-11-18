@@ -58,7 +58,9 @@ async def test_gone_skips_users_who_still_see_the_object(monkeypatch):
     monkeypatch.setattr(scheduler_mod, "AsyncSessionLocal", lambda: _FakeDb([row]))
     monkeypatch.setattr(visibility_service, "load_visible_keys", load_visible_keys)
     monkeypatch.setattr(visibility_service, "rebuild_for_user", rebuild_for_user)
-    monkeypatch.setattr(managers_pkg, "master_connection_manager", {"session": sockets})
+    from app.managers import connection_manager
+
+    monkeypatch.setattr(connection_manager, "session_sockets", lambda _sid: sockets)
     monkeypatch.setattr(managers_pkg.session_manager, "managers", {})
 
     sched = scheduler_mod.ChangeScheduler()
