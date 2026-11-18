@@ -146,13 +146,26 @@ async def ensure_default_party(
 async def _load_lobby_character_lookups(
     db: AsyncSession,
     lobby: scheme.Lobby,
+    *,
+    scenario_id: UUID,
 ) -> tuple[dict[UUID, models.CharacterApplication], dict[UUID, models.PlayerCharacter]]:
+    """Персонажи, которых игроки лобби берут в игру.
+
+    id приходит от клиента, поэтому доверять ему нельзя: заявку берём только
+    у её владельца, а персонажа сценария — только из этого сценария. Иначе
+    игрок мог указать чужой id и привязать к себе (bound_user_id) чужого
+    персонажа или увезти чужую заявку в свой запущенный сценарий.
+    """
     from app.services.application_entity_service import index_applications_by_id
 
     lobby_players = getattr(lobby, "players", None) or []
-    all_char_ids = [
-        UUID(str(p.character_id)) for p in lobby_players if getattr(p, "character_id", None)
-    ]
+    owner_by_char: dict[UUID, UUID] = {}
+    for p in lobby_players:
+        raw = getattr(p, "character_id", None)
+        user = getattr(p, "user", None)
+        if raw and user is not None:
+            owner_by_char[UUID(str(raw))] = UUID(str(user.id))
+    all_char_ids = list(owner_by_char)
     apps_by_id: dict[UUID, models.CharacterApplication] = {}
     scenario_chars_by_id: dict[UUID, models.PlayerCharacter] = {}
     if not all_char_ids:
@@ -172,11 +185,23 @@ async def _load_lobby_character_lookups(
             .selectinload(models.ItemOwnership.item),
         )
     )
-    apps_by_id = index_applications_by_id(list(imp_result.scalars().all()))
+    own_apps = []
+    for app in imp_result.scalars().all():
+        owner = owner_by_char.get(app.id) or owner_by_char.get(app.player_character_id)
+        if owner is not None and app.user_id == owner:
+            own_apps.append(app)
+    apps_by_id = index_applications_by_id(own_apps)
     sc_ids = [cid for cid in all_char_ids if cid not in apps_by_id]
     if sc_ids:
         sc_result = await db.execute(
-            select(models.PlayerCharacter).where(models.PlayerCharacter.id.in_(sc_ids))
+            select(models.PlayerCharacter).where(
+                models.PlayerCharacter.id.in_(sc_ids),
+                models.PlayerCharacter.id.in_(
+                    select(models.CharacterScenario.character_id).where(
+                        models.CharacterScenario.scenario_id == scenario_id
+                    )
+                ),
+            )
         )
         for ch in sc_result.scalars().all():
             scenario_chars_by_id[ch.id] = ch
@@ -340,7 +365,9 @@ async def start_approach(
         if not party or party.launched_scenario_id != launched_scenario_id:
             raise ValueError("party does not belong to launched scenario")
 
-    apps_by_id, scenario_chars_by_id = await _load_lobby_character_lookups(db, lobby)
+    apps_by_id, scenario_chars_by_id = await _load_lobby_character_lookups(
+        db, lobby, scenario_id=launched.id
+    )
 
     # Re-attach pool application characters after previous finish_session detach.
     from app.services.application_entity_service import ensure_applications_attached_to_scenario
@@ -426,7 +453,9 @@ async def launch_and_start_approach(
     campaign_total_steps: int | None = None,
     carryover: dict | None = None,
 ) -> scheme.SessionRedirect:
-    apps_by_id, scenario_chars_by_id = await _load_lobby_character_lookups(db, lobby)
+    apps_by_id, scenario_chars_by_id = await _load_lobby_character_lookups(
+        db, lobby, scenario_id=prep_scenario_id
+    )
 
     unique_apps = {app.id: app for app in apps_by_id.values()}
     clone_result = await launch_scenario(
