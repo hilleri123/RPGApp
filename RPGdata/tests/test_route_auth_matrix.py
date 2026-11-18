@@ -18,6 +18,8 @@ AUTH_DEPENDENCIES = {
     "get_current_user_ws",
     "require_master",
     "require_admin",
+    # Не пользователь, а сервис: мостик стола приходит со своим ключом.
+    "require_bridge",
 }
 
 # Публичные роуты. Каждый — с обоснованием: список нужен, чтобы новый открытый
