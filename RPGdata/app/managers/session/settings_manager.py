@@ -42,6 +42,9 @@ class SessionSettingsManager(SessionUserManager):
         if not ok:
             raise HTTPException(status_code=404, detail="session not found in redis")
 
+        # От настроек зависит зона игроков: «показывать действие всем»,
+        # объединение сцен, локальный звук.
+        self._mark_visibility_dirty()
         return True, ["settings", "scenes", "actions"]
 
     async def reset_settings(self, user: models.User) -> scheme.Settings:

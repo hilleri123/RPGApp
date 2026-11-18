@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+import asyncio
 from typing import Any, Iterable
 from uuid import UUID
 
 from sqlalchemy import delete, select
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 
 from app.infrastructure.database import AsyncSessionLocal
 from app.models.inventory import InventoryItem, InventoryParticipant
@@ -118,6 +120,10 @@ def wanted_ids(
     if audio_mode == "local":
         for entry in audio_queue:
             add("audio_queue", _id_of(entry))
+    show_everyone = bool(
+        settings.get("show_action_to_everyone") if isinstance(settings, dict)
+        else getattr(settings, "show_action_to_everyone", False)
+    )
     for action in actions:
         participants = set()
         raw_ids = action.get("participantIds") if isinstance(action, dict) else getattr(action, "participantIds", None)
@@ -125,7 +131,11 @@ def wanted_ids(
             uid = _uid(pid)
             if uid:
                 participants.add(uid)
-        if user_id in participants or participants & character_ids or not raw_ids:
+        tags = action.get("tags") if isinstance(action, dict) else getattr(action, "tags", None)
+        # «Показывать действие всем»: чужое действие видно только для чтения,
+        # кроме скрытых мастером.
+        shared = show_everyone and "hidden" not in (tags or [])
+        if shared or user_id in participants or participants & character_ids or not raw_ids:
             add("action", _id_of(action))
     for line in logs:
         add("log", _id_of(line))
@@ -185,7 +195,7 @@ async def replace_zone(session_id: UUID, user_id: UUID, wanted: set[tuple[str, U
         if not appeared and not gone:
             return
         for object_type, object_id in gone:
-            await db.execute(
+            removed = await db.execute(
                 delete(VisibilityMember).where(
                     VisibilityMember.session_id == session_id,
                     VisibilityMember.user_id == user_id,
@@ -193,6 +203,8 @@ async def replace_zone(session_id: UUID, user_id: UUID, wanted: set[tuple[str, U
                     VisibilityMember.object_id == object_id,
                 )
             )
+            if not removed.rowcount:
+                continue
             db.add(
                 ObjectChange(
                     object_type=object_type,
@@ -203,14 +215,24 @@ async def replace_zone(session_id: UUID, user_id: UUID, wanted: set[tuple[str, U
                 )
             )
         for object_type, object_id in appeared:
-            db.add(
-                VisibilityMember(
-                    session_id=session_id,
-                    user_id=user_id,
-                    object_type=object_type,
-                    object_id=object_id,
+            # Параллельная пересборка (другой процесс, GET /visible рядом с тиком)
+            # могла уже вставить ту же строку: тогда это не 500, а «уже есть»,
+            # и журнал второй раз не пишем.
+            inserted = (
+                await db.execute(
+                    pg_insert(VisibilityMember)
+                    .values(
+                        session_id=session_id,
+                        user_id=user_id,
+                        object_type=object_type,
+                        object_id=object_id,
+                    )
+                    .on_conflict_do_nothing(constraint="uq_visibility_member")
+                    .returning(VisibilityMember.id)
                 )
-            )
+            ).first()
+            if inserted is None:
+                continue
             db.add(
                 ObjectChange(
                     object_type=object_type,
@@ -223,9 +245,10 @@ async def replace_zone(session_id: UUID, user_id: UUID, wanted: set[tuple[str, U
         await db.commit()
 
 
-async def add_inventory_visibility(session_id: UUID, user_id: UUID, character_ids: set[UUID]) -> None:
+async def _player_inventory_keys(character_ids: set[UUID]) -> set[tuple[str, UUID]]:
+    """Инвентари персонажей игрока и предметы в них."""
     if not character_ids:
-        return
+        return set()
     async with AsyncSessionLocal() as db:
         participant_rows = (
             await db.execute(
@@ -237,89 +260,56 @@ async def add_inventory_visibility(session_id: UUID, user_id: UUID, character_id
         ).scalars().all()
         inventory_ids = {row.inventory_id for row in participant_rows}
         if not inventory_ids:
-            return
+            return set()
         item_rows = (
             await db.execute(select(InventoryItem).where(InventoryItem.inventory_id.in_(inventory_ids)))
         ).scalars().all()
-        extra = {("inventory", iid) for iid in inventory_ids}
-        extra |= {("game_item", row.item_id) for row in item_rows}
-        existing = (
-            await db.execute(
-                select(VisibilityMember).where(
-                    VisibilityMember.session_id == session_id,
-                    VisibilityMember.user_id == user_id,
-                )
-            )
-        ).scalars().all()
-        have = {(row.object_type, row.object_id) for row in existing}
-        for object_type, object_id in extra - have:
-            db.add(
-                VisibilityMember(
-                    session_id=session_id,
-                    user_id=user_id,
-                    object_type=object_type,
-                    object_id=object_id,
-                )
-            )
-            db.add(
-                ObjectChange(
-                    object_type=object_type,
-                    object_id=object_id,
-                    version=0,
-                    op="appeared",
-                    session_id=session_id,
-                )
-            )
-        await db.commit()
+    keys = {("inventory", iid) for iid in inventory_ids}
+    keys |= {("game_item", row.item_id) for row in item_rows}
+    return keys
 
 
-async def rebuild_for_user(session_id: UUID, user_id: UUID, role: str) -> None:
-    from app.managers import session_manager
-
-    manager = await session_manager.ensure_manager(str(session_id))
-    inner = await manager.get_inner()
-    chars = character_ids_for_user(inner, user_id)
-    wanted = wanted_ids(inner, role=role, user_id=user_id, character_ids=chars)
-    await replace_zone(session_id, user_id, wanted)
-    if role == "master":
-        await _add_scenario_inventories(session_id, user_id, getattr(inner, "scenario_id", None))
-    else:
-        await add_inventory_visibility(session_id, user_id, chars)
-
-
-async def _add_scenario_inventories(session_id: UUID, user_id: UUID, scenario_id) -> None:
+async def _scenario_inventory_keys(scenario_id) -> set[tuple[str, UUID]]:
+    """Мастер видит все инвентари сценария."""
     if not scenario_id:
-        return
+        return set()
     from app.models.inventory import Inventory
 
     async with AsyncSessionLocal() as db:
         rows = (
             await db.execute(select(Inventory.id).where(Inventory.scenario_id == scenario_id))
         ).scalars().all()
-        if not rows:
-            return
-        existing = (
-            await db.execute(
-                select(VisibilityMember.object_id).where(
-                    VisibilityMember.session_id == session_id,
-                    VisibilityMember.user_id == user_id,
-                    VisibilityMember.object_type == "inventory",
-                )
-            )
-        ).scalars().all()
-        have = set(existing)
-        for inventory_id in rows:
-            if inventory_id in have:
-                continue
-            db.add(
-                VisibilityMember(
-                    session_id=session_id,
-                    user_id=user_id,
-                    object_type="inventory",
-                    object_id=inventory_id,
-                )
-            )
-        await db.commit()
+    return {("inventory", inventory_id) for inventory_id in rows}
+
+
+_rebuild_locks: dict[tuple[UUID, UUID], asyncio.Lock] = {}
+
+
+async def rebuild_for_user(session_id: UUID, user_id: UUID, role: str) -> None:
+    # Одну зону в процессе пересобирает один вызов: тик шедулера, подключение
+    # сокета и GET /visible приходят одновременно и сверяли одну и ту же базу.
+    key = (UUID(str(session_id)), UUID(str(user_id)))
+    lock = _rebuild_locks.setdefault(key, asyncio.Lock())
+    async with lock:
+        await _rebuild_for_user(session_id, user_id, role)
+
+
+async def _rebuild_for_user(session_id: UUID, user_id: UUID, role: str) -> None:
+    from app.managers import session_manager
+
+    manager = await session_manager.ensure_manager(str(session_id))
+    inner = await manager.get_inner()
+    chars = character_ids_for_user(inner, user_id)
+    wanted = wanted_ids(inner, role=role, user_id=user_id, character_ids=chars)
+    # Инвентари входят в ту же зону, что и остальное. Раньше replace_zone
+    # выкидывал их (их нет в wanted_ids) с записью gone в журнал, а следующий
+    # шаг тут же добавлял обратно. Строка инвентаря в журнале заставляла
+    # шедулер пересобрать зону снова — петля несколько раз в секунду.
+    if role == "master":
+        wanted |= await _scenario_inventory_keys(getattr(inner, "scenario_id", None))
+    else:
+        wanted |= await _player_inventory_keys(chars)
+    await replace_zone(session_id, user_id, wanted)
 
 
 async def load_visible_keys(session_id: UUID, user_id: UUID) -> set[tuple[str, UUID]]:

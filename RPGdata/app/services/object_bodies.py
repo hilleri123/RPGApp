@@ -87,19 +87,21 @@ def _player_scene(body: dict) -> dict:
     return out
 
 
-async def _refresh_scene_actions(manager, inner) -> None:
-    """Подмешивает новые действия в уже открытые сцены, не дожидаясь правки сцены."""
-    stale = []
+async def _refresh_scene_actions(manager, inner, scene_ids: set[UUID]) -> None:
+    """Подмешивает новые действия в отдаваемые сцены, не дожидаясь правки сцены.
+
+    Только в памяти этого ответа. Запись сцен из GET меняла тело, триггер
+    поднимал версию, журнал снова присылал сцену, клиент снова её читал —
+    десятки GET /objects в минуту на одну изменённую сцену. А в правилах без
+    issue_changes сцена считалась устаревшей вечно и пересохранялась на каждое чтение.
+    """
     for scene in inner.scenes or []:
+        if str(getattr(scene, "id", "")) not in scene_ids:
+            continue
         listed = (getattr(scene, "available_actions_by_role", None) or {}).get("gm") or []
         keys = {str(item.get("key") or "") for item in listed if isinstance(item, dict)}
         if "issue_changes" not in keys:
-            stale.append(scene)
-    if not stale:
-        return
-    for scene in stale:
-        await manager._recompute_available_actions_for_scene(inner, scene)
-    await manager._save_scenes(list(inner.scenes or []))
+            await manager._recompute_available_actions_for_scene(inner, scene)
 
 
 async def _inventory_body(object_id: UUID) -> dict | None:
@@ -152,8 +154,9 @@ async def project_objects(session_id: UUID, user, pairs: list[tuple[str, UUID]])
     is_master = await manager.is_master(user)
     zone = await load_visible_keys(session_id, user.id)
     inner = await manager.get_inner()
-    if any(object_type == "scene" for object_type, _ in pairs):
-        await _refresh_scene_actions(manager, inner)
+    scene_ids = {str(object_id) for object_type, object_id in pairs if object_type == "scene"}
+    if scene_ids:
+        await _refresh_scene_actions(manager, inner, scene_ids)
     access_map = None
     own_ids: set[UUID] = set()
     if not is_master:

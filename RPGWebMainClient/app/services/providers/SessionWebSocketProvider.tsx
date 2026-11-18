@@ -104,6 +104,8 @@ export const SessionWebSocketProvider = ({
   const bootstrappingRef = useRef(false);
   const bootstrapGenRef = useRef(0);
   const changeBufferRef = useRef<any[][]>([]);
+  // Версия, до которой тело объекта уже дочитано: "type:id" -> version.
+  const appliedVersionsRef = useRef<Map<string, number>>(new Map());
 
   const clearReconnectTimer = useCallback(() => {
     if (reconnectTimeoutRef.current) {
@@ -274,7 +276,29 @@ export const SessionWebSocketProvider = ({
     if (!sessionId || !user) return;
 
     const applyChangeList = async (changes: any[]) => {
-      const need = changes.filter((change: { op?: string }) => change.op !== 'gone');
+      // Журнал может прислать один объект несколько раз, а версию мы уже
+      // могли дочитать. Тело берём один раз и только если оно новее.
+      // appeared приходит с версией 0: объект только вошёл в зону, читаем всегда.
+      const applied = appliedVersionsRef.current;
+      const latest = new Map<string, any>();
+      for (const change of changes) {
+        const key = `${change.object_type}:${change.object_id}`;
+        if (change.op === 'gone') {
+          applied.delete(key);
+          latest.delete(key);
+          continue;
+        }
+        const prev = latest.get(key);
+        if (!prev || (Number(change.version) || 0) >= (Number(prev.version) || 0)) {
+          latest.set(key, change);
+        }
+      }
+      const need = [...latest.entries()]
+        .filter(([key, change]) => {
+          const version = Number(change.version) || 0;
+          return change.op === 'appeared' || version <= 0 || (applied.get(key) ?? 0) < version;
+        })
+        .map(([, change]) => change);
       const bodies: { object_type: string; object_id: string; body: any }[] = [];
       for (let offset = 0; offset < need.length; offset += 40) {
         const chunk = need.slice(offset, offset + 40);
@@ -284,6 +308,10 @@ export const SessionWebSocketProvider = ({
         if (!ids) continue;
         const part = await sessionApiService.getObjects(sessionId, ids);
         bodies.push(...(part ?? []));
+        for (const change of chunk) {
+          const version = Number(change.version) || 0;
+          if (version > 0) applied.set(`${change.object_type}:${change.object_id}`, version);
+        }
       }
       if (!disposedRef.current) {
         applyObjectBatch(sessionId, changes, bodies, user.id);
@@ -435,6 +463,8 @@ export const SessionWebSocketProvider = ({
             setWsInit(data as SessionInitMessage, user.id);
             bootstrappingRef.current = true;
             changeBufferRef.current = [];
+            // Новый снимок зоны: прежние отметки версий к нему не относятся.
+            appliedVersionsRef.current = new Map();
             try {
               const objects = await sessionApiService.getVisible(sessionId);
               if (disposedRef.current || bootstrapGenRef.current !== generation) return;

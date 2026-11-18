@@ -15,6 +15,26 @@ from app.models.object_change import ObjectChange
 TICK_SEC = 0.1
 
 
+# Таблицы сущностей сценария: только их правка делает кэш get_inner() устаревшим.
+# Сцены, действия, журнал и строки зоны живут в своих таблицах сессии.
+ENTITY_TYPES = frozenset(
+    {"player_character", "npc", "game_item", "location", "obstacle", "note", "story_beat"}
+)
+
+
+def entities_changed(rows) -> bool:
+    return any(row.object_type in ENTITY_TYPES and row.op not in ("gone", "appeared") for row in rows)
+
+
+def inventory_changed(rows) -> bool:
+    """Изменился ли сам инвентарь, а не чья-то зона видимости.
+
+    gone/appeared пишет пересборка зоны. Если реагировать на них, пересборка
+    будит себя же: так шла петля по инвентарю несколько раз в секунду.
+    """
+    return any(row.object_type == "inventory" and row.op not in ("gone", "appeared") for row in rows)
+
+
 @dataclass
 class _Watch:
     session_id: UUID
@@ -81,14 +101,15 @@ class ChangeScheduler:
         from app.managers import master_connection_manager, session_manager
         from app.services.visibility_service import load_visible_keys, rebuild_for_user
 
-        for sid in {watch.session_id for watch in self.watches.values()}:
-            manager = session_manager.managers.get(str(sid))
-            if manager is not None and rows:
-                await manager.invalidate_entity_cache()
+        if entities_changed(rows):
+            for sid in {watch.session_id for watch in self.watches.values()}:
+                manager = session_manager.managers.get(str(sid))
+                if manager is not None:
+                    await manager.invalidate_entity_cache()
 
         pending = set(self.dirty_sessions)
         self.dirty_sessions.clear()
-        inventory_rows = any(row.object_type == "inventory" for row in rows)
+        inventory_rows = inventory_changed(rows)
         for watch in list(self.watches.values()):
             if watch.session_id in pending or inventory_rows:
                 await rebuild_for_user(watch.session_id, watch.user_id, watch.role)
@@ -111,7 +132,10 @@ class ChangeScheduler:
             for row in mine:
                 in_zone = (row.object_type, row.object_id) in zone
                 if row.op == "gone":
-                    if row.session_id != watch.session_id:
+                    # gone пишется при пересборке зоны одного человека, а в строке
+                    # журнала нет, чьей. Если объект в моей зоне, он ушёл не от меня:
+                    # иначе мастер терял НПС и сцены, которые ушли из зоны игрока.
+                    if row.session_id != watch.session_id or in_zone:
                         continue
                 elif not in_zone:
                     continue
