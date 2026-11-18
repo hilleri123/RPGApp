@@ -34,6 +34,20 @@ function treeLocations(rootId: string, locations: Location[]): Location[] {
   return out;
 }
 
+/** Верхний предок локации: от него строятся кнопки, чтобы из дочерней можно было вернуться. */
+function rootLocationId(locationId: string, locations: Location[]): string {
+  const byId = new Map(locations.map((loc) => [String(loc.id), loc]));
+  let current = locationId;
+  const visited = new Set<string>();
+  while (current && !visited.has(current)) {
+    visited.add(current);
+    const parent = byId.get(current)?.parent_location_id;
+    if (!parent || !byId.has(String(parent))) break;
+    current = String(parent);
+  }
+  return current;
+}
+
 function locationHasMap(loc: Location): boolean {
   return Boolean(loc.map_url || loc.excalidraw_map_json?.elements?.length || (loc.map_width && loc.map_height));
 }
@@ -65,10 +79,12 @@ export function SceneBoardPanel({ sessionId, scene }: { sessionId: string; scene
   const [nameFilter, setNameFilter] = useState('');
   const [locationFilter, setLocationFilter] = useState('');
 
-  const tree = useMemo(
-    () => treeLocations(String(scene.location?.id ?? ''), locations ?? []),
+  const rootId = useMemo(
+    () => rootLocationId(String(scene.location?.id ?? ''), locations ?? []),
     [scene.location?.id, locations],
   );
+  const rootLocation = (locations ?? []).find((loc) => String(loc.id) === rootId) ?? scene.location ?? null;
+  const tree = useMemo(() => treeLocations(rootId, locations ?? []), [rootId, locations]);
   const canvases = scene.canvases ?? [];
   const active = canvases.find((item) => item.id === (canvasId ?? scene.shown_canvas_id)) ?? canvases[0] ?? null;
   const activeLocation = (locations ?? []).find((loc) => String(loc.id) === String(active?.location_id)) ?? null;
@@ -274,7 +290,7 @@ export function SceneBoardPanel({ sessionId, scene }: { sessionId: string; scene
 
       {tab === 'location' && (
         <div className="p-3 space-y-3 text-sm text-gray-200 overflow-auto">
-          <div>Корень: {scene.location?.name ?? '—'}</div>
+          <div>Корень: {rootLocation?.name ?? '—'} · сейчас: {scene.location?.name ?? '—'}</div>
           <div className="flex flex-wrap gap-2">
             {tree.map((loc) => (
               <Button
