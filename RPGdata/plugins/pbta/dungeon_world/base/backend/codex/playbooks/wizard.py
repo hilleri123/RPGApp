@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from plugins.pbta.base.backend.types import Move, MoveGrantResource, Playbook
 from plugins.pbta.base.backend.types.types_classes import MovePlaceholder
-from ..multiclass_options import MULTICLASS_EFFECT_TEXT, MULTICLASS_MOVE_PLACEHOLDERS
 
 _SPELL_PICK = [
     MovePlaceholder(
@@ -287,20 +286,6 @@ wizard_moves: list[Move] = [
         ],
     ),
     Move(
-        id="wizard_multiclass_dabbler",
-        title="Мультикласс: дилетант",
-        kind="advanced",
-        available_stats=[],
-        requires_roll=False,
-        summary="Ход другого класса на уровень ниже.",
-        trigger="",
-        effect=MULTICLASS_EFFECT_TEXT,
-        effect_10_plus="",
-        effect_7_9="",
-        effect_6_minus="",
-        placeholders=list(MULTICLASS_MOVE_PLACEHOLDERS),
-    ),
-    Move(
         id="wizard_master",
         title="Мастер",
         kind="advanced",
@@ -495,7 +480,6 @@ wizard = Playbook(
         "wizard_wizardly_ward",
         "wizard_spell_deflection",
         "wizard_quick_study",
-        "wizard_multiclass_dabbler",
     ],
     advanced_moves_6_10=[
         "wizard_master",

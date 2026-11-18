@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from plugins.pbta.base.backend.types import Move, Playbook
-from ..multiclass_options import MULTICLASS_EFFECT_TEXT, MULTICLASS_MOVE_PLACEHOLDERS
 from plugins.pbta.base.backend.types.types_classes import MovePlaceholder
 
 
@@ -239,20 +238,6 @@ ranger_moves: list[Move] = [
         effect_6_minus="",
     ),
     Move(
-        id="ranger_multiclass_dabbler",
-        title="Мультикласс: дилетант",
-        kind="advanced",
-        available_stats=[],
-        requires_roll=False,
-        summary="Дополнительный ход другого класса.",
-        trigger="",
-        effect=MULTICLASS_EFFECT_TEXT,
-        effect_10_plus="",
-        effect_7_9="",
-        effect_6_minus="",
-        placeholders=list(MULTICLASS_MOVE_PLACEHOLDERS),
-    ),
-    Move(
         id="ranger_wild_tongue",
         title="Дикий язык",
         kind="advanced",
@@ -430,7 +415,6 @@ ranger = Playbook(
         "ranger_bird_of_god",
         "ranger_follow_me",
         "ranger_safe_camp",
-        "ranger_multiclass_dabbler",
     ],
     advanced_moves_6_10=[
         "ranger_wild_tongue",
