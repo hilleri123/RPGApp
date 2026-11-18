@@ -7,7 +7,7 @@ from app.auth import get_current_user, get_current_user_ws
 from app.managers import observer_channels, ChannelKey, session_manager, master_connection_manager
 from app.managers.connection_manager import is_websocket_gone
 from app.managers.session import expand_dependent_fields
-from app.infrastructure.database import get_async_session as get_db
+from app.infrastructure.database import AsyncSessionLocal
 from app import models, scheme
 from app.logger import logger
 from fastapi import status
@@ -44,7 +44,6 @@ def _normalize_fields(fields: list[str]) -> list[str]:
 async def websocket_endpoint(
     websocket: WebSocket,
     session_id: str,
-    db: AsyncSession = Depends(get_db)
 ):
 
     connection_manager = master_connection_manager["session"]
@@ -53,14 +52,14 @@ async def websocket_endpoint(
     active_claim: str | None = None
     try:
         await websocket.accept()
-        current_user = await get_current_user_ws(websocket, db)
+        current_user = await get_current_user_ws(websocket)
 
         logger.debug("session websocket connected!")
 
         await connection_manager.connect(current_user.id, websocket)
 
         
-        async for db in get_db():
+        async with AsyncSessionLocal() as db:
             gs = await db.get(models.GameSession, UUID(str(session_id)))
         if gs and not gs.is_active:
             await connection_manager.send_json(
@@ -176,7 +175,6 @@ async def websocket_endpoint(
         )
 
         rpc = SessionWsRpcHandler(
-            db=db,
             session_m=session_m,
             current_user=current_user,
             is_master=is_master,

@@ -8,7 +8,7 @@ from typing import Optional
 
 
 from .auth_utils import verify_jwt, decode_jwt
-from app.infrastructure.database import get_async_session
+from app.infrastructure.database import AsyncSessionLocal, get_async_session
 from app.models.user import User
 from app.logger import logger
 
@@ -58,10 +58,19 @@ async def get_current_user(
 # auth/user.py — новая версия get_current_user_ws
 async def get_current_user_ws(
     websocket: WebSocket,
-    db: AsyncSession,
+    db: AsyncSession | None = None,
 ) -> User:
-    logger.info(f"WS cookies: {dict(websocket.cookies)}")  # ← смотрим что приходит
-    # Читаем access_token из cookie WebSocket handshake запроса
+    """Пользователь сокета по cookie рукопожатия.
+
+    Без своей сессии БД открывает короткую: сокет живёт часами, и сессия из
+    Depends держала бы транзакцию открытой всё подключение (idle in transaction
+    мешает VACUUM всей базы).
+    """
+    if db is None:
+        async with AsyncSessionLocal() as short_db:
+            return await get_current_user_ws(websocket, short_db)
+    # Читаем access_token из cookie WebSocket handshake запроса. Сами cookie
+    # не логируем: в них токен входа.
     access_token = websocket.cookies.get("access_token")
     
     if not access_token:

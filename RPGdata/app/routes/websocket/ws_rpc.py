@@ -3,8 +3,8 @@ from __future__ import annotations
 from uuid import UUID
 from typing import Any, Dict, Optional, Callable, Awaitable, Literal
 
-from sqlalchemy.ext.asyncio import AsyncSession
 from app import scheme
+from app.infrastructure.database import AsyncSessionLocal
 from app.managers.session import CurrentSessionManager
 from app.routes._helpers import validate_entity_data
 from app.routes.rules.config_editor import editor_config_for_scenario
@@ -21,13 +21,11 @@ class SessionWsRpcHandler:
         self,
         *,
         session_m: CurrentSessionManager,
-        db: AsyncSession,
         current_user: Any,
         is_master: bool,
         send_json_to_current: Callable[[dict], Awaitable[None]],
     ):
         self.session_m = session_m
-        self.db = db
         self.current_user = current_user
         self.is_master = is_master
         self.send_json_to_current = send_json_to_current
@@ -81,12 +79,14 @@ class SessionWsRpcHandler:
                 if scene_id:
                     context = {**context, "scene_id": str(scene_id)}
 
-                config = await editor_config_for_scenario(
-                    scenario_id=scenario_id,
-                    entity=entity,
-                    context=context,
-                    db=self.db,
-                )
+                # Своя короткая сессия на запрос: обработчик живёт, пока открыт сокет.
+                async with AsyncSessionLocal() as db:
+                    config = await editor_config_for_scenario(
+                        scenario_id=scenario_id,
+                        entity=entity,
+                        context=context,
+                        db=db,
+                    )
                 await self._send_ok(request_id, {"config": config})
                 return True
 
@@ -97,12 +97,13 @@ class SessionWsRpcHandler:
                 )
                 context = raw_data.get("context") or {}
                 # validate_entity_data сейчас не принимает context — ок, оставим на будущее
-                res = await validate_entity_data(
-                    db=self.db,
-                    scenario_id=scenario_id,
-                    entity=entity,
-                    payload=payload,
-                )
+                async with AsyncSessionLocal() as db:
+                    res = await validate_entity_data(
+                        db=db,
+                        scenario_id=scenario_id,
+                        entity=entity,
+                        payload=payload,
+                    )
                 await self._send_ok(request_id, {"ok": bool(res.ok), "issues": res.issues or [], "data": res.result.data})
                 return True
 
