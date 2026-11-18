@@ -142,11 +142,8 @@ class SessionCharacterManager(SessionUserManager):
     async def _remove_character_from_scenes(self, inner: scheme.GameSessionInner, character_id: UUID) -> scheme.GameSessionInner:
         scenes = list(inner.scenes or [])
         changed = False
-        cid = str(character_id)
         for scene in scenes:
-            ids = [str(x) for x in (scene.character_ids or [])]
-            if cid in ids:
-                scene.character_ids = [x for x in scene.character_ids if str(x) != cid]
+            if scheme.remove_scene_character(scene, character_id):
                 changed = True
         if changed:
             await self.set_scenes(scenes)

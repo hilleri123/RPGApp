@@ -391,8 +391,7 @@ class SessionSceneManager(SessionDataManager):
                     scene.character_ids.append(character_id)
                 found = True
             else:
-                if character_id in scene.character_ids:
-                    scene.character_ids.remove(character_id)
+                scheme.remove_scene_character(scene, character_id)
             await self._recompute_available_actions_for_scene(inner, scene)
 
         if not found:

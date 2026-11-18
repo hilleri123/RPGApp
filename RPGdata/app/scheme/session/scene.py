@@ -125,6 +125,27 @@ def sync_scene_projection(scene: "SceneInner") -> None:
     scene.character_ids = union
 
 
+def remove_scene_character(scene: "SceneInner", character_id: UUID) -> bool:
+    """Убрать персонажа из сцены целиком.
+
+    character_ids сцены — объединение контейнеров (sync_scene_projection), поэтому
+    вычеркнуть его только из scene.character_ids нельзя: при сохранении он вернётся
+    из контейнера локации и останется сразу в двух сценах.
+    """
+    key = str(character_id)
+    changed = False
+    for bucket in scene.containers or []:
+        kept = [cid for cid in bucket.character_ids if str(cid) != key]
+        if len(kept) != len(bucket.character_ids):
+            bucket.character_ids = kept
+            changed = True
+    kept = [cid for cid in (scene.character_ids or []) if str(cid) != key]
+    if len(kept) != len(scene.character_ids or []):
+        scene.character_ids = kept
+        changed = True
+    return changed
+
+
 def switch_scene_root(scene: "SceneInner", location_id: UUID, private: Optional[SceneElementsInner] = None) -> None:
     """Смена корня не стирает списки прежней локации. Новая локация получает свой контейнер."""
     sync_scene_projection(scene)
