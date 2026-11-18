@@ -28,6 +28,9 @@ async def transcribe_segment(segment_id: UUID) -> None:
             return
         await db.commit()
 
+        segment = await db.get(models.TableSegment, segment_id)
+        if segment is None:
+            return
         path = MEDIA_ROOT / segment.file_path
         try:
             phrases = await asyncio.to_thread(recognize_file, path)
