@@ -93,7 +93,12 @@ def tag_move_for_scene(m: Move) -> Move:
     ctx = MOVE_CONTEXT_BY_ID.get(m.id)
 
     if ctx is None and m.kind in ("class", "advanced"):
-        if not getattr(m, "requires_roll", True):
+        # У Move нет поля requires_roll: pydantic молча выбрасывает его из
+        # конструктора, и getattr(..., True) всегда давал True. Пассивные ходы
+        # получали контекст «действие» и пропадали в лагере и в пути.
+        from plugins.pbta.base.backend.workflows.perform_move.helpers import move_requires_roll
+
+        if not move_requires_roll(m):
             return m
         existing = getattr(m, "condition", None)
         if existing and list(getattr(existing, "requires_context", None) or []):

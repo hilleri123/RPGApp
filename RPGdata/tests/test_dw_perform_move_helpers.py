@@ -364,6 +364,7 @@ def test_post_roll_wizard_includes_hp_stages_for_bard():
 
 
 def test_collect_participating_factories_move_and_codex_fo_only():
+    # «Я — закон» паладина: на 10+ +1 на следующий ход против них (forward по правилам).
     from uuid import uuid4
     from plugins.pbta.base.backend.workflows.perform_move.types import MoveRef
     from plugins.pbta.dungeon_world.base.backend.workflows.perform_move.helpers import collect_participating_factories
@@ -377,7 +378,7 @@ def test_collect_participating_factories_move_and_codex_fo_only():
     moves_map = {**codex.playbooks.playbook_moves_map(), **codex.moves.moves_map()}
     entry = PerformMoveEntry(
         actor_user_id=uuid4(),
-        moves=[MoveRef(id="bard_arcane_art", title="Чародейское искусство", kind="class")],
+        moves=[MoveRef(id="paladin_i_am_the_law", title="Я — закон", kind="class")],
     )
     factories = collect_participating_factories(entry, moves_map, _Scene(), outcome="hit_10_plus")
     ids = {f["id"] for f in factories}
@@ -516,7 +517,8 @@ def test_resolve_go_aggro_no_auto_damage_mod_on_hit():
     assert not any(e.kind == "apply_damage_mod" for e in effects)
 
 
-def test_bard_arcane_art_builds_forward_draft_on_10_plus():
+def test_i_am_the_law_builds_forward_draft_on_10_plus():
+    # «Магия искусства» барда forward не даёт: эффект достаётся союзнику.
     from uuid import uuid4
 
     from plugins.pbta.base.backend.workflows.perform_move.types import MoveRef
@@ -530,7 +532,7 @@ def test_bard_arcane_art_builds_forward_draft_on_10_plus():
         actor_user_id=uuid4(),
         actor_kind="character",
         actor_character_id=cid,
-        moves=[MoveRef(id="bard_arcane_art", title="Тайное искусство", kind="class")],
+        moves=[MoveRef(id="paladin_i_am_the_law", title="Я — закон", kind="class")],
     )
     drafts = build_resource_drafts(entry, moves_map, "hit_10_plus")
     assert len(drafts) == 1
