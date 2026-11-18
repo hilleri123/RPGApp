@@ -185,13 +185,15 @@ async def websocket_endpoint(
             ok = False
             if is_master:
                 if isinstance(action, lobby_scheme.MasterSelectScenarioAction):
-                    ok = await lobby_m.select_lobby_scenario(action.scenario_id)
+                    ok = await lobby_m.select_lobby_scenario(action.scenario_id, current_user)
                 elif isinstance(action, lobby_scheme.MasterSelectLaunchedScenarioAction):
-                    ok = await lobby_m.select_lobby_launched_scenario(action.launched_scenario_id)
+                    ok = await lobby_m.select_lobby_launched_scenario(
+                        action.launched_scenario_id, current_user
+                    )
                 elif isinstance(action, lobby_scheme.MasterSelectPartyAction):
                     ok = await lobby_m.select_lobby_party(action.party_id)
                 elif isinstance(action, lobby_scheme.MasterSelectCampaignAction):
-                    ok = await lobby_m.select_lobby_campaign(action.campaign_id)
+                    ok = await lobby_m.select_lobby_campaign(action.campaign_id, current_user)
                 elif isinstance(action, lobby_scheme.MasterSetLobbyOpen):
                     ok = await lobby_m.set_open(action.is_open)
                 elif isinstance(action, lobby_scheme.MasterInviteUser):
