@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from plugins.pbta.base.backend.types import Move, Playbook
 from plugins.pbta.base.backend.types.types_classes import MovePlaceholder
-from ..multiclass_options import MULTICLASS_EFFECT_TEXT, MULTICLASS_MOVE_PLACEHOLDERS
+from ..multiclass_options import MULTICLASS_MOVE_PLACEHOLDERS
 
 _SPELL_PICK = [
     MovePlaceholder(
@@ -262,19 +262,6 @@ cleric_moves: list[Move] = [
         effect_6_minus="",
     ),
     Move(
-        id="cleric_multiclass_dabbler",
-        title="Мультикласс: дилетант",
-        kind="advanced",
-        available_stats=[],
-        summary="Ход другого класса на уровень ниже.",
-        trigger="",
-        effect=MULTICLASS_EFFECT_TEXT,
-        effect_10_plus="",
-        effect_7_9="",
-        effect_6_minus="",
-        placeholders=list(MULTICLASS_MOVE_PLACEHOLDERS),
-    ),
-    Move(
         id="cleric_anointed",
         title="Помазанник",
         kind="advanced",
@@ -462,7 +449,6 @@ cleric = Playbook(
         "cleric_pray_for_guidance",
         "cleric_divine_protection",
         "cleric_expert_healer",
-        "cleric_multiclass_dabbler",
     ],
     advanced_moves_6_10=[
         "cleric_anointed",

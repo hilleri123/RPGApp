@@ -63,3 +63,21 @@ def test_spell_levels_follow_the_rules(spell_id, level, ongoing):
     assert spell.level == level
     assert ("длительное" in spell.tags) is ongoing
     assert spell.school != "длительное"
+
+
+def test_multiclass_dabbler_only_where_the_book_has_it(codex):
+    by_class = {}
+    for pb in codex.playbooks.playbooks_map().values():
+        moves = codex.playbooks.moves_map()
+        for level, ids in (("2-10", pb.advanced_moves), ("6-10", pb.advanced_moves_6_10)):
+            for mid in ids:
+                mid = mid if isinstance(mid, str) else mid.id
+                if moves[mid].title.startswith("Мультикласс: дилетант"):
+                    by_class.setdefault(pb.id, set()).add(level)
+    assert by_class.get("cleric") == {"6-10"}
+    assert not {"wizard", "thief", "druid", "paladin", "ranger"} & set(by_class)
+    assert {"bard", "fighter"} <= set(by_class)
+
+
+def test_no_evade_basic_move(codex):
+    assert "evade" not in codex.moves.moves_map()

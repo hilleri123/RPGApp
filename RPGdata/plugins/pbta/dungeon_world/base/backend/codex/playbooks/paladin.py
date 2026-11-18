@@ -11,7 +11,6 @@ from plugins.pbta.base.backend.types.types_classes import (
     MovePlaceholder,
     MovePlaceholderOption,
 )
-from ..multiclass_options import MULTICLASS_EFFECT_TEXT, MULTICLASS_MOVE_PLACEHOLDERS
 
 _QUEST_GOAL_OPTIONS = [
     MovePlaceholderOption(
@@ -83,7 +82,6 @@ paladin = Playbook(
         "paladin_holy_protection",
         "paladin_armed_with_authority",
         "paladin_hospitaller",
-        "paladin_multiclass_dabbler",
     ],
     advanced_moves_6_10=[
         "paladin_mark_of_faith",
@@ -386,20 +384,6 @@ paladin_moves: list[Move] = [
         effect_10_plus="",
         effect_7_9="",
         effect_6_minus="",
-    ),
-    Move(
-        id="paladin_multiclass_dabbler",
-        title="Мультикласс: дилетант",
-        kind="advanced",
-        available_stats=[],
-        requires_roll=False,
-        summary="Ход другого класса на уровень ниже.",
-        trigger="",
-        effect=MULTICLASS_EFFECT_TEXT,
-        effect_10_plus="",
-        effect_7_9="",
-        effect_6_minus="",
-        placeholders=list(MULTICLASS_MOVE_PLACEHOLDERS),
     ),
     Move(
         id="paladin_mark_of_faith",

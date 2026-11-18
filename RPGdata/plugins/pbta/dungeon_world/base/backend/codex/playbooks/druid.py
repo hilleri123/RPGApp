@@ -3,7 +3,6 @@ from __future__ import annotations
 from plugins.pbta.base.backend.types import Move, Playbook
 from plugins.pbta.base.backend.types.types_classes import MovePlaceholder
 from ..druid_options import DRUID_LANDS
-from ..multiclass_options import MULTICLASS_EFFECT_TEXT, MULTICLASS_MOVE_PLACEHOLDERS
 
 
 druid_moves: list[Move] = [
@@ -255,20 +254,6 @@ druid_moves: list[Move] = [
         effect_6_minus="",
     ),
     Move(
-        id="druid_multiclass_dabbler",
-        title="Мультикласс: дилетант",
-        kind="advanced",
-        available_stats=[],
-        requires_roll=False,
-        summary="Дополнительный ход другого класса.",
-        trigger="",
-        effect=MULTICLASS_EFFECT_TEXT,
-        effect_10_plus="",
-        effect_7_9="",
-        effect_6_minus="",
-        placeholders=list(MULTICLASS_MOVE_PLACEHOLDERS),
-    ),
-    Move(
         id="druid_formless",
         title="Свободный от обличий",
         kind="advanced",
@@ -437,7 +422,6 @@ druid = Playbook(
         "druid_shapeshifter_master",
         "druid_lord_of_elements",
         "druid_equilibrium",
-        "druid_multiclass_dabbler",
     ],
     advanced_moves_6_10=[
         "druid_formless",

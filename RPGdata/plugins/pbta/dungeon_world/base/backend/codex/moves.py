@@ -72,18 +72,6 @@ class DwMovesCodex(PbtaMovesCodexBase):
                 effect="На 10+: задуманное удаётся, опасности избегаете.",
                 effect_7_9="На 7–9: спотыкаетесь — ведущий предложит исход похуже, сделку или выбор.",
             ),
-            Move(
-                id="evade",
-                title="Уйти с линии",
-                kind="basic",
-                tags=["action"],
-                available_stats=["dex"],
-                condition=MoveCondition(requires_context=_ACTION),
-                summary="Уклонение и отступление в бою.",
-                trigger="Когда вы уходите от удара или преследования в бою...",
-                effect="На 10+: уходите чисто.",
-                effect_7_9="На 7–9: уходите, но теряете позицию, время или что-то важное.",
-            ),
             # ═══ СОЦИАЛЬНОЕ И РАЗВЕДКА ═══
             Move(
                 id="manipulate",

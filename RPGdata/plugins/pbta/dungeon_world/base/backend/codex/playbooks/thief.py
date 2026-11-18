@@ -1,6 +1,5 @@
 from __future__ import annotations
 from plugins.pbta.base.backend.types import Move, Playbook
-from ..multiclass_options import MULTICLASS_EFFECT_TEXT, MULTICLASS_MOVE_PLACEHOLDERS
 
 
 thief = Playbook(
@@ -30,7 +29,6 @@ thief = Playbook(
         "thief_brewer",
         "thief_lucky_bastard",
         "thief_useful_contacts",
-        "thief_multiclass_dabbler",
         "thief_taste_for_luxury",
     ],
     advanced_moves_6_10=[
@@ -353,19 +351,5 @@ thief_moves: list[Move] = [
         effect_10_plus="",
         effect_7_9="",
         effect_6_minus="",
-    ),
-    Move(
-        id="thief_multiclass_dabbler",
-        title="Мультикласс: дилетант",
-        kind="advanced",
-        available_stats=[],
-        requires_roll=False,
-        summary="Ты подцепил полезный чужой трюк.",
-        trigger="",
-        effect=MULTICLASS_EFFECT_TEXT,
-        effect_10_plus="",
-        effect_7_9="",
-        effect_6_minus="",
-        placeholders=list(MULTICLASS_MOVE_PLACEHOLDERS),
     ),
 ]

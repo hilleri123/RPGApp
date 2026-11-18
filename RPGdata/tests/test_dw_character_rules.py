@@ -195,7 +195,7 @@ def test_ranger_in_codex():
         "ranger_animal_companion",
         "ranger_command",
     ]
-    assert len(pb.advanced_moves) == 11
+    assert len(pb.advanced_moves) == 10  # по книге, без мультикласса
     assert len(pb.advanced_moves_6_10) == 9
     all_ids = (
         list(pb.starting_moves)

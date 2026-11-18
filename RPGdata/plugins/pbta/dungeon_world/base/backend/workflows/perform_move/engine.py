@@ -27,11 +27,6 @@ _MOVE_7_9_OPTIONS: dict[str, list[tuple[str, str]]] = {
         ("hit_witness", "Задеть случайного свидетеля"),
         ("reveal_position", "Раскрыть позицию"),
     ],
-    "evade": [
-        ("lose_item", "Потерять вещь"),
-        ("lose_position", "Потерять позицию"),
-        ("lose_time", "Потерять время"),
-    ],
     "act_under_fire": [
         ("take_damage", "Получить урон"),
         ("sacrifice", "Пожертвовать чем-то важным"),
