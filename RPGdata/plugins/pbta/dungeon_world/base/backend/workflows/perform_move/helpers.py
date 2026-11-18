@@ -8,6 +8,7 @@ from plugins.common.types import Workflow
 from plugins.pbta.base.backend.types import MoveGrantResource, ResourceFactory, ResourceModifier
 from plugins.pbta.base.backend.custom_moves import merge_moves_map
 from plugins.pbta.base.backend.types import Move
+from plugins.pbta.base.backend.workflows.perform_move.helpers import move_requires_roll
 
 logger = logging.getLogger(__name__)
 
@@ -520,7 +521,7 @@ def move_is_available(
     required = [str(t) for t in (getattr(cond, "requires_context", None) or [])]
     if not required:
         kind = str(getattr(move, "kind", "") or "")
-        if kind == "class" and getattr(move, "requires_roll", True):
+        if kind == "class" and move_requires_roll(move):
             required = ["action"]
     if required and not any(tag in context_tags for tag in required):
         return False

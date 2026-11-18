@@ -424,7 +424,7 @@ barbarian = Playbook(
         "Ты живёшь аппетитами, силой и славой, и мир станет либо твоим трофеем, либо руинами."
     ),
     base_hp=8,
-    base_load=12,
+    base_load=8,
     damage_die="d10",
     starting_moves=[
         "barbarian_master_of_fate",

@@ -74,14 +74,14 @@ def test_move_grants_survive_class_identity_mismatch():
     assert grants[0].spec_id == "forward"
 
 
-def test_bard_arcane_art_grants_forward_after_plugin_load():
-    """Именно этот ход падал при полном прогоне в зависимости от порядка."""
+def test_move_grants_forward_after_plugin_load():
+    """Награда хода читается и после загрузки всех плагинов (раньше зависело от порядка)."""
     from plugins.pbta.dungeon_world.base.backend.codex import FullCodex
     from plugins.pbta.dungeon_world.base.backend.workflows.perform_move.helpers import (
         iter_move_grants,
     )
 
-    move = FullCodex().moves.moves_map()["bard_arcane_art"]
+    move = FullCodex().playbooks.moves_map()["paladin_i_am_the_law"]
     grants = iter_move_grants(move)
 
     assert [g.spec_id for g in grants] == ["forward"]
