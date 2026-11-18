@@ -5,7 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth import get_current_user, get_current_user_ws
 from app.managers import observer_channels, ChannelKey, session_manager, master_connection_manager
-from app.managers.connection_manager import is_websocket_gone
+from app.managers.connection_manager import is_websocket_gone, session_sockets, session_tag
 from app.managers.session import expand_dependent_fields
 from app.infrastructure.database import AsyncSessionLocal
 from app import models, scheme
@@ -39,6 +39,29 @@ def _normalize_fields(fields: list[str]) -> list[str]:
     return [f for f in fields if f in allowed]
 
 
+def _forbidden_message(session_id, reason: str) -> dict:
+    return {"msg_type": "session_forbidden", "session_id": str(session_id), "reason": reason}
+
+
+async def _player_user_ids(session_m) -> set[str]:
+    inner = await session_m.get_inner()
+    return {str(p.user.id) for p in (inner.players or []) if getattr(p, "user", None)}
+
+
+async def _drop_from_session(session_id, user_id, message: dict) -> None:
+    """Закрыть все сокеты человека в этой сессии и снять его подписку на изменения.
+
+    Без этого убранный игрок продолжал действовать через открытый сокет
+    (роль считается один раз при подключении) и получать object_changes.
+    """
+    from app.services.change_scheduler import scheduler
+
+    sockets = session_sockets(session_id)
+    await sockets.send_json(user_id, message)
+    await sockets.disconnect(user_id)
+    scheduler.unwatch(session_id, user_id)
+
+
 
 @router.websocket("/ws/{session_id}")
 async def websocket_endpoint(
@@ -46,7 +69,7 @@ async def websocket_endpoint(
     session_id: str,
 ):
 
-    connection_manager = master_connection_manager["session"]
+    connection_manager = session_sockets(session_id)
     session_m = await session_manager.ensure_manager(session_id)
     current_user = None
     active_claim: str | None = None
@@ -89,6 +112,8 @@ async def websocket_endpoint(
         is_master = await session_m.is_master(current_user)
         is_player = await session_m.is_player(current_user)
         if not (is_master or is_player):
+            # Без явного ответа клиент переподключался бы по кругу.
+            await websocket.send_json(_forbidden_message(session_id, "not_member"))
             await connection_manager.disconnect(current_user.id, websocket)
             logger.warning(f"WS close: forbidden {session_id=}, user={current_user.id}, {is_master=} {is_player=}")
             # await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
@@ -410,7 +435,13 @@ async def websocket_endpoint(
                 elif isinstance(action, scheme.DismissPresentedEntity):
                     ok, fields = await session_m.dismiss_presented_entity(current_user)
                 elif isinstance(action, scheme.MasterKickPlayer):
+                    before = await _player_user_ids(session_m)
                     ok, fields = await session_m.master_kick_player(current_user, action.player_id)
+                    if ok:
+                        for gone in before - await _player_user_ids(session_m):
+                            await _drop_from_session(
+                                session_id, UUID(gone), _forbidden_message(session_id, "kicked")
+                            )
                 elif isinstance(action, scheme.MasterDeselectPlayerCharacter):
                     ok, fields = await session_m.master_deselect_character(current_user, action.player_id)
                 elif isinstance(action, scheme.MasterAssignPlayerCharacter):
@@ -554,8 +585,12 @@ async def websocket_endpoint(
         if current_user is not None:
             from app.services.change_scheduler import scheduler
 
-            scheduler.unwatch(session_id, current_user.id)
             await connection_manager.disconnect(current_user.id, websocket)
+            # Подписка общая на все вкладки человека в этой сессии (окно сцены,
+            # основное окно): снимаем её только вместе с последним сокетом.
+            if not connection_manager.is_online(current_user.id):
+                scheduler.unwatch(session_id, current_user.id)
+        master_connection_manager.release(session_tag(session_id))
 
 
 @router.get("/{session_id}/objects")
@@ -566,6 +601,14 @@ async def get_session_objects(
 ):
     """Пачка тел по id. Клиент собирает стейт сам, сокет присылает только версии."""
     from app.services.object_bodies import project_objects
+
+    manager = await session_manager.ensure_manager(str(session_id))
+    if not await manager.session_exists():
+        raise HTTPException(status_code=404, detail="session not found")
+    # Зона видимости в Redis переживает кик: без проверки убранный игрок
+    # дочитывал бы тела по старой зоне.
+    if not await manager.is_master(current_user) and not await manager.is_player(current_user):
+        raise HTTPException(status_code=403, detail="not a session member")
 
     pairs: list[tuple[str, UUID]] = []
     for part in ids.split(","):
@@ -656,6 +699,16 @@ async def finish_session(
     )
     if not ok:
         raise HTTPException(status_code=400, detail="cannot finish session")
+
+    # Игроки узнавали о конце сессии только при переподключении и до этого
+    # продолжали менять мир запущенного сценария уже между подходами.
+    # Мастер завершает сам и дальше идёт по ответу этого запроса.
+    finished = {"msg_type": "session_finished", "session_id": str(session_id)}
+    sockets = session_sockets(session_id)
+    for user_id in list(sockets.active_connections):
+        if user_id == current_user.id:
+            continue
+        await _drop_from_session(session_id, user_id, finished)
 
     body: dict = {"status": "finished", "forced": payload.forced}
     if campaign_finish:

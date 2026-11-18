@@ -35,10 +35,9 @@ async def notify_session_snapshot_entity_change(
     if not sessions:
         return
 
-    from app.managers import master_connection_manager
+    from app.managers.connection_manager import session_sockets
     from app.managers.session_manager import session_manager
 
-    connection_manager = master_connection_manager["session"]
 
     for gs in sessions:
         sid = str(gs.id)
@@ -58,6 +57,6 @@ async def notify_session_snapshot_entity_change(
             if "locations" in fields and "scenes" not in fields:
                 merged.append("scenes")
             merged_fields = list(dict.fromkeys([*merged, *extra]))
-            await sm.push_entity_updates(connection_manager, merged_fields)
+            await sm.push_entity_updates(session_sockets(sid), merged_fields)
         except Exception:
             logger.exception("notify_session_snapshot_entity_change failed session=%s", sid)

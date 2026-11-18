@@ -94,6 +94,10 @@ class ConnectionManager:
         return any(_is_connected(ws) for ws in bucket)
 
 
+    def is_empty(self) -> bool:
+        return not self.active_connections
+
+
 class MasterConnectionManager:
     def __init__(self):
         self.managers = {}
@@ -103,5 +107,39 @@ class MasterConnectionManager:
             self.managers[tag] = ConnectionManager()
         return self.managers[tag]
 
+    def release(self, tag: str) -> None:
+        """Забыть комнату, в которой не осталось сокетов."""
+        bucket = self.managers.get(tag)
+        if bucket is not None and bucket.is_empty():
+            self.managers.pop(tag, None)
+
 
 manager = MasterConnectionManager()
+
+
+# Сокеты держим по комнате, а не по пользователю целиком: у одного человека
+# могут быть открыты два лобби или две сессии, и рассылка одной не должна
+# долетать во вкладку другой (lobby_closed выкидывал из чужого лобби,
+# session_started уводил не туда, обновления одной сессии портили другую).
+def _room_key(raw) -> str:
+    text = str(raw).strip()
+    try:
+        return str(UUID(text))
+    except (TypeError, ValueError):
+        return text.lower()
+
+
+def lobby_tag(lobby_id) -> str:
+    return f"lobby:{_room_key(lobby_id)}"
+
+
+def session_tag(session_id) -> str:
+    return f"session:{_room_key(session_id)}"
+
+
+def lobby_sockets(lobby_id) -> ConnectionManager:
+    return manager[lobby_tag(lobby_id)]
+
+
+def session_sockets(session_id) -> ConnectionManager:
+    return manager[session_tag(session_id)]

@@ -17,6 +17,7 @@ export type WsMsgType =
   | 'rpc_result'
   | 'session_finished'
   | 'session_not_found'
+  | 'session_forbidden'
   | 'session_return_to_lobby'
   | 'scene_cue'
   ;
@@ -152,6 +153,12 @@ export type SessionNotFoundMessage = {
   session_id: string;
 };
 
+export type SessionForbiddenMessage = {
+  msg_type: 'session_forbidden';
+  session_id: string;
+  reason: 'kicked' | 'not_member';
+};
+
 export type SessionReturnToLobbyMessage = {
   msg_type: 'session_return_to_lobby';
   session_id: string;
@@ -166,5 +173,6 @@ export type SessionWsMessage =
   | RpcResult
   | SessionFinishedMessage
   | SessionNotFoundMessage
+  | SessionForbiddenMessage
   | SessionReturnToLobbyMessage
   ;

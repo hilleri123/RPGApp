@@ -13,7 +13,7 @@ from app.scheme import lobby as lobby_scheme
 from app.infrastructure.database import get_async_session as get_db
 from app.auth import get_current_user, get_current_user_ws
 from app.managers import lobby_manager, master_connection_manager
-from app.managers.connection_manager import is_websocket_gone
+from app.managers.connection_manager import is_websocket_gone, lobby_sockets, lobby_tag
 from app.infrastructure.redis_service import redis_client
 from app.logger import logger
 from app.services.bot_notify_service import schedule_lobby_invited, schedule_session_started
@@ -119,7 +119,7 @@ async def websocket_endpoint(
     lobby_id: str,
 ):
     current_user = None
-    connection_manager = master_connection_manager["lobby"]
+    connection_manager = lobby_sockets(lobby_id)
     lobby_m = lobby_manager[lobby_id]
     try:
         await websocket.accept()
@@ -321,6 +321,7 @@ async def websocket_endpoint(
                     await broadcast_lobby(lobby_m, connection_manager)
             except Exception:
                 pass
+        master_connection_manager.release(lobby_tag(lobby_id))
 
 
 @router.post("")
@@ -430,7 +431,7 @@ async def delete_lobby(
     if not await lobby_m.is_master(current_user):
         raise HTTPException(status_code=403, detail="only lobby master can close lobby")
 
-    connection_manager = master_connection_manager["lobby"]
+    connection_manager = lobby_sockets(lobby_id)
     await _notify_lobby_closed_and_delete(lobby_m, connection_manager)
     return {"status": "deleted"}
 

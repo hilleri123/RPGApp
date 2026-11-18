@@ -102,10 +102,10 @@ async def refresh_lobby_character_photos(
     from redis.commands.json.path import Path
 
     from app.infrastructure.redis_service import redis_client
-    from app.managers import lobby_manager, master_connection_manager
+    from app.managers import lobby_manager
+    from app.managers.connection_manager import lobby_sockets
     from app.routes.websocket.lobby import broadcast_lobby
 
-    connection_manager = master_connection_manager["lobby"]
     async for key in redis_client.scan_iter("lobby:*"):
         data = await redis_client.json().get(key)
         if not isinstance(data, dict):
@@ -132,7 +132,7 @@ async def refresh_lobby_character_photos(
         if not changed:
             continue
         lobby_id = key.split(":", 1)[1] if ":" in key else key
-        await broadcast_lobby(lobby_manager[lobby_id], connection_manager)
+        await broadcast_lobby(lobby_manager[lobby_id], lobby_sockets(lobby_id))
 
 
 async def propagate_character_photos(
