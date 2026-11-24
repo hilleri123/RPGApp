@@ -13,6 +13,8 @@ from app.auth.auth_service import get_password_hash, verify_password_async
 from app.auth.user import get_current_user
 from app.auth.role import require_admin
 from app.infrastructure.database import get_async_session as get_db
+from app.scheme.player_cabinet import MyCharactersOut, PlayedGamesOut
+from app.services.player_cabinet import my_characters, played_games
 
 router = APIRouter(
     prefix="/users",
@@ -50,6 +52,22 @@ async def get_me(
     current_user: models.User = Depends(get_current_user)
 ):
     return scheme.User.model_validate(current_user)
+
+
+@router.get("/me/played-games", response_model=PlayedGamesOut)
+async def my_played_games(
+    current_user: models.User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    return await played_games(db, current_user.id)
+
+
+@router.get("/me/characters", response_model=MyCharactersOut)
+async def my_bound_characters(
+    current_user: models.User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    return await my_characters(db, current_user.id)
 
 
 def _roll_out(row: models.RollRecord) -> scheme.RollRecordOut:

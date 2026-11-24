@@ -25,6 +25,7 @@ import {
   ChevronDown,
   Crown,
   Inbox,
+  UserRound,
 } from 'lucide-react';
 import { useAuth } from '@/app/services/hooks/useAuth';
 import { useMasterApplicationInbox } from '@/app/services/hooks/useMasterApplicationInbox';
@@ -49,6 +50,11 @@ const masterMenuItems: SimpleNavItem[] = [
   { href: '/campaigns', label: 'Кампании', icon: Layers },
   { href: '/launched-scenarios', label: 'Запущенные', icon: Gamepad2 },
   { href: '/audio', label: 'Аудио', icon: Music2 },
+];
+
+const playerMenuItems: SimpleNavItem[] = [
+  { href: '/player/games', label: 'Игры', icon: Gamepad2 },
+  { href: '/player/characters', label: 'Персонажи', icon: UserRound },
 ];
 
 const groupsNavItem: SimpleNavItem = {
@@ -100,6 +106,7 @@ export default function Navigation() {
   };
 
   const masterSectionActive = masterMenuItems.some((item) => isActiveLink(item.href));
+  const playerSectionActive = playerMenuItems.some((item) => isActiveLink(item.href));
 
   const closeMobileMenu = () => setIsMobileMenuOpen(false);
 
@@ -122,6 +129,41 @@ export default function Navigation() {
     <>
       <nav className="hidden md:flex items-center space-x-2 shrink-0">
         {publicNavItems.map((item) => renderSimpleLink(item))}
+
+        {user && (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button
+                type="button"
+                className={linkClass(playerSectionActive, 'outline-none data-[state=open]:bg-gray-700')}
+              >
+                <UserRound className="w-4 h-4" />
+                Игроку
+                <ChevronDown className="w-4 h-4 opacity-70" />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent
+              align="start"
+              className="min-w-[14rem] border-gray-700 bg-gray-800 text-gray-100"
+            >
+              {playerMenuItems.map((item) => {
+                const Icon = item.icon;
+                const active = isActiveLink(item.href);
+                return (
+                  <DropdownMenuItem key={item.href} asChild className="focus:bg-gray-700 focus:text-white">
+                    <Link
+                      href={item.href}
+                      className={`flex w-full cursor-pointer items-center gap-2 ${active ? 'text-white' : ''}`}
+                    >
+                      <Icon className="w-4 h-4" />
+                      {item.label}
+                    </Link>
+                  </DropdownMenuItem>
+                );
+              })}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}
 
         {canMaster && (
           <>
@@ -201,6 +243,16 @@ export default function Navigation() {
 
             <div className="space-y-2">
               {publicNavItems.map((item) => renderSimpleLink(item, closeMobileMenu, 'w-5 h-5'))}
+
+              {user && (
+                <div className="pt-2 mt-2 border-t border-gray-700 space-y-1">
+                  <p className="px-3 py-1 text-xs font-semibold uppercase tracking-wide text-gray-300 flex items-center gap-2">
+                    <UserRound className="w-3.5 h-3.5" />
+                    Игроку
+                  </p>
+                  {playerMenuItems.map((item) => renderSimpleLink(item, closeMobileMenu, 'w-5 h-5'))}
+                </div>
+              )}
 
               {canMaster && (
                 <div className="pt-2 mt-2 border-t border-gray-700 space-y-1">
