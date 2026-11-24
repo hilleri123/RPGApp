@@ -38,7 +38,8 @@ export function MoveResolutionCard({
   const [open, setOpen] = useState(false);
   const isPartial = data.outcome === 'hit_7_9';
   const isMiss = data.outcome === 'miss_6_minus' || data.outcome === 'miss';
-  const rolledText = isPartial ? data.effect79 : isMiss ? data.effect6Minus : null;
+  const isStrong = data.outcome === 'hit_10_plus';
+  const rolledText = isPartial ? data.effect79 : isMiss ? data.effect6Minus : isStrong ? data.effect10Plus : null;
 
   const rollBits = [
     data.statId ? data.statId.toUpperCase() : null,
@@ -95,8 +96,14 @@ export function MoveResolutionCard({
         </div>
       )}
 
-      {!open && isMiss && rolledText && (
+      {!open && (isMiss || isStrong) && rolledText && (
         <div className="text-sm text-white/75 whitespace-pre-wrap">{rolledText}</div>
+      )}
+
+      {/* Общий текст хода (траты запаса, список характеристик, правила роли) —
+          чтобы не открывать книгу и не раскрывать карточку. */}
+      {!open && data.outcome && data.effect && (
+        <div className="text-xs text-white/55 whitespace-pre-wrap">{data.effect}</div>
       )}
 
       {open && (

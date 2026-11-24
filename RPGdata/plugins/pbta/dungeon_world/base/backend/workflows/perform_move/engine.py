@@ -16,23 +16,10 @@ from .helpers import iter_move_grants
 from .types import DamageClaim, ResourceDraft
 
 
-_MOVE_7_9_OPTIONS: dict[str, list[tuple[str, str]]] = {
-    "go_aggro": [
-        ("take_damage", "Получить урон в ответ"),
-        ("lose_position", "Потерять позицию"),
-        ("make_noise", "Создать шум"),
-    ],
-    "shoot_at": [
-        ("extra_ammo", "Потратить лишний патрон"),
-        ("hit_witness", "Задеть случайного свидетеля"),
-        ("reveal_position", "Раскрыть позицию"),
-    ],
-    "act_under_fire": [
-        ("take_damage", "Получить урон"),
-        ("sacrifice", "Пожертвовать чем-то важным"),
-        ("new_problem", "Создать новую проблему"),
-    ],
-}
+# Списки вариантов 7–9 живут в тексте хода (effect_7_9), как в книге: его видно
+# и при объявлении хода, и в карточке результата. Прежние варианты здесь были
+# придуманы («Создать шум», «Задеть свидетеля») и показывались как правила.
+_MOVE_7_9_OPTIONS: dict[str, list[tuple[str, str]]] = {}
 
 
 _DAMAGE_RE = re.compile(r"^\s*(?:(\d*)d(\d+))\s*(?:([+-])\s*(\d+))?\s*$")
