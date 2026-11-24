@@ -81,3 +81,22 @@ def test_multiclass_dabbler_only_where_the_book_has_it(codex):
 
 def test_no_evade_basic_move(codex):
     assert "evade" not in codex.moves.moves_map()
+
+
+@pytest.mark.parametrize(
+    ("move_id", "field", "fragment"),
+    [
+        ("read_situation", "effect_10_plus", "Что здесь не то, чем кажется?"),
+        ("read_situation", "effect_7_9", "Кто здесь на самом деле главный?"),
+        ("shoot_at", "effect_7_9", "боезапас падает на 1"),
+        ("defend", "effect", "Нанести атакующему урон, равный вашему уровню."),
+        ("act_under_fire", "effect", "...силы духа — бросьте+МДР."),
+        ("carouse", "effect_7_9", "многообещающие слухи"),
+        ("recruit", "trigger", "доля найденной добычи"),
+        ("undertake_journey", "effect_10_plus", "разведчик замечает опасность"),
+        ("outstanding_warrants", "effect_7_9", "награду за вашу голову"),
+        ("last_breath", "effect_6_minus", "Метка Смерти"),
+    ],
+)
+def test_basic_moves_carry_the_book_lists(codex, move_id, field, fragment):
+    assert fragment in getattr(codex.moves.moves_map()[move_id], field)

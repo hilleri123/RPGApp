@@ -27,7 +27,7 @@ export function DWMoveTooltip({ move, isBasic }: { move: Move; isBasic: boolean 
       </div>
 
       {move.trigger && (
-        <div className="text-gray-400 italic">«{move.trigger}»</div>
+        <div className="text-gray-400 italic whitespace-pre-line">«{move.trigger}»</div>
       )}
 
       {(move.available_stats?.length ?? 0) > 1 && (
@@ -37,25 +37,25 @@ export function DWMoveTooltip({ move, isBasic }: { move: Move; isBasic: boolean 
       )}
 
       {move.effect && (
-        <div className="text-gray-300">{move.effect}</div>
+        <div className="text-gray-300 whitespace-pre-line">{move.effect}</div>
       )}
 
       {hasRoll && (
         <>
           {move.effect_10_plus && (
-            <div>
+            <div className="whitespace-pre-line">
               <span className="text-emerald-400 font-semibold">10+ </span>
               <span className="text-gray-300">{move.effect_10_plus}</span>
             </div>
           )}
           {move.effect_7_9 && (
-            <div>
+            <div className="whitespace-pre-line">
               <span className="text-yellow-400 font-semibold">7–9 </span>
               <span className="text-gray-300">{move.effect_7_9}</span>
             </div>
           )}
           {move.effect_6_minus && (
-            <div>
+            <div className="whitespace-pre-line">
               <span className="text-red-400 font-semibold">6− </span>
               <span className="text-gray-300">{move.effect_6_minus}</span>
             </div>

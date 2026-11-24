@@ -172,23 +172,30 @@ def test_attacks_to_damage_claims_half_damage():
     assert claims[0].formula == "d10"
 
 
-def test_resolve_go_aggro_7_9_choice():
+def test_resolve_go_aggro_7_9_has_no_invented_choice():
+    # По книге на 7–9 «Руби и кромсай» выбора нет: противник атакует в ответ.
     codex = FullCodex()
     move = codex.moves.moves_map()["go_aggro"]
     effects, choices, logs = resolve_dw_move_outcome(move, "hit_7_9")
-    assert choices
-    assert choices[0].choose == 1
-    assert len(choices[0].options) == 3
+    assert choices == []
+    assert any("атакует вас" in line for line in logs)
 
 
 def test_expand_dw_choice_effects_logs():
+    from plugins.pbta.base.backend.workflows.perform_move.types import ChoiceOption, PendingChoice
+
     codex = FullCodex()
-    move = codex.moves.moves_map()["go_aggro"]
-    _, choices, _ = resolve_dw_move_outcome(move, "hit_7_9")
+    move = codex.moves.moves_map()["shoot_at"]
+    pending = PendingChoice(
+        id="shoot_at_7_9",
+        kind="player_choice",
+        choose=1,
+        options=[ChoiceOption(id="weak_shot", label="−1к6 урона")],
+    )
     effects, logs = expand_dw_choice_effects(
         move=move,
-        pending=choices[0],
-        chosen_ids=[choices[0].options[0].id],
+        pending=pending,
+        chosen_ids=["weak_shot"],
         target_kind="npc",
         target_character_id=None,
         target_npc_id="n1",
